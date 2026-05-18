@@ -1,28 +1,39 @@
-# Ignore environment variables
-.env
-.env.*
-!.env.example
-
-# Ignore specific files
-FLOW.md
-
-# Node modules
+# Dependency directories
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
+backend/node_modules/
+frontend/node_modules/
 
 # Build outputs
 dist/
 build/
-out/
+backend/dist/
+frontend/dist/
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# Environment files
+.env
+.env.*
+!.env.example
+*.env
+backend/.env
+frontend/.env
+backend/.env.local
+frontend/.env.local
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# Project specific ignores
+FLOW.md
