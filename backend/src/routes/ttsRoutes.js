@@ -95,34 +95,21 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// Helper function to call Youdao or Google TTS securely server-side
 function fallbackToFreeProxy(text, langCode, res, next) {
-  // Use Youdao as primary proxy as it has superb response speed and no limits
-  const isVi = langCode === 'vi';
-  const youdaoUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=${langCode === 'en' ? 'eng' : langCode}`;
-  
-  // Use Google Translate TTS as backup
+  // Always use Google Translate TTS for all languages as requested by the user
   const googleUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${langCode}&client=tw-ob&q=${encodeURIComponent(text)}`;
 
-  console.log(`TTS Server Proxy: Routing request for [${langCode}] using Youdao TTS...`);
+  console.log(`TTS Server Proxy: Routing request for [${langCode}] using Google Translate TTS...`);
 
-  const requestUrl = isVi ? youdaoUrl : googleUrl; // Youdao has amazing Vietnamese accents
+  const requestUrl = googleUrl;
 
   https.get(requestUrl, (apiRes) => {
     if (apiRes.statusCode === 200) {
       res.setHeader('Content-Type', 'audio/mpeg');
       return apiRes.pipe(res);
     } else {
-      console.warn(`Primary proxy failed (${apiRes.statusCode}), falling back to Google Translate...`);
-      // Try Google Translate
-      https.get(googleUrl, (googleRes) => {
-        if (googleRes.statusCode === 200) {
-          res.setHeader('Content-Type', 'audio/mpeg');
-          return googleRes.pipe(res);
-        } else {
-          return res.status(500).json({ message: 'Tất cả các cổng TTS đám mây đều bận. Vui lòng thử lại sau.' });
-        }
-      }).on('error', (err) => next(err));
+      console.error(`Google Translate TTS returned status: ${apiRes.statusCode}`);
+      return res.status(500).json({ message: 'Không thể tạo giọng nói từ Google Translate. Vui lòng thử lại sau.' });
     }
   }).on('error', (err) => {
     console.error('Server-side TTS proxy failed:', err);
