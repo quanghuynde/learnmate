@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 const Document = require('../models/Document');
 
@@ -21,17 +21,13 @@ const createDocument = async (req, res) => {
       return res.status(400).json({ message: 'Vui long chon file de tai len' });
     }
 
-    const ext = path.extname(req.file.originalname).toLowerCase();
-    const typeMap = { '.pdf': 'pdf', '.docx': 'docx', '.pptx': 'pptx' };
-    const type = typeMap[ext];
-
-    if (!type) {
-      return res.status(400).json({ message: 'Dinh dang file khong duoc ho tro' });
-    }
+    const originalNameUtf8 = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    const ext = path.extname(originalNameUtf8).toLowerCase();
+    const type = ext ? ext.replace('.', '') : 'unknown';
 
     const doc = await Document.create({
       user: req.user.id,
-      name: req.file.originalname,
+      name: originalNameUtf8,
       type,
       pages: 0,
       fileUrl: `/uploads/documents/${req.file.filename}`,

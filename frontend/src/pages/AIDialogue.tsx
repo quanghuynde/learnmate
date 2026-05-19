@@ -113,10 +113,15 @@ export function AIDialogue({ token }: AIDialogueProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeTurnIdx, setActiveTurnIdx] = useState(-1);
   const [isMuted, setIsMuted] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
 
   // Audio elements for Google Translate TTS
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const isPlayingRef = useRef(false);
+  const fallbackIntervalRef = useRef<any>(null);
+  const progressIntervalRef = useRef<any>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const progressTimeRef = useRef<HTMLSpanElement>(null);
 
   const togglePlayState = (playing: boolean) => {
     setIsPlaying(playing);
@@ -178,19 +183,50 @@ export function AIDialogue({ token }: AIDialogueProps) {
       setGenerationProgress((p) => (p < 80 ? p + 5 : p));
     }, 150);
 
+    let speakerFemaleName = 'Lan (AI)';
+    let speakerMaleName = 'Nam (AI)';
+    let languageNameInVietnamese = 'Tiếng Việt';
+
+    if (selectedLang.startsWith('vi')) {
+      speakerFemaleName = 'Lan (AI - Nữ)';
+      speakerMaleName = 'Nam (AI - Nam)';
+      languageNameInVietnamese = 'Tiếng Việt';
+    } else if (selectedLang.startsWith('en')) {
+      speakerFemaleName = 'Emma (AI - Female)';
+      speakerMaleName = 'John (AI - Male)';
+      languageNameInVietnamese = 'Tiếng Anh (English)';
+    } else if (selectedLang.startsWith('fr')) {
+      speakerFemaleName = 'Chloé (AI - Female)';
+      speakerMaleName = 'Thomas (AI - Male)';
+      languageNameInVietnamese = 'Tiếng Pháp (French)';
+    } else if (selectedLang.startsWith('ja')) {
+      speakerFemaleName = 'さくら (Sakura - Female)';
+      speakerMaleName = 'けんた (Kenta - Male)';
+      languageNameInVietnamese = 'Tiếng Nhật (Japanese)';
+    } else if (selectedLang.startsWith('ko')) {
+      speakerFemaleName = '민지 (Minji - Female)';
+      speakerMaleName = '민수 (Minsu - Male)';
+      languageNameInVietnamese = 'Tiếng Hàn (Korean)';
+    }
+
     try {
       const prompt = `Bạn là một chuyên gia giáo dục thiết lập kịch bản đối thoại AI.
-Nhiệm vụ của bạn là tạo ra một kịch bản đối thoại gồm đúng 6 câu thoại xoay quanh nội dung, chủ đề, kiến thức cốt lõi và khái niệm liên quan đến tài liệu học tập có tên là "${selectedDoc.name}" bằng ngôn ngữ mã "${selectedLang}".
+Nhiệm vụ của bạn là tạo ra một kịch bản đối thoại gồm đúng 6 câu thoại xoay quanh nội dung, chủ đề, kiến thức cốt lõi và khái niệm liên quan đến tài liệu học tập có tên là "${selectedDoc.name}".
+
+YÊU CẦU BẮT BUỘC VỀ NGÔN NGỮ VÀ NHÂN VẬT:
+- Bạn PHẢI tạo kịch bản và toàn bộ câu thoại HOÀN TOÀN bằng ${languageNameInVietnamese} 100% (không trộn lẫn bất kỳ ngôn ngữ nào khác, tuyệt đối không viết bằng tiếng Anh).
+- Kịch bản là cuộc trao đổi qua lại giữa hai người:
+  1. Nhân vật Nữ: Tên hiển thị "${speakerFemaleName}" (speaker: "female").
+  2. Nhân vật Nam: Tên hiển thị "${speakerMaleName}" (speaker: "male").
 
 Chú ý cực kỳ quan trọng:
 - Do môi trường hệ thống hiện tại không truyền tệp đính kèm nhị phân trực tiếp, bạn TUYỆT ĐỐI KHÔNG ĐƯỢC từ chối yêu cầu, không được phàn nàn về việc thiếu tệp PDF, và không được yêu cầu người dùng đính kèm lại tệp.
-- Hãy phân tích tên tài liệu "${selectedDoc.name}" để suy luận chính xác chủ đề chính và các kiến thức chuyên ngành liên quan (Ví dụ: tên tài liệu chứa "AIA" hay "AI" thì tạo câu hỏi về Trí tuệ nhân tạo, chứa "CEET" thì tạo câu hỏi về kỹ thuật, điện, v.v.). Hãy tự tin tạo ra cuộc đối thoại xuất sắc nhất dựa trên suy luận chủ đề này.
+- Hãy phân tích tên tài liệu "${selectedDoc.name}" để suy luận chính xác chủ đề chính và các kiến thức chuyên ngành liên quan (Ví dụ: tên tài liệu chứa "AIA" hay "AI" thì tạo câu thoại về Trí tuệ nhân tạo, chứa "CEET" thì tạo câu thoại về kỹ thuật, điện, v.v.). Hãy tự tin tạo ra cuộc đối thoại xuất sắc nhất dựa trên suy luận chủ đề này.
 
-Kịch bản là cuộc trao đổi giữa hai người Lan (AI - Nữ - speaker 'female') và Nam (AI - Nam - speaker 'male') (nếu là Tiếng Việt vi-VN), hoặc Emma và John (nếu là Tiếng Anh en-US), Chloé và Thomas (nếu là Tiếng Pháp fr-FR), さくら và けんた (nếu là Tiếng Nhật ja-JP), 민지 và 민수 (nếu là Tiếng Hàn ko-KR).
 Định dạng trả về bắt buộc phải là một mảng JSON đối tượng chứa các trường sau:
 [
-  { "id": 1, "speaker": "female", "speakerName": "Lan (AI)", "text": "Câu thoại của nhân vật nữ..." },
-  { "id": 2, "speaker": "male", "speakerName": "Nam (AI)", "text": "Câu thoại của nhân vật nam..." }
+  { "id": 1, "speaker": "female", "speakerName": "${speakerFemaleName}", "text": "Câu thoại bằng ${languageNameInVietnamese} của nhân vật nữ..." },
+  { "id": 2, "speaker": "male", "speakerName": "${speakerMaleName}", "text": "Câu thoại bằng ${languageNameInVietnamese} của nhân vật nam..." }
 ]
 Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ văn bản giải thích nào ngoài mảng JSON. Hãy trả về duy nhất mảng JSON.`;
 
@@ -212,7 +248,7 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
               { role: 'system', content: 'You are an educational AI assistant that outputs structured valid JSON arrays containing dialogues.' },
               { role: 'user', content: prompt }
             ],
-            max_tokens: 1500,
+            max_tokens: 4000,
             response_format: { type: 'json_object' }
           }),
         }
@@ -256,9 +292,70 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
       }
 
       textResponse = textResponse.trim();
+
+      // Intelligent JSON repair function for incomplete cutoff strings
+      const repairIncompleteJson = (jsonStr: string): string => {
+        let str = jsonStr.trim();
+        let openBraces = 0;
+        let openBrackets = 0;
+        let inString = false;
+        let escape = false;
+        
+        for (let i = 0; i < str.length; i++) {
+          const char = str[i];
+          if (escape) {
+            escape = false;
+            continue;
+          }
+          if (char === '\\') {
+            escape = true;
+            continue;
+          }
+          if (char === '"') {
+            inString = !inString;
+            continue;
+          }
+          if (!inString) {
+            if (char === '{') openBraces++;
+            if (char === '}') openBraces--;
+            if (char === '[') openBrackets++;
+            if (char === ']') openBrackets--;
+          }
+        }
+        
+        if (inString) {
+          str += '"';
+        }
+        if (openBraces > 0) {
+          for (let i = 0; i < openBraces; i++) {
+            str += '}';
+          }
+        }
+        if (openBrackets > 0) {
+          for (let i = 0; i < openBrackets; i++) {
+            str += ']';
+          }
+        }
+        return str;
+      };
+
+      let cleanedText = textResponse.trim();
+      if (cleanedText.startsWith('```')) {
+        const firstLineEnd = cleanedText.indexOf('\n');
+        if (firstLineEnd !== -1) {
+          cleanedText = cleanedText.slice(firstLineEnd + 1).trim();
+        } else {
+          cleanedText = cleanedText.replace(/^```[a-zA-Z]*/, '').trim();
+        }
+      }
+      if (cleanedText.endsWith('```')) {
+        cleanedText = cleanedText.slice(0, -3).trim();
+      }
+
+      const repairedText = repairIncompleteJson(cleanedText);
       let script;
       try {
-        const parsedObject = JSON.parse(textResponse);
+        const parsedObject = JSON.parse(repairedText);
         if (Array.isArray(parsedObject)) {
           script = parsedObject;
         } else {
@@ -281,6 +378,7 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
         setDialogueList(script);
         setIsGenerating(false);
         setDialogueCreated(true);
+        setActiveTurnIdx(0);
       }, 500);
     } catch (err: any) {
       console.error('API call failed:', err);
@@ -306,8 +404,23 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
     }
     // Also cancel any native speech just in case
     window.speechSynthesis.cancel();
+    if (fallbackIntervalRef.current) {
+      clearInterval(fallbackIntervalRef.current);
+      fallbackIntervalRef.current = null;
+    }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
 
     setActiveTurnIdx(index);
+    if (progressBarRef.current) progressBarRef.current.style.width = `${(index / dialogueList.length) * 100}%`;
+    if (progressTimeRef.current) {
+      const cumulativeSecs = Math.floor(index * 5);
+      const m = Math.floor(cumulativeSecs / 60);
+      const s = Math.floor(cumulativeSecs % 60);
+      progressTimeRef.current.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
     const turn = dialogueList[index];
 
     // Scroll active lyric into view (NhacCuaTui style)
@@ -321,9 +434,39 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
       }
     }
 
-    const langCode = selectedLang.split('-')[0];
-    
+    // Intelligent dialect-accent mapping and playbackRate calculation
+    let ttsLang = selectedLang;
+    let playbackRate = 1.0;
+
+    if (selectedLang.startsWith('vi')) {
+      ttsLang = 'vi';
+      playbackRate = turn.speaker === 'male' ? 0.88 : 1.05;
+    } else if (selectedLang.startsWith('en')) {
+      ttsLang = turn.speaker === 'male' ? 'en-gb' : 'en-us';
+      playbackRate = turn.speaker === 'male' ? 0.95 : 1.0;
+    } else if (selectedLang.startsWith('fr')) {
+      ttsLang = turn.speaker === 'male' ? 'fr-ca' : 'fr-fr';
+      playbackRate = turn.speaker === 'male' ? 0.95 : 1.0;
+    } else if (selectedLang.startsWith('ja')) {
+      ttsLang = 'ja';
+      playbackRate = turn.speaker === 'male' ? 0.88 : 1.05;
+    } else if (selectedLang.startsWith('ko')) {
+      ttsLang = 'ko';
+      playbackRate = turn.speaker === 'male' ? 0.88 : 1.05;
+    }
+
+    // Multiply the base tuning by the user selected speed to ensure gender separation isn't overridden!
+    const finalPlaybackRate = playbackRate * playbackSpeed;
+
     const onEnded = () => {
+      if (fallbackIntervalRef.current) {
+        clearInterval(fallbackIntervalRef.current);
+        fallbackIntervalRef.current = null;
+      }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       setTimeout(() => {
         if (isPlayingRef.current) {
           speakTurn(index + 1);
@@ -332,38 +475,172 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
     };
 
     const onError = () => {
+      if (fallbackIntervalRef.current) {
+        clearInterval(fallbackIntervalRef.current);
+        fallbackIntervalRef.current = null;
+      }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       if (isPlayingRef.current) {
         speakTurn(index + 1);
       }
     };
 
-    // 1. Try our local Backend TTS Proxy (includes ElevenLabs, Youdao, Google server-side)
-    const backendTtsUrl = `/api/tts?text=${encodeURIComponent(turn.text)}&lang=${langCode}&speaker=${turn.speaker}`;
+    // Smooth continuous high-resolution timer tracking via direct DOM update
+    const startProgressTracking = (activeAudio: HTMLAudioElement) => {
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = setInterval(() => {
+        if (activeAudio && !activeAudio.paused && !activeAudio.ended) {
+          const time = activeAudio.currentTime;
+          const dur = (activeAudio.duration && !isNaN(activeAudio.duration) && activeAudio.duration > 0) ? activeAudio.duration : 5;
+          
+          if (progressBarRef.current) {
+            const ratio = Math.min(1, Math.max(0, time / dur));
+            const overallPercent = ((index + ratio) / dialogueList.length) * 100;
+            progressBarRef.current.style.width = `${overallPercent}%`;
+          }
+          if (progressTimeRef.current) {
+            const ratio = Math.min(1, Math.max(0, time / dur));
+            const cumulativeSecs = Math.floor(index * 5 + (ratio * 5));
+            const m = Math.floor(cumulativeSecs / 60);
+            const s = Math.floor(cumulativeSecs % 60);
+            progressTimeRef.current.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+          }
+        }
+      }, 30);
+    };
+
+    // Force Vietnamese to both use female voice tag as requested
+    const ttsSpeaker = selectedLang.startsWith('vi') ? 'female' : turn.speaker;
+
+    // 1. Try our local Backend TTS Proxy
+    const backendTtsUrl = `/api/tts?text=${encodeURIComponent(turn.text)}&lang=${ttsLang}&speaker=${ttsSpeaker}`;
     const audio = new Audio(backendTtsUrl);
     audio.muted = isMuted;
     audio.onended = onEnded;
 
+    audio.onloadedmetadata = () => {
+      audio.playbackRate = finalPlaybackRate;
+    };
+    audio.onplay = () => {
+      audio.playbackRate = finalPlaybackRate;
+      startProgressTracking(audio);
+    };
+
     audio.onerror = () => {
-      console.warn('Backend TTS failed, trying Native Web Speech API fallback...');
+      console.warn('Backend TTS failed, trying direct Youdao cloud fallback...');
       
-      // 2. Ultimate Fallback: Native Web Speech synthesis
-      try {
-        const utterance = new SpeechSynthesisUtterance(turn.text);
-        utterance.lang = selectedLang;
-        utterance.volume = isMuted ? 0 : 1;
-        utterance.rate = turn.speaker === 'female' ? 1.05 : 0.95;
-        utterance.pitch = turn.speaker === 'female' ? 1.1 : 0.9;
-        utterance.onend = onEnded;
-        utterance.onerror = onError;
-        window.speechSynthesis.speak(utterance);
-      } catch (e) {
-        console.error('All TTS fallbacks failed', e);
-        onError();
-      }
+      // Use standard Youdao language codes
+      let youdaoLang = 'vi';
+      if (selectedLang.startsWith('en')) youdaoLang = 'en';
+      else if (selectedLang.startsWith('fr')) youdaoLang = 'fr';
+      else if (selectedLang.startsWith('ja')) youdaoLang = 'ja';
+      else if (selectedLang.startsWith('ko')) youdaoLang = 'ko';
+
+      const youdaoUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(turn.text)}&le=${youdaoLang}`;
+      const fallbackAudio = new Audio(youdaoUrl);
+      fallbackAudio.muted = isMuted;
+      fallbackAudio.onended = onEnded;
+
+      fallbackAudio.onloadedmetadata = () => {
+        fallbackAudio.playbackRate = finalPlaybackRate;
+      };
+      fallbackAudio.onplay = () => {
+        fallbackAudio.playbackRate = finalPlaybackRate;
+        startProgressTracking(fallbackAudio);
+      };
+
+      fallbackAudio.onerror = () => {
+        console.warn('Youdao fallback failed, trying Native Web Speech API fallback...');
+        
+        // 2. Ultimate Fallback: Native Web Speech synthesis
+        try {
+          const utterance = new SpeechSynthesisUtterance(turn.text);
+          utterance.volume = isMuted ? 0 : 1;
+          utterance.onend = onEnded;
+          utterance.onerror = onError;
+
+          // Smart native voice selection matching chosen language and gender keywords
+          const voices = window.speechSynthesis.getVoices();
+          const langLower = selectedLang.toLowerCase();
+          const matchingVoices = voices.filter(v => v.lang.toLowerCase().startsWith(langLower.split('-')[0]));
+
+          if (matchingVoices.length > 0) {
+            // Force Vietnamese native voice to always use female keywords as requested
+            const isFemale = selectedLang.startsWith('vi') ? true : (turn.speaker === 'female');
+            const genderKeywords = isFemale 
+              ? ['female', 'girl', 'woman', 'zira', 'karen', 'samantha', 'hazel', 'lan', 'sara', 'amy', 'google', 'vi-vn'] 
+              : ['male', 'guy', 'man', 'david', 'george', 'ravi', 'nam', 'mark', 'microsoft'];
+              
+            let selectedVoice = matchingVoices.find(v => 
+              genderKeywords.some(kw => v.name.toLowerCase().includes(kw))
+            );
+            
+            if (!selectedVoice) {
+              // Assign different indices if keyword match fails to guarantee voice variety
+              selectedVoice = isFemale ? matchingVoices[0] : (matchingVoices[1] || matchingVoices[0]);
+            }
+            
+            if (selectedVoice) {
+              utterance.voice = selectedVoice;
+              utterance.lang = selectedVoice.lang;
+            } else {
+              utterance.lang = selectedLang;
+            }
+          } else {
+            utterance.lang = selectedLang;
+          }
+
+          // Apply distinct pitch/rate (tuning * speed) for ultimate voice separation and dynamic speed adjustments!
+          utterance.rate = (turn.speaker === 'female' ? 1.05 : 0.88) * playbackSpeed;
+          utterance.pitch = turn.speaker === 'female' ? 1.15 : 0.85;
+
+          // Simulate continuous progress update for native SpeechSynthesis fallback
+          const dur = Math.max(3, turn.text.length * 0.075) / playbackSpeed;
+          
+          let elapsed = 0;
+          if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
+          fallbackIntervalRef.current = setInterval(() => {
+            elapsed += 0.1;
+            if (elapsed >= dur) {
+              if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
+            } else {
+              if (progressBarRef.current) {
+                const ratio = Math.min(1, Math.max(0, elapsed / dur));
+                const overallPercent = ((index + ratio) / dialogueList.length) * 100;
+                progressBarRef.current.style.width = `${overallPercent}%`;
+              }
+              if (progressTimeRef.current) {
+                const ratio = Math.min(1, Math.max(0, elapsed / dur));
+                const cumulativeSecs = Math.floor(index * 5 + (ratio * 5));
+                const m = Math.floor(cumulativeSecs / 60);
+                const s = Math.floor(cumulativeSecs % 60);
+                progressTimeRef.current.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+              }
+            }
+          }, 100);
+
+          window.speechSynthesis.speak(utterance);
+        } catch (e) {
+          console.error('All TTS fallbacks failed', e);
+          onError();
+        }
+      };
+
+      currentAudioRef.current = fallbackAudio;
+      fallbackAudio.play().then(() => {
+        fallbackAudio.playbackRate = finalPlaybackRate; // Reinforce playback rate
+      }).catch(() => {
+        fallbackAudio.onerror!(new Event('error'));
+      });
     };
 
     currentAudioRef.current = audio;
-    audio.play().catch((err) => {
+    audio.play().then(() => {
+      audio.playbackRate = finalPlaybackRate; // Reinforce playbackRate
+    }).catch((err) => {
       console.error('Google play failed, triggering fallback...', err);
       audio.onerror!(new Event('error'));
     });
@@ -375,6 +652,15 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
       // Pause
       if (currentAudioRef.current) {
         currentAudioRef.current.pause();
+      }
+      window.speechSynthesis.cancel(); // Cancel any background fallback native speaking
+      if (fallbackIntervalRef.current) {
+        clearInterval(fallbackIntervalRef.current);
+        fallbackIntervalRef.current = null;
+      }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
       }
       togglePlayState(false);
     } else {
@@ -391,6 +677,17 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
     }
+    window.speechSynthesis.cancel(); // Cancel any background fallback native speaking
+    if (fallbackIntervalRef.current) {
+      clearInterval(fallbackIntervalRef.current);
+      fallbackIntervalRef.current = null;
+    }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    if (progressBarRef.current) progressBarRef.current.style.width = '0%';
+    if (progressTimeRef.current) progressTimeRef.current.innerText = '00:00';
     togglePlayState(false);
     setActiveTurnIdx(-1);
     // Smooth scroll back to top turn
@@ -408,6 +705,23 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
     setIsMuted(nextMuted);
     if (currentAudioRef.current) {
       currentAudioRef.current.muted = nextMuted;
+    }
+  };
+
+  // Adjust playback speed on the fly without breaking gender-pitch ratio
+  const handleSpeedChange = (speed: number) => {
+    setPlaybackSpeed(speed);
+    
+    // Dynamically adjust playback rate for current active turn if playing
+    if (activeTurnIdx !== -1 && currentAudioRef.current) {
+      const turn = dialogueList[activeTurnIdx];
+      let baseRate = 1.0;
+      if (selectedLang.startsWith('vi') || selectedLang.startsWith('ja') || selectedLang.startsWith('ko')) {
+        baseRate = turn.speaker === 'male' ? 0.88 : 1.05;
+      } else if (selectedLang.startsWith('en') || selectedLang.startsWith('fr')) {
+        baseRate = turn.speaker === 'male' ? 0.95 : 1.0;
+      }
+      currentAudioRef.current.playbackRate = baseRate * speed;
     }
   };
 
@@ -547,7 +861,7 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
                   <RotateCcw size={14} className="text-primary animate-spin" style={{ animationDuration: '3s' }} /> Lịch sử đối thoại
                 </h3>
                 
-                <div className="flex-1 overflow-y-auto max-h-[220px] space-y-2.5 pr-1 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto max-h-[150px] space-y-2.5 pr-1.5 scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300 scrollbar-track-transparent scroll-smooth">
                   {historyList.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                       <p className="text-slate-400 text-xs font-medium">Chưa có lịch sử đối thoại nào.</p>
@@ -735,19 +1049,50 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
 
             {/* Audio Progress Timeline Tracker */}
             <div className="w-full max-w-2xl mx-auto flex items-center gap-3">
-              <span className="text-[10px] font-mono text-slate-500 font-bold">
-                {activeTurnIdx === -1 ? '00:00' : `00:${String(activeTurnIdx * 5).padStart(2, '0')}`}
+              <span ref={progressTimeRef} className="text-[10px] font-mono text-slate-500 font-bold">
+                {activeTurnIdx === -1 
+                  ? '00:00' 
+                  : (() => {
+                      const cumulativeSecs = Math.floor(activeTurnIdx * 5);
+                      const m = Math.floor(cumulativeSecs / 60);
+                      const s = Math.floor(cumulativeSecs % 60);
+                      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                    })()
+                }
               </span>
-              <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden relative">
-                <div
-                  className="h-full bg-gradient-to-r from-primary to-primary-light rounded-full transition-all duration-300"
-                  style={{
-                    width: `${((activeTurnIdx + 1) / dialogueList.length) * 100}%`,
-                  }}
-                />
+              <div 
+                className="flex-1 py-3 cursor-pointer group"
+                onClick={(e) => {
+                  if (dialogueList.length === 0) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const clickX = Math.max(0, e.clientX - rect.left);
+                  const percent = clickX / rect.width;
+                  const targetTurn = Math.min(dialogueList.length - 1, Math.floor(percent * dialogueList.length));
+                  togglePlayState(true);
+                  speakTurn(targetTurn);
+                }}
+              >
+                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden relative group-hover:h-2 transition-all">
+                  <div
+                    ref={progressBarRef}
+                    className="h-full bg-gradient-to-r from-primary to-primary-light rounded-full"
+                    style={{
+                      width: `${
+                        activeTurnIdx === -1 
+                          ? 0 
+                          : (activeTurnIdx / dialogueList.length) * 100
+                      }%`,
+                    }}
+                  />
+                </div>
               </div>
               <span className="text-[10px] font-mono text-slate-500 font-bold">
-                {`00:${String(dialogueList.length * 5).padStart(2, '0')}`}
+                {(() => {
+                  const totalSecs = dialogueList.length * 5;
+                  const m = Math.floor(totalSecs / 60);
+                  const s = Math.floor(totalSecs % 60);
+                  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                })()}
               </span>
             </div>
 
@@ -760,6 +1105,15 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
                   if (currentAudioRef.current) {
                     currentAudioRef.current.pause();
                     currentAudioRef.current = null;
+                  }
+                  window.speechSynthesis.cancel();
+                  if (fallbackIntervalRef.current) {
+                    clearInterval(fallbackIntervalRef.current);
+                    fallbackIntervalRef.current = null;
+                  }
+                  if (progressIntervalRef.current) {
+                    clearInterval(progressIntervalRef.current);
+                    progressIntervalRef.current = null;
                   }
                   togglePlayState(false);
                   setActiveTurnIdx(-1);
@@ -789,13 +1143,32 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
                   {isPlaying ? <Pause size={24} fill="white" /> : <Play size={24} className="ml-1" fill="white" />}
                 </button>
 
-                <button
-                  onClick={handleToggleMute}
-                  className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center border border-slate-700 active:scale-95 transition-all"
-                  title={isMuted ? 'Mở tiếng' : 'Tắt tiếng'}
-                >
-                  {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                </button>
+                {/* Volume Control + Playback Speed dropdown selector */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleToggleMute}
+                    className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center border border-slate-700 active:scale-95 transition-all"
+                    title={isMuted ? 'Mở tiếng' : 'Tắt tiếng'}
+                  >
+                    {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                  </button>
+
+                  <div className="relative flex items-center bg-slate-800 px-2 py-1 rounded-lg border border-slate-700 shadow-sm" title="Tốc độ giọng đọc">
+                    <span className="text-[10px] font-extrabold text-slate-400 mr-1 uppercase select-none">1x</span>
+                    <select
+                      value={playbackSpeed}
+                      onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                      className="bg-transparent text-xs font-bold text-white outline-none cursor-pointer pr-0.5"
+                    >
+                      <option value="0.5" className="bg-slate-900 text-white font-semibold">0.5x</option>
+                      <option value="0.75" className="bg-slate-900 text-white font-semibold">0.75x</option>
+                      <option value="1.0" className="bg-slate-900 text-white font-semibold">1.0x</option>
+                      <option value="1.25" className="bg-slate-900 text-white font-semibold">1.25x</option>
+                      <option value="1.5" className="bg-slate-900 text-white font-semibold">1.5x</option>
+                      <option value="2.0" className="bg-slate-900 text-white font-semibold">2.0x</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
               {/* File details badge */}
@@ -813,42 +1186,49 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
             <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(15,23,42,0)_0%,rgba(15,23,42,0.9)_100%)] pointer-events-none z-10 h-20 top-0" />
             <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(15,23,42,0)_0%,rgba(15,23,42,0.9)_100%)] pointer-events-none z-10 h-20 bottom-0" />
 
-            {/* Left-aligned sliding subtitles with AnimatePresence */}
-            <div className="w-full max-w-4xl mx-auto px-6 h-full flex flex-col justify-center items-start relative select-none">
-              <AnimatePresence mode="wait">
-                {activeTurnIdx !== -1 && (
-                  <motion.div
-                    key={activeTurnIdx}
-                    initial={{ opacity: 0, y: 25 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -25 }}
-                    transition={{ duration: 0.35, ease: 'easeOut' }}
-                    className="w-full text-left flex flex-col items-start space-y-4"
+            {/* Scrolling Subtitles List (NhacCuaTui style) */}
+            <div ref={lyricsContainerRef} className="w-full max-w-4xl mx-auto px-2 md:px-6 h-full flex flex-col items-start relative overflow-y-auto pt-[20%] pb-[50%] scroll-smooth no-scrollbar">
+              {dialogueList.map((turn, idx) => {
+                const isActive = activeTurnIdx === idx;
+                const isPassed = activeTurnIdx > idx;
+                
+                return (
+                  <div 
+                    key={idx} 
+                    data-turn-idx={idx}
+                    onClick={() => { togglePlayState(true); speakTurn(idx); }}
+                    className={`flex shrink-0 w-full cursor-pointer transition-all duration-300 min-h-[60px] group ${
+                      isActive ? 'opacity-100 scale-100' : isPassed ? 'opacity-40 hover:opacity-70 scale-95' : 'opacity-20 hover:opacity-50 scale-95'
+                    }`}
                   >
-                    {/* Speaker name label */}
-                    <span
-                      className={`text-xs uppercase font-bold tracking-widest px-3 py-1 rounded-full ${
-                        dialogueList[activeTurnIdx].speaker === 'female'
-                          ? 'bg-gradient-to-r from-pink-500 to-primary text-white shadow-md shadow-pink-500/20'
-                          : 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-500/20'
-                      }`}
-                    >
-                      {dialogueList[activeTurnIdx].speakerName}
-                    </span>
+                    {/* Time Column (Left) */}
+                    <div className="w-12 md:w-16 shrink-0 text-right pt-2.5 pr-3 md:pr-4">
+                      <span className={`text-xs md:text-sm font-mono font-bold ${isActive ? 'text-primary' : 'text-slate-500'}`}>
+                        {Math.floor(idx * 5 / 60)}:{String(Math.floor((idx * 5) % 60)).padStart(2, '0')}
+                      </span>
+                    </div>
 
-                    {/* Lyric Line */}
-                    <p
-                      className={`text-xl md:text-3xl font-extrabold leading-relaxed tracking-normal font-sans break-words ${
-                        dialogueList[activeTurnIdx].speaker === 'female'
-                          ? 'bg-gradient-to-r from-pink-400 via-primary-light to-amber-300 bg-clip-text text-transparent drop-shadow-[0_2px_15px_rgba(236,72,153,0.25)]'
-                          : 'bg-gradient-to-r from-blue-400 via-cyan-300 to-green-300 bg-clip-text text-transparent drop-shadow-[0_2px_15px_rgba(59,130,246,0.25)]'
-                      }`}
-                    >
-                      {dialogueList[activeTurnIdx].text}
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    {/* Vertical Line Column (Middle) */}
+                    <div className="relative flex flex-col items-center shrink-0">
+                      <div className={`w-[3px] h-full rounded-full ${isActive ? 'bg-gradient-to-b from-primary to-primary-light shadow-[0_0_8px_rgba(59,130,246,0.8)]' : 'bg-slate-800 group-hover:bg-slate-700'}`} />
+                    </div>
+
+                    {/* Content Column (Right) */}
+                    <div className="flex-1 pl-4 md:pl-6 pb-12 pt-1">
+                      <span className={`text-[10px] md:text-xs uppercase font-extrabold tracking-wider px-2.5 py-1 rounded-md ${
+                        turn.speaker === 'female' ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                      }`}>
+                        {turn.speakerName}
+                      </span>
+                      <p className={`mt-3 text-lg md:text-2xl font-bold leading-relaxed tracking-normal break-words ${
+                        isActive ? (turn.speaker === 'female' ? 'text-pink-100' : 'text-blue-100') : 'text-slate-400 group-hover:text-slate-300'
+                      }`}>
+                        {turn.text}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Helper hints at start */}

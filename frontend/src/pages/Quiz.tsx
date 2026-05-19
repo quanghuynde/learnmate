@@ -197,7 +197,7 @@ Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mả
               { role: 'system', content: 'You are an educational AI assistant that outputs structured valid JSON arrays containing questions.' },
               { role: 'user', content: prompt }
             ],
-            max_tokens: 1500,
+            max_tokens: 4000,
             response_format: { type: 'json_object' }
           }),
         }
@@ -242,9 +242,70 @@ Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mả
 
       // Handle wrapper object if GPT-4o-mini outputs {"questions": [...]} or raw array
       textResponse = textResponse.trim();
+
+      // Intelligent JSON repair function for incomplete cutoff strings
+      const repairIncompleteJson = (jsonStr: string): string => {
+        let str = jsonStr.trim();
+        let openBraces = 0;
+        let openBrackets = 0;
+        let inString = false;
+        let escape = false;
+        
+        for (let i = 0; i < str.length; i++) {
+          const char = str[i];
+          if (escape) {
+            escape = false;
+            continue;
+          }
+          if (char === '\\') {
+            escape = true;
+            continue;
+          }
+          if (char === '"') {
+            inString = !inString;
+            continue;
+          }
+          if (!inString) {
+            if (char === '{') openBraces++;
+            if (char === '}') openBraces--;
+            if (char === '[') openBrackets++;
+            if (char === ']') openBrackets--;
+          }
+        }
+        
+        if (inString) {
+          str += '"';
+        }
+        if (openBraces > 0) {
+          for (let i = 0; i < openBraces; i++) {
+            str += '}';
+          }
+        }
+        if (openBrackets > 0) {
+          for (let i = 0; i < openBrackets; i++) {
+            str += ']';
+          }
+        }
+        return str;
+      };
+
+      let cleanedText = textResponse.trim();
+      if (cleanedText.startsWith('```')) {
+        const firstLineEnd = cleanedText.indexOf('\n');
+        if (firstLineEnd !== -1) {
+          cleanedText = cleanedText.slice(firstLineEnd + 1).trim();
+        } else {
+          cleanedText = cleanedText.replace(/^```[a-zA-Z]*/, '').trim();
+        }
+      }
+      if (cleanedText.endsWith('```')) {
+        cleanedText = cleanedText.slice(0, -3).trim();
+      }
+
+      const repairedText = repairIncompleteJson(cleanedText);
       let parsedQuestions;
       try {
-        const parsedObject = JSON.parse(textResponse);
+        const parsedObject = JSON.parse(repairedText);
         if (Array.isArray(parsedObject)) {
           parsedQuestions = parsedObject;
         } else if (parsedObject.questions && Array.isArray(parsedObject.questions)) {
