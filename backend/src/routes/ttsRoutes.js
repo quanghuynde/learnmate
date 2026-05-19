@@ -21,7 +21,10 @@ router.get('/', async (req, res, next) => {
     }
 
     const cleanText = text.trim();
-    const langCode = lang.split('-')[0].toLowerCase();
+    let langCode = lang.toLowerCase();
+    if (langCode.startsWith('vi')) {
+      langCode = 'vi';
+    }
 
     // ==========================================
     // 1. ELEVENLABS TTS API INTEGRATION
@@ -95,25 +98,30 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+const googleTTS = require('google-tts-api');
+
 function fallbackToFreeProxy(text, langCode, res, next) {
-  // Always use Google Translate TTS for all languages as requested by the user
-  const googleUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${langCode}&client=tw-ob&q=${encodeURIComponent(text)}`;
+  console.log(`TTS Server Proxy: Routing request for [${langCode}] using google-tts-api...`);
 
-  console.log(`TTS Server Proxy: Routing request for [${langCode}] using Google Translate TTS...`);
-
-  const requestUrl = googleUrl;
-
-  https.get(requestUrl, (apiRes) => {
-    if (apiRes.statusCode === 200) {
-      res.setHeader('Content-Type', 'audio/mpeg');
-      return apiRes.pipe(res);
-    } else {
-      console.error(`Google Translate TTS returned status: ${apiRes.statusCode}`);
-      return res.status(500).json({ message: 'Không thể tạo giọng nói từ Google Translate. Vui lòng thử lại sau.' });
-    }
-  }).on('error', (err) => {
+  // google-tts-api automatically handles chunking for text > 200 chars and bypasses browser blocks!
+  googleTTS.getAllAudioBase64(text, {
+    lang: langCode,
+    slow: false,
+    host: 'https://translate.google.com',
+    splitPunct: ',.?',
+    timeout: 10000,
+  })
+  .then(results => {
+    // results is an array of objects containing the base64 chunks
+    const buffers = results.map(res => Buffer.from(res.base64, 'base64'));
+    const audioBuffer = Buffer.concat(buffers);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Length', audioBuffer.length);
+    res.send(audioBuffer);
+  })
+  .catch(err => {
     console.error('Server-side TTS proxy failed:', err);
-    next(err);
+    res.status(500).json({ message: 'Không thể tạo giọng nói từ Google Translate.' });
   });
 }
 

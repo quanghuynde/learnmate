@@ -16,19 +16,11 @@ const storage = multer.diskStorage({
   },
 });
 
-const allowedMimes = new Set([
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-]);
-
 const uploadDocument = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB Limit
   fileFilter: (req, file, cb) => {
-    if (!allowedMimes.has(file.mimetype)) {
-      return cb(new Error('Chi ho tro file PDF, DOCX, PPTX'));
-    }
+    // Cho phép tải lên mọi định dạng file
     cb(null, true);
   },
 });

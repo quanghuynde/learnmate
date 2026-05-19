@@ -12,7 +12,6 @@ import { Quiz } from './pages/Quiz';
 import { ExamReadiness } from './pages/ExamReadiness';
 import { Progress } from './pages/Progress';
 import { Community } from './pages/Community';
-import { PodcastStudio } from './pages/PodcastStudio';
 import { AIDialogue } from './pages/AIDialogue';
 import { HybridMentoring } from './pages/HybridMentoring';
 import { Profile } from './pages/Profile';
@@ -107,8 +106,6 @@ export function App() {
         return <Progress token={token} />;
       case 'community':
         return <Community />;
-      case 'podcast':
-        return <PodcastStudio token={token} />;
       case 'video':
         return <AIDialogue token={token} />;
       case 'mentor':

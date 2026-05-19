@@ -21,9 +21,7 @@ interface DocumentsProps {
 }
 
 const SUPPORTED_TYPES = [
-  { ext: '.pdf', label: 'PDF', color: 'text-red-500', bg: 'bg-red-50', icon: FileText },
-  { ext: '.docx', label: 'Word', color: 'text-blue-500', bg: 'bg-blue-50', icon: File },
-  { ext: '.pptx', label: 'PowerPoint', color: 'text-orange-500', bg: 'bg-orange-50', icon: Presentation },
+  { ext: '.*', label: 'Mọi định dạng', color: 'text-primary', bg: 'bg-primary/10', icon: FileText },
 ];
 
 function getFileStyle(type: string) {
@@ -64,13 +62,8 @@ export function Documents({ token }: DocumentsProps) {
   }, []);
 
   const uploadFile = async (file: File) => {
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    if (!['pdf', 'docx', 'pptx'].includes(ext || '')) {
-      setError('Định dạng không hỗ trợ. Vui lòng chọn PDF, DOCX hoặc PPTX.');
-      return;
-    }
-    if (file.size > 50 * 1024 * 1024) {
-      setError('Tệp vượt quá giới hạn 50MB.');
+    if (file.size > 100 * 1024 * 1024) {
+      setError('Tệp vượt quá giới hạn 100MB.');
       return;
     }
 
@@ -176,7 +169,7 @@ export function Documents({ token }: DocumentsProps) {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.docx,.pptx"
+          accept="*/*"
           className="hidden"
           onChange={handleFileChange}
         />
@@ -246,7 +239,7 @@ export function Documents({ token }: DocumentsProps) {
                 <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl">
                   <FileSpreadsheet size={16} className="text-slate-400" />
                   <span className="text-sm font-semibold text-slate-500">Tối đa</span>
-                  <span className="text-xs text-slate-400">50MB</span>
+                  <span className="text-xs text-slate-400">100MB</span>
                 </div>
               </div>
             </div>

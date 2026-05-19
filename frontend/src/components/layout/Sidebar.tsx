@@ -8,7 +8,6 @@ import {
   Target,
   TrendingUp,
   Users,
-  Headphones,
   MessageSquare,
   UserCheck,
   ChevronLeft,
@@ -37,7 +36,6 @@ const navItems = [
   { id: 'gamification', label: 'Gamification', icon: Gamepad2 },
   { id: 'progress', label: 'Tiến độ', icon: TrendingUp },
   { id: 'community', label: 'Cộng đồng', icon: Users },
-  { id: 'podcast', label: 'Podcast bài giảng', icon: Headphones },
   { id: 'video', label: 'Đối thoại AI', icon: MessageSquare },
   { id: 'mentor', label: 'Hỗ trợ Mentor', icon: UserCheck },
 ];
