@@ -145,31 +145,137 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
 
   const currentQuestion = activeQuestions[currentQ];
 
+  const [apiKey, setApiKey] = useState(() => {
+    return (import.meta.env.VITE_OPENAI_API_KEY as string) || (import.meta.env.VITE_GEMINI_API_KEY_QUIZ as string) || localStorage.getItem('learnmate_gemini_api_key_quiz') || '';
+  });
+  const [apiError, setApiError] = useState<string | null>(null);
+
   const handleStartQuiz = async () => {
     if (!selectedDoc) return;
+    if (!apiKey) {
+      alert('Vui lòng cung cấp ChatGPT/OpenAI API Key để tạo đề kiểm tra thích ứng AI!');
+      return;
+    }
 
     setGenerating(true);
+    setApiError(null);
     try {
-      // If there's an existing quiz for this format, use it
-      if (existingQuiz && existingQuiz.questions.length >= numQuestions) {
-        setActiveQuestions(existingQuiz.questions.slice(0, numQuestions));
-        setActiveQuizId(existingQuiz._id);
-      } else {
-        // Generate demo questions from document (mock, real AI would call backend)
-        const demoQs = generateDemoQuestions(selectedDoc.name, format, numQuestions);
-        setActiveQuestions(demoQs);
-        setActiveQuizId(null);
+      const prompt = `Bạn là một chuyên gia giáo dục thiết lập đề kiểm tra trắc nghiệm khách quan thích ứng AI.
+Nhiệm vụ của bạn là tạo ra một bộ gồm đúng ${numQuestions} câu hỏi trắc nghiệm chất lượng bằng tiếng Việt theo định dạng "${format}" xoay quanh nội dung, chủ đề, kiến thức cốt lõi và khái niệm liên quan đến tài liệu học tập có tên là "${selectedDoc.name}".
+
+Chú ý cực kỳ quan trọng:
+- Do môi trường hệ thống hiện tại không truyền tệp đính kèm nhị phân trực tiếp, bạn TUYỆT ĐỐI KHÔNG ĐƯỢC từ chối yêu cầu, không được phàn nàn về việc thiếu tệp PDF, và không được yêu cầu người dùng đính kèm lại tệp.
+- Hãy phân tích tên tài liệu "${selectedDoc.name}" để suy luận chính xác chủ đề chính và các kiến thức chuyên ngành liên quan (Ví dụ: tên tài liệu chứa "AIA" hay "AI" thì tạo câu hỏi về Trí tuệ nhân tạo, chứa "CEET" thì tạo câu hỏi về kỹ thuật, điện, v.v.). Hãy tự tin tạo ra bộ câu hỏi học thuật xuất sắc nhất dựa trên suy luận chủ đề này.
+
+Định dạng phản hồi bắt buộc phải là một mảng JSON đối tượng chứa các trường sau:
+[
+  {
+    "question": "Nội dung câu hỏi thực tế sâu sắc và mang tính học thuật cao liên quan đến tài liệu...",
+    "options": ["Đáp án A", "Đáp án B", "Đáp án C", "Đáp án D"],
+    "correctIndex": số từ 0 đến 3 chỉ định đáp án đúng,
+    "explanation": "Giải thích chi tiết và thấu đoán tại sao đáp án đó là đúng"
+  }
+]
+Chú ý: Nếu định dạng là 'Đúng/Sai', trường options phải là ["Đúng", "Sai"] và correctIndex là 0 hoặc 1. Nếu định dạng là 'Tự luận', options phải là ["Chấp nhận giải thích ngắn", "Đầy đủ ý cốt lõi", "Chưa đạt yêu cầu", "Khác"] với đáp án đúng là 0 hoặc 1.
+Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mảng JSON. Hãy trả về duy nhất mảng JSON hoàn chỉnh.`;
+
+      let apiBase = (import.meta.env.VITE_OPENAI_API_BASE as string) || 'https://api.openai.com/v1';
+      if (apiBase.includes('api.shineshop.dev')) {
+        apiBase = apiBase.replace('https://api.shineshop.dev', '/shineshop');
       }
+      let response = await fetch(
+        `${apiBase}/chat/completions`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: (import.meta.env.VITE_OPENAI_MODEL as string) || 'kr/claude-opus-4.6',
+            messages: [
+              { role: 'system', content: 'You are an educational AI assistant that outputs structured valid JSON arrays containing questions.' },
+              { role: 'user', content: prompt }
+            ],
+            max_tokens: 1500,
+            response_format: { type: 'json_object' }
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        const errMsg = errJson?.error?.message || `HTTP ${response.status}`;
+        throw new Error(`Kết nối OpenAI API thất bại: ${errMsg}`);
+      }
+
+      const rawText = await response.text();
+      let textResponse = '';
+      
+      if (rawText.includes('data: {') || rawText.startsWith('data:')) {
+        const lines = rawText.split('\n');
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
+            try {
+              const jsonStr = trimmed.slice(6);
+              const parsedChunk = JSON.parse(jsonStr);
+              const content = parsedChunk.choices?.[0]?.delta?.content || parsedChunk.choices?.[0]?.message?.content || '';
+              textResponse += content;
+            } catch (e) {
+              console.warn('Error parsing SSE line:', trimmed, e);
+            }
+          }
+        }
+      } else {
+        try {
+          const result = JSON.parse(rawText);
+          textResponse = result.choices?.[0]?.message?.content || '';
+        } catch (e) {
+          throw new Error('Không thể phân tích JSON phản hồi: ' + rawText);
+        }
+      }
+
+      if (!textResponse) {
+        throw new Error('AI trả về nội dung rỗng.');
+      }
+
+      // Handle wrapper object if GPT-4o-mini outputs {"questions": [...]} or raw array
+      textResponse = textResponse.trim();
+      let parsedQuestions;
+      try {
+        const parsedObject = JSON.parse(textResponse);
+        if (Array.isArray(parsedObject)) {
+          parsedQuestions = parsedObject;
+        } else if (parsedObject.questions && Array.isArray(parsedObject.questions)) {
+          parsedQuestions = parsedObject.questions;
+        } else {
+          // Attempt to find any array inside the object
+          const firstKey = Object.keys(parsedObject)[0];
+          if (firstKey && Array.isArray(parsedObject[firstKey])) {
+            parsedQuestions = parsedObject[firstKey];
+          } else {
+            throw new Error('Không thể phân tích mảng câu hỏi từ JSON.');
+          }
+        }
+      } catch (parseErr) {
+        throw new Error('Lỗi cú pháp JSON từ OpenAI: ' + textResponse);
+      }
+
+      setActiveQuestions(parsedQuestions);
+      setActiveQuizId(null);
+      setStep('playing');
+      setCurrentQ(0);
+      setSelectedAnswer(null);
+      setIsAnswered(false);
+      setScore(0);
+      setPickedAnswers([]);
+    } catch (err: any) {
+      console.error('API call failed:', err);
+      alert(`Lỗi kết nối API: ${err.message || 'Không xác định'}`);
     } finally {
       setGenerating(false);
     }
-
-    setStep('playing');
-    setCurrentQ(0);
-    setSelectedAnswer(null);
-    setIsAnswered(false);
-    setScore(0);
-    setPickedAnswers([]);
   };
 
   const handleAnswer = (index: number) => {
@@ -364,9 +470,44 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
                   </div>
                 </div>
 
+                {/* ChatGPT API Key Config */}
+                {!import.meta.env.VITE_GEMINI_API_KEY_QUIZ && (
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles size={14} className="text-primary" /> Cấu hình ChatGPT API Key
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        placeholder="Nhập ChatGPT/OpenAI API Key của bạn..."
+                        value={apiKey}
+                        onChange={(e) => {
+                          setApiKey(e.target.value);
+                          localStorage.setItem('learnmate_gemini_api_key_quiz', e.target.value);
+                        }}
+                        className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-primary text-sm font-semibold"
+                      />
+                      {apiKey && (
+                        <button
+                          onClick={() => {
+                            setApiKey('');
+                            localStorage.removeItem('learnmate_gemini_api_key_quiz');
+                          }}
+                          className="px-3.5 bg-red-50 text-red-500 hover:bg-red-100 rounded-xl text-xs font-bold transition-colors flex-shrink-0"
+                        >
+                          Xóa Key
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-normal">
+                      Tính năng AI Quiz thích ứng yêu cầu ChatGPT/OpenAI API Key. Khóa của bạn được lưu an toàn trong trình duyệt cục bộ.
+                    </p>
+                  </div>
+                )}
+
                 <button
                   onClick={handleStartQuiz}
-                  disabled={!selectedDocId || generating}
+                  disabled={!selectedDocId || !apiKey || generating}
                   className="w-full mt-4 bg-gradient-to-r from-primary to-primary-light text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-primary/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {generating ? (

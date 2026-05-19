@@ -13,7 +13,7 @@ import { ExamReadiness } from './pages/ExamReadiness';
 import { Progress } from './pages/Progress';
 import { Community } from './pages/Community';
 import { PodcastStudio } from './pages/PodcastStudio';
-import { VideoSummary } from './pages/VideoSummary';
+import { AIDialogue } from './pages/AIDialogue';
 import { HybridMentoring } from './pages/HybridMentoring';
 import { Profile } from './pages/Profile';
 import { Gamification } from './pages/Gamification';
@@ -108,9 +108,9 @@ export function App() {
       case 'community':
         return <Community />;
       case 'podcast':
-        return <PodcastStudio />;
+        return <PodcastStudio token={token} />;
       case 'video':
-        return <VideoSummary />;
+        return <AIDialogue token={token} />;
       case 'mentor':
         return <HybridMentoring />;
       case 'profile':

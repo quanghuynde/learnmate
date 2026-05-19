@@ -12,6 +12,7 @@ const postRoutes = require('./src/routes/postRoutes');
 const examRoutes = require('./src/routes/examRoutes');
 const progressRoutes = require('./src/routes/progressRoutes');
 const notificationRoutes = require('./src/routes/notificationRoutes');
+const ttsRoutes = require('./src/routes/ttsRoutes');
 const errorHandler = require('./src/middleware/errorHandler');
 
 // Kết nối MongoDB
@@ -40,6 +41,7 @@ app.use('/api/posts', postRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/tts', ttsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

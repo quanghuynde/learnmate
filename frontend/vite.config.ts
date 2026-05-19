@@ -10,6 +10,11 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
+      '/shineshop': {
+        target: 'https://api.shineshop.dev',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/shineshop/, ''),
+      },
     },
   },
 })

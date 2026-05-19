@@ -1,8 +1,9 @@
 const API_BASE_URL = '/api';
 
 async function request<T>(url: string, options: any = {}): Promise<T> {
+  const isFormData = options.body instanceof FormData;
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
     ...options.headers,
   };
@@ -10,7 +11,7 @@ async function request<T>(url: string, options: any = {}): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${url}`, {
     ...options,
     headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body: isFormData ? options.body : (options.body ? JSON.stringify(options.body) : undefined),
   });
 
   const raw = await response.text();
@@ -85,6 +86,36 @@ export type NotificationItem = {
   createdAt: string;
 };
 
+export type DocumentItem = {
+  _id: string;
+  name: string;
+  type: string;
+  pages: number;
+  fileUrl: string;
+  fileSize: number;
+  status: string;
+  createdAt: string;
+};
+
+export type QuestionItem = {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation?: string;
+};
+
+export type QuizItem = {
+  _id: string;
+  user: string;
+  document?: string | { _id: string; name: string; type: string };
+  title: string;
+  subject?: string;
+  format: 'Trắc nghiệm' | 'Đúng/Sai' | 'Tự luận';
+  questions: QuestionItem[];
+  totalQuestions: number;
+  createdAt: string;
+};
+
 export const api = {
   register: (data: any) => request<AuthPayload & { message: string }>('/auth/register', { method: 'POST', body: data }),
   login: (data: any) => request<AuthPayload & { message: string }>('/auth/login', { method: 'POST', body: data }),
@@ -108,12 +139,26 @@ export const api = {
     request<{ exam: ExamItem }>(`/exams/${id}`, { method: 'PUT', token, body: data }),
 
   getStudyPlans: (token: string) => request<{ studyPlans: StudyPlanItem[] }>('/study-plans', { token }),
+  createStudyPlan: (token: string, data: any) =>
+    request<any>('/study-plans', { method: 'POST', token, body: data }),
 
   getProgressOverview: (token: string) =>
     request<any>('/progress/overview', { token }),
 
+  getQuizzes: (token: string) => request<{ quizzes: QuizItem[] }>('/quizzes', { token }),
+  submitQuiz: (token: string, id: string, answers: any[]) =>
+    request<any>(`/quizzes/${id}/submit`, { method: 'POST', token, body: { answers } }),
   getQuizHistory: (token: string) =>
-    request<{ results: any[] }>('/quizzes/results', { token }),
+    request<{ results: any[] }>('/quizzes/results/history', { token }),
+
+  getDocuments: (token: string) => request<{ documents: DocumentItem[] }>('/documents', { token }),
+  uploadDocument: (token: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<any>('/documents', { method: 'POST', token, body: formData });
+  },
+  deleteDocument: (token: string, id: string) =>
+    request<any>(`/documents/${id}`, { method: 'DELETE', token }),
 
   getNotifications: (token: string) =>
     request<{ notifications: NotificationItem[] }>('/notifications', { token }),
@@ -122,3 +167,4 @@ export const api = {
   markAllNotificationsRead: (token: string) =>
     request<any>('/notifications/read-all', { method: 'PUT', token }),
 };
+

@@ -9,7 +9,7 @@ import {
   TrendingUp,
   Users,
   Headphones,
-  PlayCircle,
+  MessageSquare,
   UserCheck,
   ChevronLeft,
   ChevronRight,
@@ -38,7 +38,7 @@ const navItems = [
   { id: 'progress', label: 'Tiến độ', icon: TrendingUp },
   { id: 'community', label: 'Cộng đồng', icon: Users },
   { id: 'podcast', label: 'Podcast bài giảng', icon: Headphones },
-  { id: 'video', label: 'Video tóm tắt', icon: PlayCircle },
+  { id: 'video', label: 'Đối thoại AI', icon: MessageSquare },
   { id: 'mentor', label: 'Hỗ trợ Mentor', icon: UserCheck },
 ];
 
