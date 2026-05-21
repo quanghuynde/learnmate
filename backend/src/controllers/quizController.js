@@ -1,7 +1,9 @@
-﻿const Quiz = require('../models/Quiz');
+const Quiz = require('../models/Quiz');
 const QuizResult = require('../models/QuizResult');
+const StudySession = require('../models/StudySession');
 const User = require('../models/User');
 const { createUserNotification } = require('../services/notificationService');
+const { updateStreak } = require('../services/userService');
 
 const getQuizzes = async (req, res) => {
   try {
@@ -45,8 +47,14 @@ const getQuiz = async (req, res) => {
 const submitQuiz = async (req, res) => {
   try {
     const { answers } = req.body;
+    console.log('Submitting quiz result for ID:', req.params.id);
+    console.log('Answers received:', JSON.stringify(answers));
+
     const quiz = await Quiz.findById(req.params.id);
-    if (!quiz) return res.status(404).json({ message: 'Không tìm thấy quiz' });
+    if (!quiz) {
+      console.log('Quiz not found for ID:', req.params.id);
+      return res.status(404).json({ message: 'Không tìm thấy quiz' });
+    }
 
     let score = 0;
     const processedAnswers = answers.map((a) => {
@@ -59,12 +67,28 @@ const submitQuiz = async (req, res) => {
     const percentage = Math.round((score / total) * 100);
     const xpEarned = score * 50;
 
-    await QuizResult.create({ user: req.user.id, quiz: quiz._id, score, totalQuestions: total, percentage, xpEarned, answers: processedAnswers });
+    const savedResult = await QuizResult.create({ user: req.user.id, quiz: quiz._id, score, totalQuestions: total, percentage, xpEarned, answers: processedAnswers });
+    console.log('Quiz result saved successfully:', savedResult._id);
+
+    // Record study session automatically based on server time
+    const hour = new Date().getHours();
+    let timeOfDay = 'evening';
+    if (hour >= 5 && hour < 12) timeOfDay = 'morning';
+    else if (hour >= 12 && hour < 18) timeOfDay = 'afternoon';
+
+    await StudySession.create({
+      user: req.user.id,
+      subject: quiz.title || quiz.subject || 'Quiz',
+      duration: Math.max(5, total * 2),
+      type: 'quiz',
+      timeOfDay,
+    });
 
     const user = await User.findById(req.user.id);
     user.xp += xpEarned;
     user.level = Math.floor(user.xp / 500) + 1;
     await user.save();
+    await updateStreak(user);
 
     await createUserNotification(req.user.id, {
       title: 'Kết quả quiz mới',
@@ -78,6 +102,7 @@ const submitQuiz = async (req, res) => {
 
     res.status(201).json({ message: 'Nộp bài thành công', result: { score, totalQuestions: total, percentage, xpEarned, answers: processedAnswers } });
   } catch (error) {
+    console.error('Error in submitQuiz:', error);
     res.status(500).json({ message: error.message });
   }
 };
