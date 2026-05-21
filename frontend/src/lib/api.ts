@@ -94,6 +94,7 @@ export type DocumentItem = {
   fileUrl: string;
   fileSize: number;
   status: string;
+  content?: string;
   createdAt: string;
 };
 
@@ -145,7 +146,12 @@ export const api = {
   getProgressOverview: (token: string) =>
     request<any>('/progress/overview', { token }),
 
+  createSession: (token: string, data: any) =>
+    request<any>('/progress/sessions', { method: 'POST', token, body: data }),
+
   getQuizzes: (token: string) => request<{ quizzes: QuizItem[] }>('/quizzes', { token }),
+  createQuiz: (token: string, data: any) =>
+    request<{ quiz: QuizItem }>('/quizzes', { method: 'POST', token, body: data }),
   submitQuiz: (token: string, id: string, answers: any[]) =>
     request<any>(`/quizzes/${id}/submit`, { method: 'POST', token, body: { answers } }),
   getQuizHistory: (token: string) =>

@@ -1,4 +1,4 @@
-﻿const nodemailer = require('nodemailer');
+const nodemailer = require('nodemailer');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 
@@ -30,12 +30,17 @@ async function createUserNotification(userId, payload) {
   if (transporter && payload.sendMail !== false) {
     const user = await User.findById(userId).select('email name');
     if (user?.email) {
-      await transporter.sendMail({
-        from: process.env.MAIL_FROM,
-        to: user.email,
-        subject: payload.emailSubject || payload.title,
-        text: payload.emailText || `${payload.title}\n\n${payload.message}`,
-      });
+      try {
+        await transporter.sendMail({
+          from: process.env.MAIL_FROM,
+          to: user.email,
+          subject: payload.emailSubject || payload.title,
+          text: payload.emailText || `${payload.title}\n\n${payload.message}`,
+        });
+      } catch (mailError) {
+        console.error('Failed to send email notification:', mailError.message);
+        // Do not throw the error, we still want the in-app notification to succeed
+      }
     }
   }
 
