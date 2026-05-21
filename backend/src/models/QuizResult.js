@@ -31,6 +31,7 @@ const quizResultSchema = new mongoose.Schema(
       {
         questionIndex: Number,
         selectedAnswer: Number,
+        essayAnswer: { type: String, default: '' },
         isCorrect: Boolean,
       },
     ],

@@ -3,6 +3,7 @@ const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const crypto = require('crypto');
 const sendEmail = require('../services/emailService');
+const { updateStreak } = require('../services/userService');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -62,6 +63,7 @@ const login = async (req, res) => {
     }
 
     const token = generateToken(user._id);
+    await updateStreak(user);
 
     res.json({
       message: 'Dang nhap thanh cong',
@@ -111,6 +113,8 @@ const googleLogin = async (req, res) => {
     }
 
     const token = generateToken(user._id);
+    await updateStreak(user);
+
     res.json({
       message: 'Dang nhap Google thanh cong',
       token,
@@ -125,6 +129,7 @@ const googleLogin = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
+    if (user) await updateStreak(user);
     res.json({ user });
   } catch (error) {
     res.status(500).json({ message: error.message });
