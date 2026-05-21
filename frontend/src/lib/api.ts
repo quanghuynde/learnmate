@@ -65,6 +65,26 @@ export type ExamItem = {
   isActive: boolean;
 };
 
+export type ExamReadinessData = {
+  exam: ExamItem & { daysRemaining: number };
+  readinessScore: number;
+  metrics: {
+    quizAccuracy: number;
+    totalHours: number;
+    topicsMastered: number;
+    totalTopics: number;
+  };
+  radarData: Array<{ subject: string; A: number }>;
+  trendData: Array<{ day: string; score: number }>;
+  topics: Array<{
+    name: string;
+    score: number;
+    time: string;
+    status: string;
+    color: string;
+  }>;
+};
+
 export type StudyPlanItem = {
   _id: string;
   subject: string;
@@ -117,6 +137,57 @@ export type QuizItem = {
   createdAt: string;
 };
 
+export type AchievementItem = {
+  _id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  rarity: string;
+  xpReward: number;
+  isUnlocked: boolean;
+  progress: number;
+  current: number;
+  target: number;
+};
+
+export type LeaderboardItem = {
+  rank: number;
+  userId: string;
+  name: string;
+  avatar: string;
+  xp: number;
+  level: number;
+  streak: number;
+};
+
+export type GamificationOverview = {
+  user: {
+    name: string;
+    avatar: string;
+    xp: number;
+    level: number;
+    streak: number;
+    levelProgress: number;
+    nextLevelXP: number;
+  };
+  achievements: {
+    total: number;
+    unlocked: number;
+    list: AchievementItem[];
+  };
+  leaderboard: {
+    userRank: number | null;
+    top: LeaderboardItem[];
+  };
+  newAchievements: Array<{
+    name: string;
+    description: string;
+    icon: string;
+    xpReward: number;
+  }>;
+};
+
 export const api = {
   register: (data: any) => request<AuthPayload & { message: string }>('/auth/register', { method: 'POST', body: data }),
   login: (data: any) => request<AuthPayload & { message: string }>('/auth/login', { method: 'POST', body: data }),
@@ -136,8 +207,12 @@ export const api = {
     request<{ user: UserItem }>('/users/profile', { method: 'PUT', token, body: payload }),
 
   getExams: (token: string) => request<{ exams: ExamItem[] }>('/exams', { token }),
+  createExam: (token: string, data: any) =>
+    request<{ exam: ExamItem }>('/exams', { method: 'POST', token, body: data }),
   updateExam: (token: string, id: string, data: any) =>
     request<{ exam: ExamItem }>(`/exams/${id}`, { method: 'PUT', token, body: data }),
+  getExamReadiness: (token: string, examId: string) =>
+    request<ExamReadinessData>(`/exams/${examId}/readiness`, { token }),
 
   getStudyPlans: (token: string) => request<{ studyPlans: StudyPlanItem[] }>('/study-plans', { token }),
   createStudyPlan: (token: string, data: any) =>
@@ -172,5 +247,16 @@ export const api = {
     request<any>(`/notifications/${id}/read`, { method: 'PUT', token }),
   markAllNotificationsRead: (token: string) =>
     request<any>('/notifications/read-all', { method: 'PUT', token }),
+
+  // Gamification
+  getGamificationOverview: (token: string) =>
+    request<GamificationOverview>('/gamification/overview', { token }),
+  getAchievements: (token: string) =>
+    request<{ achievements: AchievementItem[] }>('/gamification/achievements', { token }),
+  getLeaderboard: (token: string, limit?: number) =>
+    request<{ userRank: number | null; leaderboard: LeaderboardItem[] }>(
+      `/gamification/leaderboard${limit ? `?limit=${limit}` : ''}`,
+      { token }
+    ),
 };
 

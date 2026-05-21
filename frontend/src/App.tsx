@@ -117,7 +117,7 @@ export function App() {
       case 'profile':
         return <Profile token={token} user={user} onLogout={handleLogout} />;
       case 'gamification':
-        return <Gamification />;
+        return <Gamification token={token} />;
       case 'pricing':
         return <Pricing setCurrentPage={setCurrentPage} />;
       default:
