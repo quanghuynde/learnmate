@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Target,
@@ -80,6 +80,25 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
         setExamName(nextExam.name);
         setEditExamName(nextExam.name);
         setEditExamDate(new Date(nextExam.examDate).toISOString().split('T')[0]);
+      } else {
+        const localName = localStorage.getItem('learnmate_exam_name') || 'Kỳ thi';
+        const localDate = localStorage.getItem('learnmate_exam_date');
+        setExamName(localName);
+        setEditExamName(localName);
+        
+        if (localDate) {
+          setEditExamDate(localDate);
+          setExam({
+            _id: 'local',
+            name: localName,
+            examDate: new Date(localDate).toISOString(),
+            isActive: true,
+            readinessScore: 0,
+            topicsMastered: 0,
+            totalTopics: 35,
+            subject: localName
+          } as any);
+        }
       }
 
       setStudyPlans(planRes.studyPlans || []);
@@ -119,8 +138,8 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
   }, [studyPlans]);
 
   const readiness = exam?.readinessScore || 0;
-  const topicsMastered = exam?.topicsMastered ?? Math.min(35, Math.round((overview?.totalQuizzes || 0) / 2));
-  const totalTopics = exam?.totalTopics || 35;
+  const topicsMastered = exam?.topicsMastered || (overview?.totalQuizzes ? Math.round(overview.totalQuizzes / 2) : 0);
+  const totalTopics = exam?.totalTopics || 0;
 
   const heat = useMemo(() => {
     const arr = overview?.chartData || [];
@@ -233,7 +252,6 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
               </div>
               <div>
                 <p className="text-sm text-slate-500 font-medium">Điểm sẵn sàng</p>
-                <p className="text-xs text-success flex items-center gap-1 mt-1"><TrendingUp size={12} /> +5% tuần này</p>
               </div>
             </div>
 
@@ -326,12 +344,6 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
                 <div className="w-10 h-10 rounded-lg bg-green-50 text-green-600 flex items-center justify-center group-hover:bg-green-100 transition-colors"><Brain size={20} /></div>
                 <div><h4 className="font-semibold text-text-primary text-sm">Bắt đầu Quiz</h4><p className="text-xs text-slate-500">Kiểm tra kiến thức</p></div>
               </button>
-
-              <div className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-100 relative overflow-hidden">
-                <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center"><Moon size={20} /></div>
-                <div className="relative z-10"><h4 className="font-semibold text-sm">Chế độ đêm trước thi</h4><p className="text-xs text-slate-500">Ôn tập cấp tốc</p></div>
-                <span className="absolute top-3 right-3 text-[10px] font-bold px-1.5 py-0.5 rounded bg-danger text-white">GẤP</span>
-              </div>
             </div>
           </div>
 
@@ -376,14 +388,30 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
                 <button onClick={() => setIsEditingExam(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Hủy</button>
                 <button
                   onClick={async () => {
-                    if (!exam) return setIsEditingExam(false);
+                    if (!editExamName || !editExamDate) return setIsEditingExam(false);
                     try {
-                      const res = await api.updateExam(token, exam._id, {
-                        name: editExamName || exam.name,
-                        examDate: editExamDate ? new Date(editExamDate).toISOString() : exam.examDate,
-                      });
-                      setExam(res.exam);
-                      setExamName(res.exam.name);
+                      if (exam && exam._id !== 'local') {
+                        const res = await api.updateExam(token, exam._id, {
+                          name: editExamName,
+                          examDate: new Date(editExamDate).toISOString(),
+                        });
+                        setExam(res.exam);
+                        setExamName(res.exam.name);
+                      } else {
+                        localStorage.setItem('learnmate_exam_name', editExamName);
+                        localStorage.setItem('learnmate_exam_date', editExamDate);
+                        setExamName(editExamName);
+                        setExam({
+                          _id: 'local',
+                          name: editExamName,
+                          examDate: new Date(editExamDate).toISOString(),
+                          isActive: true,
+                          readinessScore: 0,
+                          topicsMastered: 0,
+                          totalTopics: 35,
+                          subject: editExamName
+                        } as any);
+                      }
                     } catch {
                       // noop
                     }

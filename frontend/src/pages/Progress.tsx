@@ -73,7 +73,6 @@ export function Progress({ token }: ProgressProps) {
           </div>
           <p className="text-xs text-slate-500 font-medium">Tổng thời gian học</p>
           <p className="text-2xl font-bold text-slate-900">{overview.totalHours}h</p>
-          <p className="text-[10px] text-success font-bold mt-1">+12% so với tuần trước</p>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
@@ -82,7 +81,6 @@ export function Progress({ token }: ProgressProps) {
           </div>
           <p className="text-xs text-slate-500 font-medium">Trung bình hàng ngày</p>
           <p className="text-2xl font-bold text-slate-900">{overview.avgDaily}h</p>
-          <p className="text-[10px] text-slate-400 mt-1">Mục tiêu: 3h/ngày</p>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
@@ -91,7 +89,6 @@ export function Progress({ token }: ProgressProps) {
           </div>
           <p className="text-xs text-slate-500 font-medium">Bài kiểm tra đã làm</p>
           <p className="text-2xl font-bold text-slate-900">{overview.totalQuizzes}</p>
-          <p className="text-[10px] text-success font-bold mt-1">Tỉ lệ đạt: 85%</p>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
@@ -99,8 +96,7 @@ export function Progress({ token }: ProgressProps) {
             <Trophy size={20} />
           </div>
           <p className="text-xs text-slate-500 font-medium">Thành tích mới</p>
-          <p className="text-2xl font-bold text-slate-900">12</p>
-          <p className="text-[10px] text-purple-400 mt-1">Đang dẫn đầu bảng</p>
+          <p className="text-2xl font-bold text-slate-900">{quizHistory.filter(h => h.percentage >= 80).length}</p>
         </div>
       </div>
 
