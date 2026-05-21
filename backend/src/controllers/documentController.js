@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const Document = require('../models/Document');
+const pdf = require('pdf-parse');
+const mammoth = require('mammoth');
 
 // @desc    Lay danh sach tai lieu cua user
 // @route   GET /api/documents
@@ -10,6 +12,25 @@ const getDocuments = async (req, res) => {
     res.json({ count: docs.length, documents: docs });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// Helper function trích xuất text từ file
+const extractText = async (filePath, type) => {
+  try {
+    const dataBuffer = fs.readFileSync(filePath);
+    if (type === 'pdf') {
+      const data = await pdf(dataBuffer);
+      return data.text;
+    } else if (type === 'docx') {
+      const result = await mammoth.extractRawText({ buffer: dataBuffer });
+      return result.value;
+    }
+    // Hiện tại chưa hỗ trợ PPTX trích xuất text sâu (cần library nặng hơn)
+    return '';
+  } catch (error) {
+    console.error('Lỗi trích xuất text:', error);
+    return '';
   }
 };
 
@@ -35,15 +56,18 @@ const createDocument = async (req, res) => {
       status: 'processing',
     });
 
-    // Mo phong xu ly AI (thuc te se dung queue)
-    setTimeout(async () => {
-      await Document.findByIdAndUpdate(doc._id, {
-        status: 'processed',
-        relevance: 'Quan trong',
-      });
-    }, 5000);
+    // Thực hiện trích xuất text
+    const filePath = path.join(__dirname, '../../', doc.fileUrl.replace(/^\//, ''));
+    const content = await extractText(filePath, type);
 
-    res.status(201).json({ message: 'Tai len thanh cong', document: doc });
+    // Cập nhật trạng thái và nội dung
+    await Document.findByIdAndUpdate(doc._id, {
+      content,
+      status: 'processed',
+      relevance: 'Đã phân tích',
+    });
+
+    res.status(201).json({ message: 'Tải lên và xử lý thành công', document: doc });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

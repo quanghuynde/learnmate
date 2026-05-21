@@ -39,6 +39,10 @@ const documentSchema = new mongoose.Schema(
       default: 'Đang phân tích',
     },
     topics: [String],
+    content: {
+      type: String,
+      default: '',
+    },
   },
   { timestamps: true }
 );

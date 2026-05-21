@@ -24,8 +24,12 @@ export function App() {
   const [token, setToken] = useState<string>(() => localStorage.getItem('learnmate_token') || '');
   const [isAuthenticated, setIsAuthenticated] = useState(Boolean(token));
   const [checkingAuth, setCheckingAuth] = useState(Boolean(token));
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState(() => sessionStorage.getItem('learnmate_current_page') || 'dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    sessionStorage.setItem('learnmate_current_page', currentPage);
+  }, [currentPage]);
   const [user, setUser] = useState<UserItem | null>(null);
 
   // Simple routing for reset password
