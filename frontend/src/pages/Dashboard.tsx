@@ -75,11 +75,23 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
       const nextExam = (examRes.exams || [])
         .filter((e) => e.isActive)
         .sort((a, b) => +new Date(a.examDate) - +new Date(b.examDate))[0] || null;
-      setExam(nextExam);
       if (nextExam) {
-        setExamName(nextExam.name);
-        setEditExamName(nextExam.name);
-        setEditExamDate(new Date(nextExam.examDate).toISOString().split('T')[0]);
+        let hydratedExam = nextExam;
+        try {
+          const readiness = await api.getExamReadiness(token, nextExam._id);
+          hydratedExam = {
+            ...nextExam,
+            readinessScore: readiness.readinessScore,
+            topicsMastered: readiness.metrics?.topicsMastered ?? nextExam.topicsMastered,
+            totalTopics: readiness.metrics?.totalTopics ?? nextExam.totalTopics,
+          };
+        } catch {
+          // noop
+        }
+        setExam(hydratedExam);
+        setExamName(hydratedExam.name);
+        setEditExamName(hydratedExam.name);
+        setEditExamDate(new Date(hydratedExam.examDate).toISOString().split('T')[0]);
       } else {
         const localName = localStorage.getItem('learnmate_exam_name') || 'Kỳ thi';
         const localDate = localStorage.getItem('learnmate_exam_date');
@@ -88,16 +100,26 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
         
         if (localDate) {
           setEditExamDate(localDate);
-          setExam({
-            _id: 'local',
-            name: localName,
-            examDate: new Date(localDate).toISOString(),
-            isActive: true,
-            readinessScore: 0,
-            topicsMastered: 0,
-            totalTopics: 35,
-            subject: localName
-          } as any);
+          try {
+            const created = await api.createExam(token, {
+              name: localName,
+              subject: localName,
+              examDate: new Date(localDate).toISOString(),
+              totalTopics: 35,
+            });
+            setExam(created.exam);
+          } catch {
+            setExam({
+              _id: 'local',
+              name: localName,
+              examDate: new Date(localDate).toISOString(),
+              isActive: true,
+              readinessScore: 0,
+              topicsMastered: 0,
+              totalTopics: 35,
+              subject: localName
+            } as any);
+          }
         }
       }
 
@@ -393,6 +415,7 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
                       if (exam && exam._id !== 'local') {
                         const res = await api.updateExam(token, exam._id, {
                           name: editExamName,
+                          subject: editExamName,
                           examDate: new Date(editExamDate).toISOString(),
                         });
                         setExam(res.exam);
@@ -400,17 +423,14 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
                       } else {
                         localStorage.setItem('learnmate_exam_name', editExamName);
                         localStorage.setItem('learnmate_exam_date', editExamDate);
-                        setExamName(editExamName);
-                        setExam({
-                          _id: 'local',
+                        const created = await api.createExam(token, {
                           name: editExamName,
+                          subject: editExamName,
                           examDate: new Date(editExamDate).toISOString(),
-                          isActive: true,
-                          readinessScore: 0,
-                          topicsMastered: 0,
                           totalTopics: 35,
-                          subject: editExamName
-                        } as any);
+                        });
+                        setExamName(created.exam.name);
+                        setExam(created.exam);
                       }
                     } catch {
                       // noop
