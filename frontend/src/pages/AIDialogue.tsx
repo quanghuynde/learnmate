@@ -234,7 +234,7 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
       if (apiBase.includes('api.shineshop.dev')) {
         apiBase = apiBase.replace('https://api.shineshop.dev', '/shineshop');
       }
-      let response = await fetch(
+      const response = await fetch(
         `${apiBase}/chat/completions`,
         {
           method: 'POST',
