@@ -1,22 +1,60 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   Trophy,
   Medal,
-  Flame,
   MessageSquare,
   Heart,
   Share2,
   Image as ImageIcon,
   Send,
+  Flame,
 } from 'lucide-react'
+import { api, LeaderboardItem, UserItem } from '../lib/api'
 
-export function Community() {
+interface CommunityProps {
+  token: string
+  user: UserItem | null
+}
+
+export function Community({ token, user }: CommunityProps) {
   const [activeTab, setActiveTab] = useState('leaderboard')
-  
-  // Xóa các data nháp, gán mặc định là list trống chờ kết nối backend
-  const leaderboard: any[] = []
-  const posts: any[] = []
+  const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false)
+  const [posts, setPosts] = useState<any[]>([])
+  const [loadingPosts, setLoadingPosts] = useState(false)
+
+  useEffect(() => {
+    if (token) {
+      fetchLeaderboard()
+    }
+  }, [token])
+
+  const fetchLeaderboard = async () => {
+    setLoadingLeaderboard(true)
+    try {
+      const res = await api.getLeaderboard(token, 10)
+      setLeaderboard(res.leaderboard)
+    } catch (err) {
+      console.error('Failed to fetch leaderboard:', err)
+    } finally {
+      setLoadingLeaderboard(false)
+    }
+  }
+
+  const getReadyPercentage = (item: LeaderboardItem) => {
+    const baseScore = Math.min(100, Math.max(0, item.xp / 10))
+    return `${Math.round(baseScore)}%`
+  }
+
+  const userInitials = user?.name
+    ? user.name
+        .split(' ')
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    : '?'
 
   return (
     <div className="max-w-5xl mx-auto pb-20 space-y-6">
@@ -66,42 +104,63 @@ export function Community() {
         >
           {leaderboard.length > 0 && (
             <div className="flex justify-center items-end gap-4 h-64 pt-10">
-              {/* Rank 2 */}
-              <div className="flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600 border-4 border-white shadow-md z-10 -mb-4">
-                  --
+              {leaderboard[1] && (
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600 border-4 border-white shadow-md z-10 -mb-4 overflow-hidden">
+                    {leaderboard[1].avatar ? (
+                      <img src={leaderboard[1].avatar} alt={leaderboard[1].name} className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      leaderboard[1].name.substring(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div className="w-24 h-32 bg-gradient-to-t from-slate-300 to-slate-100 rounded-t-xl flex flex-col items-center justify-start pt-6 shadow-lg">
+                    <span className="text-2xl font-bold text-slate-500">2</span>
+                    <span className="text-xs font-medium text-slate-600 mt-1">
+                      {getReadyPercentage(leaderboard[1])}
+                    </span>
+                  </div>
                 </div>
-                <div className="w-24 h-32 bg-gradient-to-t from-slate-300 to-slate-100 rounded-t-xl flex flex-col items-center justify-start pt-6 shadow-lg">
-                  <span className="text-2xl font-bold text-slate-500">2</span>
-                </div>
-              </div>
+              )}
 
-              {/* Rank 1 */}
-              <div className="flex flex-col items-center">
-                <Trophy size={32} className="text-accent mb-2 drop-shadow-md" />
-                <div className="w-20 h-20 rounded-full bg-accent/20 flex items-center justify-center font-bold text-accent border-4 border-white shadow-md z-10 -mb-4 text-xl">
-                  --
+              {leaderboard[0] && (
+                <div className="flex flex-col items-center">
+                  <Trophy size={32} className="text-accent mb-2 drop-shadow-md" />
+                  <div className="w-20 h-20 rounded-full bg-accent/20 flex items-center justify-center font-bold text-accent border-4 border-white shadow-md z-10 -mb-4 text-xl overflow-hidden">
+                    {leaderboard[0].avatar ? (
+                      <img src={leaderboard[0].avatar} alt={leaderboard[0].name} className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      leaderboard[0].name.substring(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div className="w-28 h-40 bg-gradient-to-t from-accent to-yellow-300 rounded-t-xl flex flex-col items-center justify-start pt-8 shadow-xl">
+                    <span className="text-3xl font-bold text-white drop-shadow-md">
+                      1
+                    </span>
+                    <span className="text-sm font-bold text-white mt-1">{getReadyPercentage(leaderboard[0])}</span>
+                  </div>
                 </div>
-                <div className="w-28 h-40 bg-gradient-to-t from-accent to-yellow-300 rounded-t-xl flex flex-col items-center justify-start pt-8 shadow-xl">
-                  <span className="text-3xl font-bold text-white drop-shadow-md">
-                    1
-                  </span>
-                </div>
-              </div>
+              )}
 
-              {/* Rank 3 */}
-              <div className="flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-orange-200 flex items-center justify-center font-bold text-orange-700 border-4 border-white shadow-md z-10 -mb-4">
-                  --
+              {leaderboard[2] && (
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full bg-orange-200 flex items-center justify-center font-bold text-orange-700 border-4 border-white shadow-md z-10 -mb-4 overflow-hidden">
+                    {leaderboard[2].avatar ? (
+                      <img src={leaderboard[2].avatar} alt={leaderboard[2].name} className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      leaderboard[2].name.substring(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div className="w-24 h-24 bg-gradient-to-t from-orange-300 to-orange-200 rounded-t-xl flex flex-col items-center justify-start pt-4 shadow-lg">
+                    <span className="text-2xl font-bold text-orange-700">3</span>
+                    <span className="text-xs font-medium text-orange-800 mt-1">
+                      {getReadyPercentage(leaderboard[2])}
+                    </span>
+                  </div>
                 </div>
-                <div className="w-24 h-24 bg-gradient-to-t from-orange-300 to-orange-200 rounded-t-xl flex flex-col items-center justify-start pt-4 shadow-lg">
-                  <span className="text-2xl font-bold text-orange-700">3</span>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
-          {/* List */}
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             <table className="w-full text-left">
               <thead>
@@ -114,49 +173,59 @@ export function Community() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {leaderboard.length === 0 ? (
+                {loadingLeaderboard ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-slate-500">
+                      Đang tải bảng xếp hạng...
+                    </td>
+                  </tr>
+                ) : leaderboard.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-slate-500">
                       Chưa có dữ liệu bảng xếp hạng.
                     </td>
                   </tr>
                 ) : (
-                  leaderboard.map((user) => (
+                  leaderboard.map((u) => (
                     <tr
-                      key={user.rank}
-                      className={`hover:bg-slate-50 transition-colors ${user.rank === 4 ? 'bg-primary/5' : ''}`}
+                      key={u.rank}
+                      className={`hover:bg-slate-50 transition-colors ${u.userId === user?.id ? 'bg-primary/5' : ''}`}
                     >
                       <td className="p-4 pl-6 font-bold text-slate-400">
-                        {user.rank === 1 ? (
+                        {u.rank === 1 ? (
                           <Medal className="text-accent" />
-                        ) : user.rank === 2 ? (
+                        ) : u.rank === 2 ? (
                           <Medal className="text-slate-400" />
-                        ) : user.rank === 3 ? (
+                        ) : u.rank === 3 ? (
                           <Medal className="text-orange-400" />
                         ) : (
-                          `#${user.rank}`
+                          `#${u.rank}`
                         )}
                       </td>
                       <td className="p-4 flex items-center gap-3">
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${user.rank === 4 ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden ${u.userId === user?.id ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}
                         >
-                          {user.avatar}
+                          {u.avatar ? (
+                            <img src={u.avatar} alt={u.name} className="w-full h-full rounded-full object-cover" />
+                          ) : (
+                            u.name.substring(0, 2).toUpperCase()
+                          )}
                         </div>
                         <span
-                          className={`font-medium ${user.rank === 4 ? 'text-primary font-bold' : 'text-text-primary'}`}
+                          className={`font-medium ${u.userId === user?.id ? 'text-primary font-bold' : 'text-text-primary'}`}
                         >
-                          {user.name}
+                          {u.name} {u.userId === user?.id && '(Bạn)'}
                         </span>
                       </td>
                       <td className="p-4 text-center font-bold text-text-primary">
-                        {user.score}
+                        {getReadyPercentage(u)}
                       </td>
                       <td className="p-4 text-center text-orange-500 font-medium flex items-center justify-center gap-1">
-                        <Flame size={14} /> {user.streak}
+                        <Flame size={14} /> {u.streak}
                       </td>
                       <td className="p-4 text-center text-slate-600">
-                        {user.quiz}
+                        {Math.floor(u.xp / 50)}
                       </td>
                     </tr>
                   ))
@@ -179,10 +248,9 @@ export function Community() {
           }}
           className="space-y-6 max-w-2xl mx-auto"
         >
-          {/* Create Post */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex gap-4">
             <div className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center font-bold flex-shrink-0 shadow-sm">
-              YOU
+              {userInitials}
             </div>
             <div className="flex-1">
               <textarea
@@ -200,7 +268,6 @@ export function Community() {
             </div>
           </div>
 
-          {/* Feed */}
           <div className="space-y-4">
             {posts.length === 0 ? (
               <div className="text-center p-8 bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-500">
@@ -248,7 +315,6 @@ export function Community() {
           </div>
         </motion.div>
       )}
-
     </div>
   )
 }
