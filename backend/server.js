@@ -14,10 +14,13 @@ const progressRoutes = require('./src/routes/progressRoutes');
 const notificationRoutes = require('./src/routes/notificationRoutes');
 const ttsRoutes = require('./src/routes/ttsRoutes');
 const gamificationRoutes = require('./src/routes/gamificationRoutes');
+const aiRoutes = require('./src/routes/aiRoutes');
 const errorHandler = require('./src/middleware/errorHandler');
+const { startDailyReminderJob } = require('./src/services/dailyReminderService');
 
 // Kết nối MongoDB
 connectDB();
+startDailyReminderJob();
 
 const app = express();
 
@@ -44,6 +47,7 @@ app.use('/api/progress', progressRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/tts', ttsRoutes);
 app.use('/api/gamification', gamificationRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

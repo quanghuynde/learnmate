@@ -51,6 +51,11 @@ export type UserItem = {
     dailyGoal?: number;
     quizDifficulty?: string;
     notificationType?: string;
+    emailNotifications?: boolean;
+    pushNotifications?: boolean;
+    dailyReminderEnabled?: boolean;
+    dailyReminderTime?: string;
+    systemUpdates?: boolean;
   };
 };
 

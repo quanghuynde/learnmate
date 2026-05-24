@@ -108,8 +108,8 @@ export function App() {
         return <ExamReadiness token={token} />;
       case 'progress':
         return <Progress token={token} />;
-      case 'community':
-        return <Community />;
+case 'community':
+         return <Community token={token} user={user} />;
       case 'video':
         return <AIDialogue token={token} />;
       case 'mentor':
