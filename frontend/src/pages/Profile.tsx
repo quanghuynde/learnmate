@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell,
@@ -17,13 +18,11 @@ import {
   Info,
 } from 'lucide-react';
 import { api, UserItem } from '../lib/api';
-
 interface ProfileProps {
   onLogout: () => void;
   token: string;
   user: UserItem | null;
 }
-
 function getInitials(name: string) {
   return name
     .split(' ')
@@ -32,37 +31,38 @@ function getInitials(name: string) {
     .join('')
     .toUpperCase();
 }
-
 export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
   const [user, setUser] = useState<UserItem | null>(propUser);
   const [loading, setLoading] = useState(false);
-  const [activeModal, setActiveModal] = useState<'info' | 'preferences' | 'logout' | 'feature' | null>(null);
+  const [activeModal, setActiveModal] = useState<'info' | 'preferences' | 'logout' | 'feature' | 'notification' | 'security' | null>(null);
+  const [notifEmail, setNotifEmail] = useState(true);
+  const [notifPush, setNotifPush] = useState(true);
+  const [notifDaily, setNotifDaily] = useState(false);
+  const [notifUpdates, setNotifUpdates] = useState(true);
+  const [twoFactorAuth, setTwoFactorAuth] = useState(false);
+  const [dataSharing, setDataSharing] = useState(true);
+  const [sendingResetMail, setSendingResetMail] = useState(false);
   
   // States for Editing Info
   const [editName, setEditName] = useState('');
   const [editGoal, setEditGoal] = useState('');
   const [editSubjects, setEditSubjects] = useState<string[]>([]);
   const [newSubject, setNewSubject] = useState('');
-
   // States for Editing Preferences
   const [prefTime, setPrefTime] = useState('');
   const [prefGoal, setPrefGoal] = useState(3);
   const [prefDifficulty, setPrefDifficulty] = useState('');
   const [prefNotif, setPrefNotif] = useState('');
-
   const [message, setMessage] = useState({ text: '', type: 'success' });
-
   useEffect(() => {
     refreshUser();
   }, [token]);
-
   useEffect(() => {
     if (propUser) {
       setUser(propUser);
       resetEditStates(propUser);
     }
   }, [propUser]);
-
   const refreshUser = async () => {
     try {
       const res = await api.getMe(token);
@@ -72,7 +72,6 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
       console.error(err);
     }
   };
-
   const resetEditStates = (u: UserItem) => {
     setEditName(u.name);
     setEditGoal(u.studyGoal || '');
@@ -81,6 +80,10 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
     setPrefGoal(u.preferences?.dailyGoal || 3);
     setPrefDifficulty(u.preferences?.quizDifficulty || 'Thích ứng');
     setPrefNotif(u.preferences?.notificationType || 'Nhắc nhở thông minh');
+    setNotifEmail(u.preferences?.emailNotifications ?? true);
+    setNotifPush(u.preferences?.pushNotifications ?? true);
+    setNotifDaily(u.preferences?.dailyReminderEnabled ?? false);
+    setNotifUpdates(u.preferences?.systemUpdates ?? true);
   };
 
   const handleUpdateInfo = async () => {
@@ -100,7 +103,6 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
       setLoading(false);
     }
   };
-
   const handleUpdatePreferences = async () => {
     setLoading(true);
     try {
@@ -121,21 +123,57 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
       setLoading(false);
     }
   };
-
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setMessage({ text, type });
     setTimeout(() => setMessage({ text: '', type: 'success' }), 3000);
   };
-
   const addSubject = () => {
     if (newSubject.trim() && !editSubjects.includes(newSubject.trim())) {
       setEditSubjects([...editSubjects, newSubject.trim()]);
       setNewSubject('');
     }
   };
-
   const removeSubject = (s: string) => {
     setEditSubjects(editSubjects.filter((item) => item !== s));
+  };
+
+  const handleUpdateNotificationSettings = async () => {
+    setLoading(true);
+    try {
+      const res = await api.updateProfile(token, {
+        preferences: {
+          ...(user?.preferences || {}),
+          emailNotifications: notifEmail,
+          pushNotifications: notifPush,
+          dailyReminderEnabled: notifDaily,
+          dailyReminderTime: '09:00',
+          systemUpdates: notifUpdates,
+        },
+      });
+      setUser(res.user);
+      setActiveModal(null);
+      showToast('Đã lưu thay đổi cài đặt!');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Không thể lưu cài đặt thông báo', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRequestPasswordReset = async () => {
+    if (!user?.email) {
+      showToast('Không tìm thấy email tài khoản', 'error');
+      return;
+    }
+    setSendingResetMail(true);
+    try {
+      const res = await api.forgotPassword(user.email);
+      showToast(res.message || 'Đã gửi liên kết đổi mật khẩu vào email của bạn.');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Không thể gửi email đổi mật khẩu', 'error');
+    } finally {
+      setSendingResetMail(false);
+    }
   };
 
   const handleExportData = () => {
@@ -149,9 +187,7 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
     downloadAnchorNode.remove();
     showToast('Đang xuất dữ liệu...');
   };
-
   const initials = user?.name ? getInitials(user.name) : '?';
-
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20 relative">
       {/* Toast Message */}
@@ -169,7 +205,7 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
             {message.text}
           </motion.div>
         )}
-      </AnimatePresence>
+</AnimatePresence>
 
       {/* Top Profile Card */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 flex flex-col md:flex-row gap-6 items-center md:items-start relative">
@@ -278,7 +314,7 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="divide-y divide-slate-100">
           <button 
-            onClick={() => setActiveModal('feature')}
+            onClick={() => setActiveModal('notification')}
             className="w-full p-5 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left group"
           >
             <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
@@ -292,7 +328,7 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
           </button>
 
           <button 
-            onClick={() => setActiveModal('feature')}
+            onClick={() => setActiveModal('security')}
             className="w-full p-5 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left group"
           >
             <div className="w-10 h-10 rounded-full bg-green-50 text-green-500 flex items-center justify-center group-hover:bg-green-100 transition-colors">
@@ -335,23 +371,24 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
       </div>
 
       {/* Modal Components */}
-      <AnimatePresence>
-        {activeModal && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => !loading && setActiveModal(null)}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            />
-            
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative z-[120] overflow-hidden"
-            >
+      {createPortal(
+        <AnimatePresence>
+          {activeModal && (
+           <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4">
+             <motion.div
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}
+               onClick={() => !loading && setActiveModal(null)}
+               className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+             />
+             
+             <motion.div
+               initial={{ scale: 0.9, opacity: 0, y: 20 }}
+               animate={{ scale: 1, opacity: 1, y: 0 }}
+               exit={{ scale: 0.9, opacity: 0, y: 20 }}
+               className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-[calc(100vw-1rem)] sm:w-full max-w-lg max-h-[calc(100vh-1rem)] sm:max-h-[90vh] relative z-[100000] overflow-hidden"
+             >
               {/* Modal Header */}
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <h3 className="text-lg font-bold text-slate-900">
@@ -359,6 +396,8 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
                   {activeModal === 'preferences' && 'Tùy chọn học tập'}
                   {activeModal === 'logout' && 'Xác nhận đăng xuất'}
                   {activeModal === 'feature' && 'Thông báo'}
+                  {activeModal === 'notification' && 'Cài đặt thông báo'}
+                  {activeModal === 'security' && 'Quyền riêng tư & Bảo mật'}
                 </h3>
                 <button 
                   onClick={() => setActiveModal(null)}
@@ -367,9 +406,8 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
                   <X size={20} className="text-slate-500" />
                 </button>
               </div>
-
               {/* Modal Body */}
-              <div className="p-6 max-h-[70vh] overflow-y-auto">
+              <div className="p-4 sm:p-6 max-h-[calc(100vh-11rem)] sm:max-h-[70vh] overflow-y-auto">
                 {activeModal === 'info' && (
                   <div className="space-y-4">
                     <div>
@@ -416,7 +454,6 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
                     </div>
                   </div>
                 )}
-
                 {activeModal === 'preferences' && (
                   <div className="space-y-4">
                     <div>
@@ -459,7 +496,6 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
                     </div>
                   </div>
                 )}
-
                 {activeModal === 'logout' && (
                   <div className="text-center py-4">
                     <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -469,7 +505,6 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
                     <p className="text-slate-500">Mọi phiên làm việc hiện tại sẽ kết thúc.</p>
                   </div>
                 )}
-
                 {activeModal === 'feature' && (
                   <div className="text-center py-4">
                     <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -479,10 +514,32 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
                     <p className="text-slate-500 text-sm">Chức năng này sẽ sớm có mặt trong các phiên bản cập nhật tiếp theo. Cảm ơn bạn đã quan tâm!</p>
                   </div>
                 )}
+
+                {activeModal === 'notification' && (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between"><h4 className="font-bold text-slate-900 text-sm">Thông báo qua Email</h4><button onClick={() => setNotifEmail(!notifEmail)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors ${notifEmail ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${notifEmail ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+                    <div className="flex items-center justify-between"><h4 className="font-bold text-slate-900 text-sm">Thông báo đẩy (Push)</h4><button onClick={() => setNotifPush(!notifPush)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors ${notifPush ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${notifPush ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+                    <div className="flex items-center justify-between"><h4 className="font-bold text-slate-900 text-sm">Nhắc nhở hằng ngày</h4><button onClick={() => setNotifDaily(!notifDaily)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors ${notifDaily ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${notifDaily ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+                    <div className="flex items-center justify-between"><h4 className="font-bold text-slate-900 text-sm">Cập nhật hệ thống</h4><button onClick={() => setNotifUpdates(!notifUpdates)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors ${notifUpdates ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${notifUpdates ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+                  </div>
+                )}
+
+                {activeModal === 'security' && (
+                  <div className="space-y-6">
+                    <div className="pb-5 border-b border-slate-100">
+                      <h4 className="font-bold text-slate-900 text-sm mb-2">Đổi mật khẩu</h4>
+                      <button onClick={handleRequestPasswordReset} disabled={sendingResetMail} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                        {sendingResetMail ? 'Đang gửi...' : 'Yêu cầu Đổi mật khẩu'}
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between pb-5 border-b border-slate-100"><h4 className="font-bold text-slate-900 text-sm">Xác thực 2 bước (2FA)</h4><button onClick={() => setTwoFactorAuth(!twoFactorAuth)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors ${twoFactorAuth ? 'bg-green-500' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${twoFactorAuth ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+                    <div className="flex items-center justify-between pb-5 border-b border-slate-100"><h4 className="font-bold text-slate-900 text-sm">Chia sẻ dữ liệu</h4><button onClick={() => setDataSharing(!dataSharing)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors ${dataSharing ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${dataSharing ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+                  </div>
+                )}
               </div>
 
               {/* Modal Footer */}
-              <div className="p-6 bg-slate-50/50 border-t border-slate-100 flex gap-3">
+              <div className="p-4 sm:p-6 bg-slate-50/50 border-t border-slate-100 flex gap-3">
                 <button 
                   onClick={() => setActiveModal(null)}
                   className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors"
@@ -515,11 +572,41 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
                     Đăng xuất ngay
                   </button>
                 )}
+                {activeModal === 'notification' && (
+                  <button
+                    onClick={handleUpdateNotificationSettings}
+                    disabled={loading}
+                    className="flex-1 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-light transition-all shadow-md shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {loading ? 'Đang lưu...' : 'Lưu các cài đặt'}
+                  </button>
+                )}
+                {activeModal === 'security' && (
+                  <button
+                    onClick={() => {
+                      showToast('Đã lưu thay đổi cài đặt!');
+                      setActiveModal(null);
+                    }}
+                    className="flex-1 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-light transition-all shadow-md shadow-primary/20"
+                  >
+                    Lưu các cài đặt
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }
+
+
+
+
+
+
+
+
