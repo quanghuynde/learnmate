@@ -1,4 +1,4 @@
-const jwt = require('jsonwebtoken');
+﻿const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const crypto = require('crypto');
@@ -122,7 +122,7 @@ const googleLogin = async (req, res) => {
     });
   } catch (error) {
     console.error('Google Auth Error:', error);
-    res.status(500).json({ message: `Lỗi xác thực Google: ${error.message}` });
+    res.status(500).json({ message: `Lá»—i xÃ¡c thá»±c Google: ${error.message}` });
   }
 };
 
@@ -155,25 +155,25 @@ const forgotPassword = async (req, res) => {
     // URL khach hang
     const resetUrl = `${process.env.CORS_ORIGIN}/reset-password/${resetToken}`;
 
-    const message = `Ban dang yeu cau dat lai mat khau. Vui long nhap vao duong dan duoi day de tiep tuc:\n\n${resetUrl}\n\nNeu ban khong yeu cau dieu nay, vui long bo qua email nay.`;
+    const message = `Bạn đang yêu cầu đặt lại mật khẩu. Vui lòng mở đường dẫn dưới đây để tiếp tục:\n\n${resetUrl}\n\nNếu bạn không yêu cầu thao tác này, hãy bỏ qua email này.`;
 
     try {
       await sendEmail({
         email: user.email,
-        subject: 'Dat lai mat khau LearnMate',
+        subject: 'Đặt lại mật khẩu LearnMate',
         message,
         html: `
           <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2 style="color: #3b82f6;">Dat lai mat khau LearnMate</h2>
-            <p>Ban nhan duoc email nay vi ban (hoac ai do) da yeu cau dat lai mat khau cho tai khoan LearnMate.</p>
-            <p>Vui long nhan vao nut duoi day de tiep tuc:</p>
-            <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Dat lai mat khau</a>
-            <p style="margin-top: 20px; font-size: 12px; color: #666;">Duong dan nay se het han trong 10 phut.</p>
+            <h2 style="color: #3b82f6;">Đặt lại mật khẩu LearnMate</h2>
+            <p>Bạn nhận được email này vì bạn (hoặc ai đó) đã yêu cầu đặt lại mật khẩu cho tài khoản LearnMate.</p>
+            <p>Vui lòng nhấn vào nút dưới đây để tiếp tục:</p>
+            <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Đặt lại mật khẩu</a>
+            <p style="margin-top: 20px; font-size: 12px; color: #666;">Đường dẫn này sẽ hết hạn trong 10 phút.</p>
           </div>
         `,
       });
 
-      res.json({ message: 'Email khoi phuc da duoc gui' });
+      res.json({ message: 'Email khôi phục đã được gửi' });
     } catch (err) {
       console.error('Email Error:', err);
       user.resetPasswordToken = undefined;
@@ -214,3 +214,5 @@ const resetPassword = async (req, res) => {
 };
 
 module.exports = { register, login, googleLogin, getMe, forgotPassword, resetPassword };
+
+
