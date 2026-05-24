@@ -25,6 +25,8 @@ const extractText = async (filePath, type) => {
     } else if (type === 'docx') {
       const result = await mammoth.extractRawText({ buffer: dataBuffer });
       return result.value;
+    } else if (type === 'txt') {
+      return dataBuffer.toString('utf8');
     }
     // Hiện tại chưa hỗ trợ PPTX trích xuất text sâu (cần library nặng hơn)
     return '';

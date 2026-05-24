@@ -7,12 +7,16 @@ import {
   CheckCircle2,
   Loader2,
   Trash2,
-  File,
-  FileSpreadsheet,
+  File as FileIcon,
   Presentation,
   AlertCircle,
   X,
-  Plus,
+  Globe,
+  Link,
+  Youtube,
+  HardDrive,
+  ClipboardPaste,
+  MessageSquare,
 } from 'lucide-react';
 import { api, DocumentItem } from '../lib/api';
 
@@ -20,13 +24,10 @@ interface DocumentsProps {
   token: string;
 }
 
-const SUPPORTED_TYPES = [
-  { ext: '.*', label: 'Mọi định dạng', color: 'text-primary', bg: 'bg-primary/10', icon: FileText },
-];
 
 function getFileStyle(type: string) {
   if (type === 'pdf') return { color: 'text-red-500', bg: 'bg-red-50', Icon: FileText };
-  if (type === 'docx') return { color: 'text-blue-500', bg: 'bg-blue-50', Icon: File };
+  if (type === 'docx') return { color: 'text-blue-500', bg: 'bg-blue-50', Icon: FileIcon };
   if (type === 'pptx') return { color: 'text-orange-500', bg: 'bg-orange-50', Icon: Presentation };
   return { color: 'text-slate-500', bg: 'bg-slate-50', Icon: FileText };
 }
@@ -47,6 +48,56 @@ export function Documents({ token }: DocumentsProps) {
   const [search, setSearch] = useState('');
   const [successFile, setSuccessFile] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [showWebModal, setShowWebModal] = useState(false);
+  const [webUrl, setWebUrl] = useState('');
+  const [showDriveModal, setShowDriveModal] = useState(false);
+  const [driveUrl, setDriveUrl] = useState('');
+  const [showTextModal, setShowTextModal] = useState(false);
+  const [pastedText, setPastedText] = useState('');
+  
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [summaryDoc, setSummaryDoc] = useState<DocumentItem | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryContent, setSummaryContent] = useState('');
+
+  const handleUploadFromText = async (content: string, type: 'web' | 'text' | 'drive') => {
+    if (!content.trim()) return;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const namePrefix = type === 'web' ? 'Web_Link' : type === 'drive' ? 'Drive_Link' : 'Pasted_Text';
+    const file = new File([blob], `${namePrefix}_${Date.now()}.txt`, { type: 'text/plain' });
+    setShowTextModal(false);
+    setShowWebModal(false);
+    setShowDriveModal(false);
+    setPastedText('');
+    setWebUrl('');
+    setDriveUrl('');
+    await uploadFile(file);
+  };
+
+  const handleShowSummary = async (doc: DocumentItem) => {
+    setSummaryDoc(doc);
+    setShowSummaryModal(true);
+    setSummaryLoading(true);
+    setSummaryContent('');
+    try {
+      const response = await fetch('/api/ai/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ documentId: doc._id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || `Lỗi server ${response.status}`);
+      setSummaryContent(data.summary || 'Mô hình AI trả về nội dung rỗng.');
+    } catch (err) {
+      setSummaryContent(`Không thể tạo tóm tắt: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
 
   const loadDocuments = async () => {
     try {
@@ -156,16 +207,7 @@ export function Documents({ token }: DocumentsProps) {
       </AnimatePresence>
 
       {/* Upload zone */}
-      <div
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        className={`relative border-2 border-dashed rounded-3xl transition-all overflow-hidden ${
-          isDragging
-            ? 'border-primary bg-primary/5 scale-[1.01]'
-            : 'border-slate-300 bg-white hover:border-primary/50 hover:bg-slate-50/50'
-        }`}
-      >
+      <div className="relative">
         <input
           ref={fileInputRef}
           type="file"
@@ -175,7 +217,7 @@ export function Documents({ token }: DocumentsProps) {
         />
 
         {uploading ? (
-          <div className="p-12 text-center max-w-md mx-auto">
+          <div className="p-12 text-center max-w-md mx-auto bg-white rounded-3xl border border-slate-100 shadow-sm">
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-5">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
@@ -192,58 +234,57 @@ export function Documents({ token }: DocumentsProps) {
             <p className="text-sm text-slate-500 font-medium">{progress}% hoàn thành</p>
           </div>
         ) : (
-          <div className="p-10">
-            {/* Main upload area */}
-            <div className="text-center mb-8">
-              <div
-                className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-5 transition-colors ${
-                  isDragging ? 'bg-primary text-white' : 'bg-blue-50 text-blue-500'
-                }`}
-              >
-                <UploadCloud size={40} />
-              </div>
-              <h3 className="text-xl font-bold text-text-primary mb-2">
-                {isDragging ? 'Thả tệp để tải lên' : 'Tải tài liệu mới'}
-              </h3>
-              <p className="text-slate-500 text-sm mb-6 max-w-sm mx-auto">
-                Kéo thả tệp vào đây hoặc nhấn nút bên dưới để chọn tệp từ máy tính
-              </p>
-              <button
-                onClick={handleChooseFile}
-                className="inline-flex items-center gap-2 bg-primary hover:bg-primary-light text-white px-8 py-3 rounded-xl font-semibold transition-all hover:shadow-lg hover:shadow-primary/30 active:scale-95"
-              >
-                <Plus size={18} />
-                Chọn tệp
-              </button>
-            </div>
+            <div className="bg-white rounded-[32px] p-6 md:p-10 text-center relative max-w-4xl mx-auto shadow-sm border border-slate-100">
+               <h2 className="text-xl md:text-2xl font-semibold text-slate-800 mb-8 mx-auto max-w-xl leading-relaxed">
+                  Tạo bản Tổng quan bằng âm thanh và video từ <br/> <span className="text-emerald-500">trang web</span>
+               </h2>
+               
+               <div className="relative max-w-2xl mx-auto mb-8 sm:mb-12">
+                 <div className="hidden sm:flex items-center absolute left-2 top-1/2 -translate-y-1/2 gap-2 z-10">
+                   <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 transition-colors text-slate-700 shadow-sm">
+                     <Globe size={16} /> Web
+                   </button>
+                   <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 transition-colors text-slate-700 shadow-sm">
+                     <Search size={16} /> Nghiên cứu nhanh
+                   </button>
+                 </div>
+                 <input 
+                   type="text" 
+                   placeholder="Tìm nguồn mới trên web" 
+                   className="w-full h-14 sm:pl-64 pl-4 pr-12 rounded-full border border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm shadow-sm transition-all"
+                 />
+                 <button className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-slate-50 hover:bg-slate-100 rounded-full text-slate-500 transition-colors z-10">
+                   <Search size={16} />
+                 </button>
+               </div>
 
-            {/* Supported file types */}
-            <div className="border-t border-slate-100 pt-6">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider text-center mb-4">
-                Định dạng hỗ trợ
-              </p>
-              <div className="flex justify-center gap-4 flex-wrap">
-                {SUPPORTED_TYPES.map((t) => {
-                  const Icon = t.icon;
-                  return (
-                    <div
-                      key={t.ext}
-                      className={`flex items-center gap-2 px-4 py-2 ${t.bg} rounded-xl`}
-                    >
-                      <Icon size={16} className={t.color} />
-                      <span className={`text-sm font-semibold ${t.color}`}>{t.label}</span>
-                      <span className="text-xs text-slate-400">{t.ext}</span>
-                    </div>
-                  );
-                })}
-                <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl">
-                  <FileSpreadsheet size={16} className="text-slate-400" />
-                  <span className="text-sm font-semibold text-slate-500">Tối đa</span>
-                  <span className="text-xs text-slate-400">100MB</span>
-                </div>
-              </div>
+               <div 
+                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                 onDragLeave={() => setIsDragging(false)}
+                 onDrop={handleDrop}
+                 className={`border-2 border-dashed rounded-3xl p-8 md:p-12 transition-colors ${
+                   isDragging ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-slate-300 bg-[#f8fafc]'
+                 }`}
+               >
+                 <h3 className="text-lg font-medium text-slate-800 mb-2">hoặc thả tệp của bạn</h3>
+                 <p className="text-sm text-slate-500 mb-8 font-medium">pdf, hình ảnh, tài liệu, âm thanh, <a href="#" className="underline decoration-slate-300 hover:text-slate-800 transition-colors">và các định dạng khác</a></p>
+                 
+                 <div className="flex flex-wrap justify-center gap-3">
+                    <button onClick={handleChooseFile} className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-full shadow-sm hover:shadow-md hover:border-slate-300 transition-all font-semibold text-sm text-slate-700">
+                      <UploadCloud size={18} /> Tải tệp lên
+                    </button>
+                    <button onClick={() => setShowWebModal(true)} className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-full shadow-sm hover:shadow-md hover:border-slate-300 transition-all font-semibold text-sm text-slate-700">
+                      <Link size={18} /> <Youtube size={18} className="text-red-500 -ml-1" /> Trang web
+                    </button>
+                    <button onClick={() => setShowDriveModal(true)} className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-full shadow-sm hover:shadow-md hover:border-slate-300 transition-all font-semibold text-sm text-slate-700">
+                      <HardDrive size={18} /> Drive
+                    </button>
+                    <button onClick={() => setShowTextModal(true)} className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-full shadow-sm hover:shadow-md hover:border-slate-300 transition-all font-semibold text-sm text-slate-700">
+                      <ClipboardPaste size={18} /> Văn bản đã sao chép
+                    </button>
+                 </div>
+               </div>
             </div>
-          </div>
         )}
       </div>
 
@@ -323,6 +364,12 @@ export function Documents({ token }: DocumentsProps) {
                   </div>
 
                   <div className="flex items-center gap-3 flex-shrink-0">
+                    <button
+                      onClick={() => handleShowSummary(doc)}
+                      className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                    >
+                      <MessageSquare size={14} /> Xem tóm tắt
+                    </button>
                     {doc.status === 'processed' ? (
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
                         <CheckCircle2 size={13} /> Đã xử lý
@@ -345,6 +392,98 @@ export function Documents({ token }: DocumentsProps) {
           </div>
         )}
       </div>
+
+      {/* Web Link Modal */}
+      <AnimatePresence>
+        {showWebModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl shadow-xl border border-slate-100 w-full max-w-md overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="font-bold text-lg text-slate-900">Dán liên kết web hoặc YouTube</h3>
+                <button onClick={() => setShowWebModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+              </div>
+              <div className="p-6">
+                <input type="text" value={webUrl} onChange={(e) => setWebUrl(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm" placeholder="Nhập địa chỉ https://..." />
+              </div>
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <button onClick={() => setShowWebModal(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Hủy</button>
+                <button onClick={() => handleUploadFromText(webUrl, 'web')} className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary-light transition-colors">Tải lên</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Drive Link Modal */}
+      <AnimatePresence>
+        {showDriveModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl shadow-xl border border-slate-100 w-full max-w-md overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="font-bold text-lg text-slate-900">Chia sẻ link Google Drive</h3>
+                <button onClick={() => setShowDriveModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+              </div>
+              <div className="p-6">
+                <input type="text" value={driveUrl} onChange={(e) => setDriveUrl(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm" placeholder="Nhập link chia sẻ tài liệu Google Drive..." />
+              </div>
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <button onClick={() => setShowDriveModal(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Hủy</button>
+                <button onClick={() => handleUploadFromText(driveUrl, 'drive')} className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary-light transition-colors">Tải lên</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Text Paste Modal */}
+      <AnimatePresence>
+        {showTextModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl shadow-xl border border-slate-100 w-full max-w-2xl overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="font-bold text-lg text-slate-900">Dán văn bản</h3>
+                <button onClick={() => setShowTextModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+              </div>
+              <div className="p-6">
+                <textarea value={pastedText} onChange={(e) => setPastedText(e.target.value)} rows={10} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm resize-none custom-scrollbar" placeholder="Dán văn bản sao chép vào đây..." />
+              </div>
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <button onClick={() => setShowTextModal(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Hủy</button>
+                <button onClick={() => handleUploadFromText(pastedText, 'text')} className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary-light transition-colors">Tải lên</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Summary Modal */}
+      <AnimatePresence>
+        {showSummaryModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl shadow-xl border border-slate-100 w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                <div>
+                    <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2"><MessageSquare size={20} className="text-primary"/> Tóm tắt tài liệu</h3>
+                    <p className="text-xs text-slate-500 mt-1 truncate max-w-[300px]">{summaryDoc?.name}</p>
+                </div>
+                <button onClick={() => setShowSummaryModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+              </div>
+              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 relative min-h-[200px]">
+                 {summaryLoading ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-slate-500 h-full absolute inset-0">
+                        <Loader2 size={32} className="animate-spin text-primary mb-4"/>
+                        <p className="font-medium">AI đang phân tích và tạo tóm tắt...</p>
+                    </div>
+                 ) : (
+                    <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap format-markdown">
+                        {summaryContent}
+                    </div>
+                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
