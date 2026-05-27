@@ -86,6 +86,16 @@ export type NotificationItem = {
   createdAt: string;
 };
 
+export type LeaderboardItem = {
+  userId: string;
+  rank: number;
+  name: string;
+  avatar: string;
+  score: number;
+  streak: number;
+  quiz: number;
+};
+
 export type DocumentItem = {
   _id: string;
   name: string;
@@ -168,6 +178,14 @@ export const api = {
 
   getNotifications: (token: string) =>
     request<{ notifications: NotificationItem[] }>('/notifications', { token }),
+  getLeaderboard: (token: string) =>
+    request<{ leaderboard: LeaderboardItem[] }>('/users/leaderboard', { token }),
+  createSystemNotification: (token: string, payload: { title: string; message: string; metadata?: Record<string, any> }) =>
+    request<{ notification: NotificationItem }>('/notifications/system', { method: 'POST', token, body: payload }),
+  createSystemEventNotification: (
+    token: string,
+    payload: { event: string; data?: Record<string, any> }
+  ) => request<{ notification: NotificationItem }>('/notifications/system-event', { method: 'POST', token, body: payload }),
   markNotificationRead: (token: string, id: string) =>
     request<any>(`/notifications/${id}/read`, { method: 'PUT', token }),
   markAllNotificationsRead: (token: string) =>

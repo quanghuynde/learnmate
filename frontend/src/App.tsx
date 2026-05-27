@@ -109,7 +109,7 @@ export function App() {
       case 'progress':
         return <Progress token={token} />;
       case 'community':
-        return <Community />;
+        return <Community token={token} user={user} />;
       case 'video':
         return <AIDialogue token={token} />;
       case 'mentor':
@@ -117,7 +117,7 @@ export function App() {
       case 'profile':
         return <Profile token={token} user={user} onLogout={handleLogout} />;
       case 'gamification':
-        return <Gamification />;
+        return <Gamification token={token} user={user} />;
       case 'pricing':
         return <Pricing setCurrentPage={setCurrentPage} />;
       default:

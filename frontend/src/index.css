@@ -28,7 +28,10 @@
   }
 }
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', 'Segoe UI', Roboto, Arial, 'Noto Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   background-color: #f1f5f9;
   color: #0f172a;
   overflow: hidden;
