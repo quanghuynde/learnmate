@@ -146,7 +146,7 @@ export function App() {
           </AnimatePresence>
         </main>
       </div>
-      <AICompanion />
+      <AICompanion token={token} currentPage={currentPage} />
     </div>
   );
 }

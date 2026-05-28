@@ -3,7 +3,7 @@ import { Network } from 'lucide-react';
 
 export function KnowledgeMap() {
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col">
+    <div data-tour="knowledge-map" className="h-[calc(100vh-8rem)] flex flex-col">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Bản đồ kiến thức</h1>
         <p className="text-slate-500">Chưa có dữ liệu thật để dựng bản đồ.</p>

@@ -204,7 +204,7 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
         )}
       </AnimatePresence>
 
-      <motion.div className="bg-gradient-to-r from-primary to-primary-light rounded-3xl p-6 md:p-8 text-white flex flex-col md:flex-row justify-between items-center shadow-lg shadow-primary/20 relative overflow-hidden">
+      <motion.div data-tour="dashboard-overview" className="bg-gradient-to-r from-primary to-primary-light rounded-3xl p-6 md:p-8 text-white flex flex-col md:flex-row justify-between items-center shadow-lg shadow-primary/20 relative overflow-hidden">
         <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
         <div className="relative z-10 mb-6 md:mb-0">
           <h1 className="text-2xl md:text-3xl font-bold mb-2">Chào mừng trở lại, {user?.name || 'bạn'}! 🎯</h1>
@@ -275,7 +275,7 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
             </div>
           </div>
 
-          <div className="bg-card rounded-2xl p-6 border border-slate-100 shadow-sm">
+          <div data-tour="today-tasks" className="bg-card rounded-2xl p-6 border border-slate-100 shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-lg font-bold text-text-primary">Nhiệm vụ học hôm nay</h2>
               <button onClick={() => setCurrentPage('planner')} className="text-sm text-primary-light font-medium hover:underline flex items-center gap-1">

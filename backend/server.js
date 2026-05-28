@@ -13,6 +13,7 @@ const examRoutes = require('./src/routes/examRoutes');
 const progressRoutes = require('./src/routes/progressRoutes');
 const notificationRoutes = require('./src/routes/notificationRoutes');
 const ttsRoutes = require('./src/routes/ttsRoutes');
+const aiAssistantRoutes = require('./src/routes/aiAssistantRoutes');
 const errorHandler = require('./src/middleware/errorHandler');
 
 // Kết nối MongoDB
@@ -42,6 +43,7 @@ app.use('/api/exams', examRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/tts', ttsRoutes);
+app.use('/api/ai-assistant', aiAssistantRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

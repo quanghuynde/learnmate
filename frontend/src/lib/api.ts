@@ -127,6 +127,19 @@ export type QuizItem = {
   createdAt: string;
 };
 
+export type AssistantAction = {
+  type: 'highlight' | 'click' | 'focus' | 'scroll_to';
+  target: string;
+  selector?: string;
+  instruction?: string;
+  durationMs?: number;
+};
+
+export type AssistantGuideResponse = {
+  message: string;
+  actions?: AssistantAction[];
+};
+
 export const api = {
   register: (data: any) => request<AuthPayload & { message: string }>('/auth/register', { method: 'POST', body: data }),
   login: (data: any) => request<AuthPayload & { message: string }>('/auth/login', { method: 'POST', body: data }),
@@ -190,5 +203,22 @@ export const api = {
     request<any>(`/notifications/${id}/read`, { method: 'PUT', token }),
   markAllNotificationsRead: (token: string) =>
     request<any>('/notifications/read-all', { method: 'PUT', token }),
+  askAiAssistant: (
+    token: string,
+    payload: {
+      message: string;
+      uiContext: {
+        currentPage: string;
+        pageTitle?: string;
+        path?: string;
+        semanticTargets?: Record<string, string>;
+        visibleActions?: Array<{
+          selector: string;
+          kind: string;
+          label: string;
+        }>;
+      };
+    }
+  ) => request<AssistantGuideResponse>('/ai-assistant/guide', { method: 'POST', token, body: payload }),
 };
 
