@@ -1,5 +1,8 @@
 const API_BASE_URL = '/api';
 
+const cache = new Map<string, { data: any; ts: number }>();
+const TTL = 60000; // 1 minute
+
 async function request<T>(url: string, options: any = {}): Promise<T> {
   const isFormData = options.body instanceof FormData;
   const headers = {
@@ -30,9 +33,36 @@ async function request<T>(url: string, options: any = {}): Promise<T> {
   return data as T;
 }
 
+const inflight = new Map<string, Promise<any>>();
+
+async function cachedRequest<T>(cacheKey: string, url: string, options: any = {}): Promise<T> {
+  const hit = cache.get(cacheKey);
+  if (hit && Date.now() - hit.ts < TTL) {
+    return hit.data as T;
+  }
+
+  // Deduplicate in-flight requests
+  const existing = inflight.get(cacheKey);
+  if (existing) return existing as Promise<T>;
+
+  const promise = request<T>(url, options).then((data) => {
+    cache.set(cacheKey, { data, ts: Date.now() });
+    inflight.delete(cacheKey);
+    return data;
+  }).catch((err) => {
+    inflight.delete(cacheKey);
+    throw err;
+  });
+
+  inflight.set(cacheKey, promise);
+  return promise;
+}
+
 export type AuthPayload = {
-  token: string;
+  token?: string;
   user?: UserItem;
+  requires2FA?: boolean;
+  tempToken?: string;
 };
 
 export type UserItem = {
@@ -43,6 +73,7 @@ export type UserItem = {
   xp: number;
   level: number;
   streak: number;
+  bestStreak: number;
   avatar?: string;
   studyGoal?: string;
   subjects?: string[];
@@ -56,7 +87,9 @@ export type UserItem = {
     dailyReminderEnabled?: boolean;
     dailyReminderTime?: string;
     systemUpdates?: boolean;
+    dataSharing?: boolean;
   };
+  twoFactorEnabled?: boolean;
 };
 
 export type ExamItem = {
@@ -156,6 +189,31 @@ export type AchievementItem = {
   target: number;
 };
 
+export type CommentItem = {
+  _id: string;
+  user: {
+    _id: string;
+    name: string;
+    avatar?: string;
+  };
+  content: string;
+  createdAt: string;
+};
+
+export type PostItem = {
+  _id: string;
+  author: {
+    _id: string;
+    name: string;
+    avatar?: string;
+  };
+  content: string;
+  image?: string;
+  likes: string[];
+  comments: CommentItem[];
+  createdAt: string;
+};
+
 export type LeaderboardItem = {
   rank: number;
   userId: string;
@@ -208,23 +266,36 @@ export const api = {
 
   getMe: (token: string) => request<{ user: UserItem }>('/auth/me', { token }),
 
+  // 2FA Methods
+  setup2FA: (token: string) =>
+    request<{ qrCodeUrl: string; secret: string }>('/auth/2fa/setup', { method: 'POST', token }),
+  
+  verifySetup2FA: (token: string, otpCode: string) =>
+    request<{ message: string }>('/auth/2fa/verify-setup', { method: 'POST', token, body: { otpCode } }),
+
+  disable2FA: (token: string, otpCode: string) =>
+    request<{ message: string }>('/auth/2fa/disable', { method: 'POST', token, body: { otpCode } }),
+
+  verify2FALogin: (tempToken: string, otpCode: string) =>
+    request<AuthPayload & { message: string }>('/auth/2fa/login', { method: 'POST', body: { tempToken, otpCode } }),
+
   updateProfile: (token: string, payload: Partial<UserItem>) =>
     request<{ user: UserItem }>('/users/profile', { method: 'PUT', token, body: payload }),
 
-  getExams: (token: string) => request<{ exams: ExamItem[] }>('/exams', { token }),
+  getExams: (token: string) => cachedRequest<{ exams: ExamItem[] }>('exams', '/exams', { token }),
   createExam: (token: string, data: any) =>
     request<{ exam: ExamItem }>('/exams', { method: 'POST', token, body: data }),
   updateExam: (token: string, id: string, data: any) =>
     request<{ exam: ExamItem }>(`/exams/${id}`, { method: 'PUT', token, body: data }),
   getExamReadiness: (token: string, examId: string) =>
-    request<ExamReadinessData>(`/exams/${examId}/readiness`, { token }),
+    cachedRequest<ExamReadinessData>(`readiness_${examId}`, `/exams/${examId}/readiness`, { token }),
 
   getStudyPlans: (token: string) => request<{ studyPlans: StudyPlanItem[] }>('/study-plans', { token }),
   createStudyPlan: (token: string, data: any) =>
     request<any>('/study-plans', { method: 'POST', token, body: data }),
 
   getProgressOverview: (token: string) =>
-    request<any>('/progress/overview', { token }),
+    cachedRequest<any>('progress_overview', '/progress/overview', { token }),
 
   createSession: (token: string, data: any) =>
     request<any>('/progress/sessions', { method: 'POST', token, body: data }),
@@ -235,14 +306,15 @@ export const api = {
   submitQuiz: (token: string, id: string, answers: any[]) =>
     request<any>(`/quizzes/${id}/submit`, { method: 'POST', token, body: { answers } }),
   getQuizHistory: (token: string) =>
-    request<{ results: any[] }>('/quizzes/results/history', { token }),
+    cachedRequest<{ results: any[] }>('quiz_history', '/quizzes/results/history', { token }),
 
-  getDocuments: (token: string) => request<{ documents: DocumentItem[] }>('/documents', { token }),
+  getDocuments: (token: string) => cachedRequest<{ documents: DocumentItem[] }>('documents', '/documents', { token }),
   uploadDocument: (token: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     return request<any>('/documents', { method: 'POST', token, body: formData });
   },
+
   deleteDocument: (token: string, id: string) =>
     request<any>(`/documents/${id}`, { method: 'DELETE', token }),
 
@@ -255,13 +327,38 @@ export const api = {
 
   // Gamification
   getGamificationOverview: (token: string) =>
-    request<GamificationOverview>('/gamification/overview', { token }),
+    cachedRequest<GamificationOverview>('gamification_overview', '/gamification/overview', { token }),
   getAchievements: (token: string) =>
-    request<{ achievements: AchievementItem[] }>('/gamification/achievements', { token }),
+    cachedRequest<{ achievements: AchievementItem[] }>('achievements', '/gamification/achievements', { token }),
   getLeaderboard: (token: string, limit?: number) =>
-    request<{ userRank: number | null; leaderboard: LeaderboardItem[] }>(
+    cachedRequest<{ userRank: number | null; leaderboard: LeaderboardItem[] }>(
+      `leaderboard_${limit || 10}`,
       `/gamification/leaderboard${limit ? `?limit=${limit}` : ''}`,
       { token }
     ),
+  // Community / Posts
+  getPosts: (token: string, search?: string) =>
+    request<{ count: number; posts: PostItem[] }>(`/posts${search ? `?search=${encodeURIComponent(search)}` : ''}`, { token }),
+  
+  createPost: (token: string, data: { content: string; image?: string }) =>
+    request<{ message: string; post: PostItem }>('/posts', { method: 'POST', token, body: data }),
+  
+  uploadPostImage: (token: string, file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    return request<{ imageUrl: string }>('/posts/upload-image', { method: 'POST', token, body: formData });
+  },
+
+  toggleLike: (token: string, postId: string) =>
+    request<{ message: string; likesCount: number; isLiked: boolean }>(`/posts/${postId}/like`, { method: 'PUT', token }),
+  
+  addComment: (token: string, postId: string, content: string) =>
+    request<{ message: string; comments: CommentItem[] }>(`/posts/${postId}/comments`, { method: 'POST', token, body: { content } }),
+
+  invalidateCache: (key?: string) => {
+    if (key) cache.delete(key);
+    else cache.clear();
+  },
 };
+
 

@@ -43,6 +43,12 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
   const [dataSharing, setDataSharing] = useState(true);
   const [sendingResetMail, setSendingResetMail] = useState(false);
   
+  // 2FA Setup States
+  const [isSettingUp2FA, setIsSettingUp2FA] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [twoFactorStep, setTwoFactorStep] = useState<'info' | 'qr' | 'verify'>('info');
+  
   // States for Editing Info
   const [editName, setEditName] = useState('');
   const [editGoal, setEditGoal] = useState('');
@@ -84,6 +90,8 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
     setNotifPush(u.preferences?.pushNotifications ?? true);
     setNotifDaily(u.preferences?.dailyReminderEnabled ?? false);
     setNotifUpdates(u.preferences?.systemUpdates ?? true);
+    setDataSharing(u.preferences?.dataSharing ?? true);
+    setTwoFactorAuth(u.twoFactorEnabled ?? false);
   };
 
   const handleUpdateInfo = async () => {
@@ -186,6 +194,60 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
     showToast('Đang xuất dữ liệu...');
+  };
+
+  const handleStart2FASetup = async () => {
+    setLoading(true);
+    try {
+      const res = await api.setup2FA(token);
+      setQrCodeUrl(res.qrCodeUrl);
+      setTwoFactorStep('qr');
+      setIsSettingUp2FA(true);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Không thể bắt đầu thiết lập 2FA', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify2FASetup = async () => {
+    if (!otpCode) {
+      showToast('Vui lòng nhập mã OTP', 'error');
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.verifySetup2FA(token, otpCode);
+      setTwoFactorAuth(true);
+      setIsSettingUp2FA(false);
+      setOtpCode('');
+      setTwoFactorStep('info');
+      refreshUser();
+      showToast('Đã bật xác thực 2 bước thành công!');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Mã OTP không chính xác', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDisable2FA = async () => {
+    if (!otpCode) {
+      showToast('Vui lòng nhập mã OTP để tắt 2FA', 'error');
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.disable2FA(token, otpCode);
+      setTwoFactorAuth(false);
+      setOtpCode('');
+      refreshUser();
+      showToast('Đã tắt xác thực 2 bước.');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Mã OTP không chính xác', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
   const initials = user?.name ? getInitials(user.name) : '?';
   return (
@@ -516,24 +578,139 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
                 )}
 
                 {activeModal === 'notification' && (
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between"><h4 className="font-bold text-slate-900 text-sm">Thông báo qua Email</h4><button onClick={() => setNotifEmail(!notifEmail)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors ${notifEmail ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${notifEmail ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
-                    <div className="flex items-center justify-between"><h4 className="font-bold text-slate-900 text-sm">Thông báo đẩy (Push)</h4><button onClick={() => setNotifPush(!notifPush)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors ${notifPush ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${notifPush ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
-                    <div className="flex items-center justify-between"><h4 className="font-bold text-slate-900 text-sm">Nhắc nhở hằng ngày</h4><button onClick={() => setNotifDaily(!notifDaily)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors ${notifDaily ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${notifDaily ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
-                    <div className="flex items-center justify-between"><h4 className="font-bold text-slate-900 text-sm">Cập nhật hệ thống</h4><button onClick={() => setNotifUpdates(!notifUpdates)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors ${notifUpdates ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${notifUpdates ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Thông báo qua Email</h4>
+                        <p className="text-xs text-slate-400 mt-0.5">Nhận thông báo quan trọng và cập nhật qua email đã đăng ký</p>
+                      </div>
+                      <button onClick={() => setNotifEmail(!notifEmail)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors flex-shrink-0 ${notifEmail ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${notifEmail ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Thông báo đẩy (Push)</h4>
+                        <p className="text-xs text-slate-400 mt-0.5">Nhận thông báo trực tiếp trên trình duyệt khi có hoạt động mới</p>
+                      </div>
+                      <button onClick={() => setNotifPush(!notifPush)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors flex-shrink-0 ${notifPush ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${notifPush ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Nhắc nhở hằng ngày</h4>
+                        <p className="text-xs text-slate-400 mt-0.5">Gửi email nhắc học mỗi ngày vào lúc 9:00 sáng theo giờ Việt Nam</p>
+                      </div>
+                      <button onClick={() => setNotifDaily(!notifDaily)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors flex-shrink-0 ${notifDaily ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${notifDaily ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Cập nhật hệ thống</h4>
+                        <p className="text-xs text-slate-400 mt-0.5">Nhận thông báo về tính năng mới và lịch bảo trì hệ thống</p>
+                      </div>
+                      <button onClick={() => setNotifUpdates(!notifUpdates)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors flex-shrink-0 ${notifUpdates ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${notifUpdates ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+                    </div>
                   </div>
                 )}
 
                 {activeModal === 'security' && (
-                  <div className="space-y-6">
+                  <div className="space-y-5">
                     <div className="pb-5 border-b border-slate-100">
-                      <h4 className="font-bold text-slate-900 text-sm mb-2">Đổi mật khẩu</h4>
+                      <h4 className="font-bold text-slate-900 text-sm mb-1">Đổi mật khẩu</h4>
+                      <p className="text-xs text-slate-400 mb-3">Gửi liên kết đổi mật khẩu qua email đã đăng ký của bạn</p>
                       <button onClick={handleRequestPasswordReset} disabled={sendingResetMail} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
                         {sendingResetMail ? 'Đang gửi...' : 'Yêu cầu Đổi mật khẩu'}
                       </button>
                     </div>
-                    <div className="flex items-center justify-between pb-5 border-b border-slate-100"><h4 className="font-bold text-slate-900 text-sm">Xác thực 2 bước (2FA)</h4><button onClick={() => setTwoFactorAuth(!twoFactorAuth)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors ${twoFactorAuth ? 'bg-green-500' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${twoFactorAuth ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
-                    <div className="flex items-center justify-between pb-5 border-b border-slate-100"><h4 className="font-bold text-slate-900 text-sm">Chia sẻ dữ liệu</h4><button onClick={() => setDataSharing(!dataSharing)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors ${dataSharing ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${dataSharing ? 'translate-x-6' : 'translate-x-1'}`} /></button></div>
+                    <div className="flex flex-col pb-5 border-b border-slate-100">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-slate-900 text-sm">Xác thực 2 bước (2FA)</h4>
+                            {twoFactorAuth ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-green-100 text-green-600 rounded">Đã bật</span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">Chưa bật</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">Thêm lớp bảo vệ khi đăng nhập bằng mã xác thực OTP</p>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            if (twoFactorAuth) {
+                              setTwoFactorStep('verify');
+                              setIsSettingUp2FA(true);
+                            } else {
+                              handleStart2FASetup();
+                            }
+                          }}
+                          className={`relative flex items-center w-11 h-6 rounded-full transition-colors flex-shrink-0 ${twoFactorAuth ? 'bg-green-500' : 'bg-slate-200'}`}
+                        >
+                          <span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${twoFactorAuth ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                      </div>
+
+                      {isSettingUp2FA && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden"
+                        >
+                          {twoFactorStep === 'qr' && (
+                            <div className="text-center space-y-3">
+                              <p className="text-xs font-medium text-slate-600">Quét mã QR dưới đây bằng Google Authenticator hoặc Authy:</p>
+                              <div className="bg-white p-2 rounded-xl inline-block border border-slate-200">
+                                <img src={qrCodeUrl} alt="2FA QR Code" className="w-32 h-32" />
+                              </div>
+                              <button 
+                                onClick={() => setTwoFactorStep('verify')}
+                                className="block w-full py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary-light transition-colors"
+                              >
+                                Tiếp theo
+                              </button>
+                            </div>
+                          )}
+
+                          {(twoFactorStep === 'verify') && (
+                            <div className="space-y-3">
+                              <p className="text-xs font-medium text-slate-600">
+                                {twoFactorAuth ? 'Nhập mã OTP để tắt 2FA:' : 'Nhập mã OTP từ ứng dụng của bạn để xác nhận:'}
+                              </p>
+                              <input 
+                                type="text"
+                                maxLength={6}
+                                value={otpCode}
+                                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                                placeholder="000000"
+                                className="w-full p-3 bg-white border border-slate-200 rounded-xl text-center text-lg font-bold tracking-[0.5em] outline-none focus:ring-2 focus:ring-primary/20"
+                              />
+                              <div className="flex gap-2">
+                                <button 
+                                  onClick={() => {
+                                    setIsSettingUp2FA(false);
+                                    setOtpCode('');
+                                  }}
+                                  className="flex-1 py-2 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300 transition-colors"
+                                >
+                                  Hủy
+                                </button>
+                                <button 
+                                  onClick={twoFactorAuth ? handleDisable2FA : handleVerify2FASetup}
+                                  disabled={loading || otpCode.length !== 6}
+                                  className="flex-2 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary-light transition-colors disabled:opacity-50"
+                                >
+                                  {twoFactorAuth ? 'Xác nhận Tắt' : 'Xác nhận Bật'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-4 pb-5 border-b border-slate-100">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-slate-900 text-sm">Chia sẻ dữ liệu</h4>
+                        <p className="text-xs text-slate-400 mt-0.5">Cho phép LearnMate phân tích dữ liệu học tập để cá nhân hóa trải nghiệm</p>
+                      </div>
+                      <button onClick={() => setDataSharing(!dataSharing)} className={`relative flex items-center w-11 h-6 rounded-full transition-colors flex-shrink-0 ${dataSharing ? 'bg-primary' : 'bg-slate-200'}`}><span className={`w-4 h-4 bg-white rounded-full transition-transform transform shadow-sm ${dataSharing ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -583,13 +760,28 @@ export function Profile({ onLogout, token, user: propUser }: ProfileProps) {
                 )}
                 {activeModal === 'security' && (
                   <button
-                    onClick={() => {
-                      showToast('Đã lưu thay đổi cài đặt!');
-                      setActiveModal(null);
+                    onClick={async () => {
+                      setLoading(true);
+                      try {
+                        const res = await api.updateProfile(token, {
+                          preferences: {
+                            ...(user?.preferences || {}),
+                            dataSharing,
+                          },
+                        });
+                        setUser(res.user);
+                        showToast('Đã lưu thay đổi cài đặt!');
+                        setActiveModal(null);
+                      } catch (err) {
+                        showToast(err instanceof Error ? err.message : 'Không thể lưu cài đặt', 'error');
+                      } finally {
+                        setLoading(false);
+                      }
                     }}
-                    className="flex-1 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-light transition-all shadow-md shadow-primary/20"
+                    disabled={loading}
+                    className="flex-1 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-light transition-all shadow-md shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Lưu các cài đặt
+                    {loading ? 'Đang lưu...' : 'Lưu các cài đặt'}
                   </button>
                 )}
               </div>
