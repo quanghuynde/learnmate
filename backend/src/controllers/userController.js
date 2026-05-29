@@ -69,29 +69,4 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// @desc    Lấy bảng xếp hạng cộng đồng
-// @route   GET /api/users/leaderboard
-const getLeaderboard = async (req, res) => {
-  try {
-    const users = await User.find({ isActive: true })
-      .select('name avatar xp streak level')
-      .sort({ xp: -1, streak: -1, createdAt: 1 })
-      .limit(50);
-
-    const leaderboard = users.map((user, index) => ({
-      userId: user._id,
-      rank: index + 1,
-      name: user.name,
-      avatar: user.avatar || user.name?.charAt(0)?.toUpperCase() || '?',
-      score: user.xp || 0,
-      streak: user.streak || 0,
-      quiz: user.level || 1,
-    }));
-
-    res.json({ leaderboard });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-module.exports = { getProfile, updateProfile, updateXP, getAllUsers, getLeaderboard };
+module.exports = { getProfile, updateProfile, updateXP, getAllUsers };

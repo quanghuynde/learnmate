@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, Bell, X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, NotificationItem, UserItem } from '../../lib/api';
@@ -31,13 +31,6 @@ export function TopBar({ token, user }: TopBarProps) {
 
   useEffect(() => {
     loadNotifications().catch(() => null);
-  }, [token]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      loadNotifications().catch(() => null);
-    }, 20000);
-    return () => clearInterval(timer);
   }, [token]);
 
   const markAll = async () => {
@@ -75,6 +68,7 @@ export function TopBar({ token, user }: TopBarProps) {
       </div>
 
       <div className="flex items-center gap-4 ml-4">
+        {/* Notifications */}
         <div className="relative">
           <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors relative">
             <Bell size={20} />
@@ -116,10 +110,15 @@ export function TopBar({ token, user }: TopBarProps) {
           </AnimatePresence>
         </div>
 
+        {/* User info — real data from API */}
         <div className="hidden md:flex items-center gap-3 pl-4 border-l border-slate-200">
           <div className="text-right">
-            <p className="text-sm font-semibold text-text-primary leading-tight">{user?.name || 'Người dùng'}</p>
-            <p className="text-xs text-slate-500 leading-tight">{user?.email || ''}</p>
+            <p className="text-sm font-semibold text-text-primary leading-tight">
+              {user?.name || 'Người dùng'}
+            </p>
+            <p className="text-xs text-slate-500 leading-tight">
+              {user?.email || ''}
+            </p>
           </div>
           <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm border-2 border-primary/20 shadow-sm">
             {initials}

@@ -111,16 +111,6 @@ export type NotificationItem = {
   createdAt: string;
 };
 
-export type LeaderboardItem = {
-  userId: string;
-  rank: number;
-  name: string;
-  avatar: string;
-  score: number;
-  streak: number;
-  quiz: number;
-};
-
 export type DocumentItem = {
   _id: string;
   name: string;
@@ -152,17 +142,6 @@ export type QuizItem = {
   createdAt: string;
 };
 
-export type AssistantAction = {
-  type: 'highlight' | 'click' | 'focus' | 'scroll_to';
-  target: string;
-  selector?: string;
-  instruction?: string;
-  durationMs?: number;
-};
-
-export type AssistantGuideResponse = {
-  message: string;
-  actions?: AssistantAction[];
 export type AchievementItem = {
   _id: string;
   name: string;
@@ -269,35 +248,10 @@ export const api = {
 
   getNotifications: (token: string) =>
     request<{ notifications: NotificationItem[] }>('/notifications', { token }),
-  getLeaderboard: (token: string) =>
-    request<{ leaderboard: LeaderboardItem[] }>('/users/leaderboard', { token }),
-  createSystemNotification: (token: string, payload: { title: string; message: string; metadata?: Record<string, any> }) =>
-    request<{ notification: NotificationItem }>('/notifications/system', { method: 'POST', token, body: payload }),
-  createSystemEventNotification: (
-    token: string,
-    payload: { event: string; data?: Record<string, any> }
-  ) => request<{ notification: NotificationItem }>('/notifications/system-event', { method: 'POST', token, body: payload }),
   markNotificationRead: (token: string, id: string) =>
     request<any>(`/notifications/${id}/read`, { method: 'PUT', token }),
   markAllNotificationsRead: (token: string) =>
     request<any>('/notifications/read-all', { method: 'PUT', token }),
-  askAiAssistant: (
-    token: string,
-    payload: {
-      message: string;
-      uiContext: {
-        currentPage: string;
-        pageTitle?: string;
-        path?: string;
-        semanticTargets?: Record<string, string>;
-        visibleActions?: Array<{
-          selector: string;
-          kind: string;
-          label: string;
-        }>;
-      };
-    }
-  ) => request<AssistantGuideResponse>('/ai-assistant/guide', { method: 'POST', token, body: payload }),
 
   // Gamification
   getGamificationOverview: (token: string) =>

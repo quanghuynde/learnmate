@@ -108,8 +108,8 @@ export function App() {
         return <ExamReadiness token={token} />;
       case 'progress':
         return <Progress token={token} />;
-      case 'community':
-        return <Community token={token} user={user} />;
+case 'community':
+         return <Community token={token} user={user} />;
       case 'video':
         return <AIDialogue token={token} />;
       case 'mentor':
@@ -117,7 +117,7 @@ export function App() {
       case 'profile':
         return <Profile token={token} user={user} onLogout={handleLogout} />;
       case 'gamification':
-        return <Gamification token={token} user={user} />;
+        return <Gamification token={token} />;
       case 'pricing':
         return <Pricing setCurrentPage={setCurrentPage} />;
       default:
@@ -146,7 +146,7 @@ export function App() {
           </AnimatePresence>
         </main>
       </div>
-      <AICompanion token={token} currentPage={currentPage} />
+      <AICompanion />
     </div>
   );
 }
