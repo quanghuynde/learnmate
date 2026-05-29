@@ -1,17 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Target,
   Flame,
   Brain,
   FileText,
-  Moon,
+
   ArrowRight,
   CheckCircle2,
   Circle,
   Clock,
   CreditCard,
-  TrendingUp,
+
   Edit2,
   X,
   Mail,
@@ -22,6 +22,7 @@ import { api, ExamItem, StudyPlanItem, UserItem } from '../lib/api';
 interface DashboardProps {
   setCurrentPage: (page: string) => void;
   token: string;
+  user: UserItem | null;
 }
 
 type TaskItem = {
@@ -33,8 +34,8 @@ type TaskItem = {
   time?: string;
 };
 
-export function Dashboard({ setCurrentPage, token }: DashboardProps) {
-  const [user, setUser] = useState<UserItem | null>(null);
+export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardProps) {
+
   const [exam, setExam] = useState<ExamItem | null>(null);
   const [studyPlans, setStudyPlans] = useState<StudyPlanItem[]>([]);
   const [overview, setOverview] = useState<null | {
@@ -64,34 +65,35 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
 
   useEffect(() => {
     const load = async () => {
-      const [meRes, examRes, planRes, progressRes] = await Promise.all([
-        api.getMe(token),
+      const [examRes, planRes, progressRes] = await Promise.all([
+
         api.getExams(token),
         api.getStudyPlans(token),
         api.getProgressOverview(token),
       ]);
 
-      setUser(meRes.user);
+
       const nextExam = (examRes.exams || [])
         .filter((e) => e.isActive)
         .sort((a, b) => +new Date(a.examDate) - +new Date(b.examDate))[0] || null;
       if (nextExam) {
-        let hydratedExam = nextExam;
+        setExamName(nextExam.name);
+        setEditExamName(nextExam.name);
+        setEditExamDate(new Date(nextExam.examDate).toISOString().split('T')[0]);
+        setExam(nextExam);
+
+        // Fetch readiness in background
         try {
           const readiness = await api.getExamReadiness(token, nextExam._id);
-          hydratedExam = {
-            ...nextExam,
+          setExam(prev => prev ? {
+            ...prev,
             readinessScore: readiness.readinessScore,
-            topicsMastered: readiness.metrics?.topicsMastered ?? nextExam.topicsMastered,
-            totalTopics: readiness.metrics?.totalTopics ?? nextExam.totalTopics,
-          };
+            topicsMastered: readiness.metrics?.topicsMastered ?? prev.topicsMastered,
+            totalTopics: readiness.metrics?.totalTopics ?? prev.totalTopics,
+          } : null);
         } catch {
           // noop
         }
-        setExam(hydratedExam);
-        setExamName(hydratedExam.name);
-        setEditExamName(hydratedExam.name);
-        setEditExamDate(new Date(hydratedExam.examDate).toISOString().split('T')[0]);
       } else {
         const localName = localStorage.getItem('learnmate_exam_name') || 'Kỳ thi';
         const localDate = localStorage.getItem('learnmate_exam_date');
@@ -165,7 +167,7 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
 
   const heat = useMemo(() => {
     const arr = overview?.chartData || [];
-    const days = arr.slice(-52);
+    const days = arr.slice(-90); // Show last 90 days for consistency view
     return days.map((d) => d.hours);
   }, [overview]);
 
@@ -199,7 +201,7 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
                 <h3 className="text-xl font-bold text-slate-900 mb-2">Bật thông báo qua Email</h3>
                 <p className="text-sm text-slate-500 leading-relaxed">
                   Bạn có muốn nhận thông báo nhắc nhở lịch học, kết quả quiz và cập nhật mới qua email{' '}
-                  <span className="font-semibold text-primary">{user?.email || 'của bạn'}</span> không?
+                  <span className="font-semibold text-primary">{userProp?.email || 'của bạn'}</span> không?
                 </p>
               </div>
 
@@ -229,7 +231,7 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
       <motion.div className="bg-gradient-to-r from-primary to-primary-light rounded-3xl p-6 md:p-8 text-white flex flex-col md:flex-row justify-between items-center shadow-lg shadow-primary/20 relative overflow-hidden">
         <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
         <div className="relative z-10 mb-6 md:mb-0">
-          <h1 className="text-2xl md:text-3xl font-bold mb-2">Chào mừng trở lại, {user?.name || 'bạn'}! 🎯</h1>
+          <h1 className="text-2xl md:text-3xl font-bold mb-2">Chào mừng trở lại, {userProp?.name || 'bạn'}! 🎯</h1>
           <p className="text-white/80">Bạn đã sẵn sàng {readiness}% cho kỳ thi {exam?.subject || 'sắp tới'}.</p>
           <div className="mt-4 inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium">
             <Target size={16} /> Trọng tâm hôm nay: {studyPlans[0]?.subject || 'Chưa có dữ liệu'}
@@ -281,8 +283,8 @@ export function Dashboard({ setCurrentPage, token }: DashboardProps) {
               <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center text-accent flex-shrink-0"><Flame size={24} /></div>
               <div>
                 <p className="text-sm text-slate-500 font-medium">Chuỗi học tập</p>
-                <p className="text-xl font-bold text-text-primary">{user?.streak ?? 0} Ngày</p>
-                <p className="text-xs text-slate-400 mt-1">Kỷ lục cá nhân: {Math.max(user?.streak ?? 0, 21)} ngày</p>
+                <p className="text-xl font-bold text-text-primary">{userProp?.streak ?? 0} Ngày</p>
+                <p className="text-xs text-slate-400 mt-1">Kỷ lục cá nhân: {userProp?.bestStreak ?? 0} ngày</p>
               </div>
             </div>
 

@@ -1,24 +1,35 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
 import { AICompanion } from './components/ui/AICompanion';
+import { googleLogout } from '@react-oauth/google';
 import { Auth } from './pages/Auth';
-import { Dashboard } from './pages/Dashboard';
-import { StudyPlanner } from './pages/StudyPlanner';
-import { Documents } from './pages/Documents';
-import { KnowledgeMap } from './pages/KnowledgeMap';
-import { Quiz } from './pages/Quiz';
-import { ExamReadiness } from './pages/ExamReadiness';
-import { Progress } from './pages/Progress';
-import { Community } from './pages/Community';
-import { AIDialogue } from './pages/AIDialogue';
-import { HybridMentoring } from './pages/HybridMentoring';
-import { Profile } from './pages/Profile';
-import { Gamification } from './pages/Gamification';
-import { Pricing } from './pages/Pricing';
-import { ResetPassword } from './pages/ResetPassword';
 import { api, UserItem } from './lib/api';
+
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const StudyPlanner = lazy(() => import('./pages/StudyPlanner').then(m => ({ default: m.StudyPlanner })));
+const Documents = lazy(() => import('./pages/Documents').then(m => ({ default: m.Documents })));
+const KnowledgeMap = lazy(() => import('./pages/KnowledgeMap').then(m => ({ default: m.KnowledgeMap })));
+const Quiz = lazy(() => import('./pages/Quiz').then(m => ({ default: m.Quiz })));
+const ExamReadiness = lazy(() => import('./pages/ExamReadiness').then(m => ({ default: m.ExamReadiness })));
+const Progress = lazy(() => import('./pages/Progress').then(m => ({ default: m.Progress })));
+const Community = lazy(() => import('./pages/Community').then(m => ({ default: m.Community })));
+const AIDialogue = lazy(() => import('./pages/AIDialogue').then(m => ({ default: m.AIDialogue })));
+const HybridMentoring = lazy(() => import('./pages/HybridMentoring').then(m => ({ default: m.HybridMentoring })));
+const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
+const Gamification = lazy(() => import('./pages/Gamification').then(m => ({ default: m.Gamification })));
+const Pricing = lazy(() => import('./pages/Pricing').then(m => ({ default: m.Pricing })));
+const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
+
+const LoadingPage = () => (
+  <div className="h-full w-full flex items-center justify-center p-20 text-slate-400">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+      <p className="text-sm font-medium">Đang tải trang...</p>
+    </div>
+  </div>
+);
 
 export function App() {
   const [token, setToken] = useState<string>(() => localStorage.getItem('learnmate_token') || '');
@@ -86,16 +97,19 @@ export function App() {
   }
 
   const handleLogout = () => {
+    googleLogout();
     localStorage.removeItem('learnmate_token');
+    sessionStorage.removeItem('learnmate_current_page');
     setToken('');
     setUser(null);
+    setCurrentPage('dashboard');
     setIsAuthenticated(false);
   };
 
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard setCurrentPage={setCurrentPage} token={token} />;
+        return <Dashboard setCurrentPage={setCurrentPage} token={token} user={user} />;
       case 'planner':
         return <StudyPlanner token={token} />;
       case 'documents':
@@ -121,7 +135,7 @@ case 'community':
       case 'pricing':
         return <Pricing setCurrentPage={setCurrentPage} />;
       default:
-        return <Dashboard setCurrentPage={setCurrentPage} token={token} />;
+        return <Dashboard setCurrentPage={setCurrentPage} token={token} user={user} />;
     }
   };
 
@@ -141,7 +155,9 @@ case 'community':
         <main className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8 relative z-0">
           <AnimatePresence mode="wait">
             <motion.div key={currentPage} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.2 }} className="h-full max-w-7xl mx-auto">
-              {renderPage()}
+              <Suspense fallback={<LoadingPage />}>
+                {renderPage()}
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         </main>

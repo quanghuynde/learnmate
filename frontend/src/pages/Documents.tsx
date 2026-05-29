@@ -11,10 +11,8 @@ import {
   Presentation,
   AlertCircle,
   X,
-  Globe,
   Link,
   Youtube,
-  HardDrive,
   ClipboardPaste,
   MessageSquare,
 } from 'lucide-react';
@@ -44,6 +42,7 @@ export function Documents({ token }: DocumentsProps) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [docs, setDocs] = useState<DocumentItem[]>([]);
+  const [docsLoading, setDocsLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [successFile, setSuccessFile] = useState('');
@@ -51,29 +50,32 @@ export function Documents({ token }: DocumentsProps) {
 
   const [showWebModal, setShowWebModal] = useState(false);
   const [webUrl, setWebUrl] = useState('');
-  const [showDriveModal, setShowDriveModal] = useState(false);
-  const [driveUrl, setDriveUrl] = useState('');
+  const [showYoutubeModal, setShowYoutubeModal] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const [showTextModal, setShowTextModal] = useState(false);
   const [pastedText, setPastedText] = useState('');
-  
+
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [summaryDoc, setSummaryDoc] = useState<DocumentItem | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryContent, setSummaryContent] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(10);
 
-  const handleUploadFromText = async (content: string, type: 'web' | 'text' | 'drive') => {
+  const handleUploadFromText = async (content: string, type: 'web' | 'text' | 'youtube') => {
     if (!content.trim()) return;
     const blob = new Blob([content], { type: 'text/plain' });
-    const namePrefix = type === 'web' ? 'Web_Link' : type === 'drive' ? 'Drive_Link' : 'Pasted_Text';
+    const namePrefix = type === 'web' ? 'Web_Link' : type === 'youtube' ? 'Youtube_Link' : 'Pasted_Text';
     const file = new File([blob], `${namePrefix}_${Date.now()}.txt`, { type: 'text/plain' });
     setShowTextModal(false);
     setShowWebModal(false);
-    setShowDriveModal(false);
+    setShowYoutubeModal(false);
     setPastedText('');
     setWebUrl('');
-    setDriveUrl('');
+    setYoutubeUrl('');
     await uploadFile(file);
   };
+
+
 
   const handleShowSummary = async (doc: DocumentItem) => {
     setSummaryDoc(doc);
@@ -99,18 +101,32 @@ export function Documents({ token }: DocumentsProps) {
     }
   };
 
-  const loadDocuments = async () => {
+  const loadDocuments = async (showLoading = false) => {
+    if (showLoading) setDocsLoading(true);
     try {
       const response = await api.getDocuments(token);
       setDocs(response.documents || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không tải được tài liệu');
+    } finally {
+      setDocsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDocuments();
+    loadDocuments(true);
   }, []);
+
+  // Polling mechanism: Tự động làm mới nếu có tệp đang xử lý
+  useEffect(() => {
+    const hasProcessing = docs.some(d => d.status === 'processing');
+    if (hasProcessing) {
+      const interval = setInterval(() => {
+        loadDocuments();
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [docs]);
 
   const uploadFile = async (file: File) => {
     if (file.size > 100 * 1024 * 1024) {
@@ -129,17 +145,18 @@ export function Documents({ token }: DocumentsProps) {
     try {
       await api.uploadDocument(token, file);
       setProgress(100);
+      clearInterval(interval);
       setSuccessFile(file.name);
+      api.invalidateCache('documents');
       await loadDocuments();
+      setUploading(false);
+      setProgress(0);
       setTimeout(() => setSuccessFile(''), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Tải tệp thất bại');
-    } finally {
       clearInterval(interval);
-      setTimeout(() => {
-        setUploading(false);
-        setProgress(0);
-      }, 400);
+      setUploading(false);
+      setProgress(0);
+      setError(err instanceof Error ? err.message : 'Tải tệp thất bại');
     }
   };
 
@@ -161,6 +178,7 @@ export function Documents({ token }: DocumentsProps) {
   const handleDelete = async (id: string) => {
     try {
       await api.deleteDocument(token, id);
+      api.invalidateCache('documents');
       await loadDocuments();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Xóa tài liệu thất bại');
@@ -235,28 +253,6 @@ export function Documents({ token }: DocumentsProps) {
           </div>
         ) : (
             <div className="bg-white rounded-[32px] p-6 md:p-10 text-center relative max-w-4xl mx-auto shadow-sm border border-slate-100">
-               <h2 className="text-xl md:text-2xl font-semibold text-slate-800 mb-8 mx-auto max-w-xl leading-relaxed">
-                  Tạo bản Tổng quan bằng âm thanh và video từ <br/> <span className="text-emerald-500">trang web</span>
-               </h2>
-               
-               <div className="relative max-w-2xl mx-auto mb-8 sm:mb-12">
-                 <div className="hidden sm:flex items-center absolute left-2 top-1/2 -translate-y-1/2 gap-2 z-10">
-                   <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 transition-colors text-slate-700 shadow-sm">
-                     <Globe size={16} /> Web
-                   </button>
-                   <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 transition-colors text-slate-700 shadow-sm">
-                     <Search size={16} /> Nghiên cứu nhanh
-                   </button>
-                 </div>
-                 <input 
-                   type="text" 
-                   placeholder="Tìm nguồn mới trên web" 
-                   className="w-full h-14 sm:pl-64 pl-4 pr-12 rounded-full border border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm shadow-sm transition-all"
-                 />
-                 <button className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-slate-50 hover:bg-slate-100 rounded-full text-slate-500 transition-colors z-10">
-                   <Search size={16} />
-                 </button>
-               </div>
 
                <div 
                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -274,11 +270,12 @@ export function Documents({ token }: DocumentsProps) {
                       <UploadCloud size={18} /> Tải tệp lên
                     </button>
                     <button onClick={() => setShowWebModal(true)} className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-full shadow-sm hover:shadow-md hover:border-slate-300 transition-all font-semibold text-sm text-slate-700">
-                      <Link size={18} /> <Youtube size={18} className="text-red-500 -ml-1" /> Trang web
+                      <Link size={18} /> Trang web
                     </button>
-                    <button onClick={() => setShowDriveModal(true)} className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-full shadow-sm hover:shadow-md hover:border-slate-300 transition-all font-semibold text-sm text-slate-700">
-                      <HardDrive size={18} /> Drive
+                    <button onClick={() => setShowYoutubeModal(true)} className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-full shadow-sm hover:shadow-md hover:border-slate-300 transition-all font-semibold text-sm text-slate-700">
+                      <Youtube size={18} className="text-red-500" /> YouTube
                     </button>
+
                     <button onClick={() => setShowTextModal(true)} className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-full shadow-sm hover:shadow-md hover:border-slate-300 transition-all font-semibold text-sm text-slate-700">
                       <ClipboardPaste size={18} /> Văn bản đã sao chép
                     </button>
@@ -315,7 +312,25 @@ export function Documents({ token }: DocumentsProps) {
           <span className="text-sm text-slate-500">{filteredDocs.length} tệp</span>
         </div>
 
-        {filteredDocs.length === 0 && !uploading ? (
+        {docsLoading ? (
+          <div className="grid grid-cols-1 gap-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between animate-pulse">
+                <div className="flex items-center gap-4 min-w-0 flex-1">
+                  <div className="w-12 h-12 bg-slate-100 rounded-xl flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-slate-100 rounded-md w-1/3" />
+                    <div className="h-3 bg-slate-50 rounded-md w-1/4" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <div className="w-24 h-8 bg-slate-50 rounded-lg" />
+                  <div className="w-16 h-8 bg-slate-50 rounded-lg" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filteredDocs.length === 0 ? (
           <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-12 text-center text-slate-400">
             <FileText size={40} className="mx-auto mb-3 opacity-40" />
             <p className="font-medium">
@@ -327,7 +342,7 @@ export function Documents({ token }: DocumentsProps) {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3">
-            {filteredDocs.map((doc, idx) => {
+            {filteredDocs.slice(0, displayLimit).map((doc, idx) => {
               const { color, bg, Icon } = getFileStyle(doc.type);
               return (
                 <motion.div
@@ -389,6 +404,15 @@ export function Documents({ token }: DocumentsProps) {
                 </motion.div>
               );
             })}
+
+            {filteredDocs.length > displayLimit && (
+              <button
+                onClick={() => setDisplayLimit(prev => prev + 10)}
+                className="w-full py-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-sm font-bold text-slate-500 hover:bg-white hover:border-primary hover:text-primary transition-all mt-4"
+              >
+                Xem thêm tài liệu ({filteredDocs.length - displayLimit} tệp chưa hiện)
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -414,21 +438,21 @@ export function Documents({ token }: DocumentsProps) {
         )}
       </AnimatePresence>
 
-      {/* Drive Link Modal */}
+      {/* YouTube Link Modal */}
       <AnimatePresence>
-        {showDriveModal && (
+        {showYoutubeModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl shadow-xl border border-slate-100 w-full max-w-md overflow-hidden">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="font-bold text-lg text-slate-900">Chia sẻ link Google Drive</h3>
-                <button onClick={() => setShowDriveModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+                <h3 className="font-bold text-lg text-slate-900">Dán liên kết YouTube</h3>
+                <button onClick={() => setShowYoutubeModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
               </div>
               <div className="p-6">
-                <input type="text" value={driveUrl} onChange={(e) => setDriveUrl(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm" placeholder="Nhập link chia sẻ tài liệu Google Drive..." />
+                <input type="text" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm" placeholder="Nhập địa chỉ video YouTube (Ví dụ: https://youtube.com/...)" />
               </div>
               <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-                <button onClick={() => setShowDriveModal(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Hủy</button>
-                <button onClick={() => handleUploadFromText(driveUrl, 'drive')} className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary-light transition-colors">Tải lên</button>
+                <button onClick={() => setShowYoutubeModal(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Hủy</button>
+                <button onClick={() => handleUploadFromText(youtubeUrl, 'youtube')} className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary-light transition-colors">Tải lên</button>
               </div>
             </motion.div>
           </div>
