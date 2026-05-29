@@ -1,10 +1,10 @@
-﻿const cron = require('node-cron');
+const cron = require('node-cron');
 const User = require('../models/User');
 const sendEmail = require('./emailService');
 const { createUserNotification } = require('./notificationService');
 
 const TZ = process.env.APP_TIMEZONE || 'Asia/Ho_Chi_Minh';
-const SCAN_CRON = process.env.DAILY_REMINDER_SCAN_CRON || '* * * * *';
+const SCAN_CRON = process.env.DAILY_REMINDER_CRON || '* * * * *';
 
 function getCurrentTimeHHmm() {
   const now = new Date();
@@ -41,6 +41,8 @@ async function sendDailyReminderEmails() {
   const currentHHmm = getCurrentTimeHHmm();
   const todayKey = getCurrentDateKey();
 
+  console.log(`[DailyReminder] Scanning at ${currentHHmm} (${todayKey}) ...`);
+
   const users = await User.find({
     email: { $exists: true, $ne: '' },
     'preferences.dailyReminderEnabled': true,
@@ -48,9 +50,14 @@ async function sendDailyReminderEmails() {
     'preferences.dailyReminderTime': currentHHmm,
   }).select('_id name email preferences lastDailyReminderSentAt');
 
+  console.log(`[DailyReminder] Found ${users.length} user(s) matching time ${currentHHmm}`);
+
   for (const user of users) {
     const sentDateKey = getDateKeyFromDate(user.lastDailyReminderSentAt);
-    if (sentDateKey === todayKey) continue;
+    if (sentDateKey === todayKey) {
+      console.log(`[DailyReminder] Skipping ${user.email} - already sent today`);
+      continue;
+    }
 
     const remindTime = user.preferences?.dailyReminderTime || currentHHmm;
     const subject = `LearnMate - Nhắc học lúc ${remindTime}`;
@@ -73,8 +80,9 @@ async function sendDailyReminderEmails() {
 
       user.lastDailyReminderSentAt = new Date();
       await user.save();
+      console.log(`[DailyReminder] ✅ Email sent to ${user.email}`);
     } catch (error) {
-      console.error(`Daily reminder failed for ${user.email}:`, error.message);
+      console.error(`[DailyReminder] ❌ Failed for ${user.email}:`, error.message);
     }
   }
 }
@@ -90,7 +98,7 @@ function startDailyReminderJob() {
     { timezone: TZ }
   );
 
-  console.log(`Daily reminder job scheduled: "${SCAN_CRON}" (${TZ})`);
+  console.log(`[DailyReminder] Job scheduled: "${SCAN_CRON}" (${TZ})`);
 }
 
 module.exports = { startDailyReminderJob };

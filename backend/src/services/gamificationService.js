@@ -7,24 +7,13 @@ const User = require('../models/User');
 /**
  * Kiểm tra và unlock achievements cho user
  */
-const checkAndUnlockAchievements = async (userId) => {
+/**
+ * Kiểm tra và unlock achievements cho user
+ */
+const checkAndUnlockAchievements = async (userId, quizResults, studySessions) => {
   try {
     const user = await User.findById(userId);
     if (!user) return [];
-
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    // Lấy dữ liệu
-    const quizResults = await QuizResult.find({
-      user: userId,
-      createdAt: { $gte: thirtyDaysAgo },
-    }).populate('quiz', 'subject');
-
-    const studySessions = await StudySession.find({
-      user: userId,
-      date: { $gte: thirtyDaysAgo },
-    });
 
     // Tính toán stats
     const stats = {
@@ -51,16 +40,13 @@ const checkAndUnlockAchievements = async (userId) => {
 
     // Lấy tất cả achievements
     const allAchievements = await Achievement.find();
-    const unlockedAchievements = [];
+    const userAchievements = await UserAchievement.find({ user: userId });
+    const unlockedIds = new Set(userAchievements.map(ua => ua.achievement.toString()));
+
+    const newUnlocked = [];
 
     for (const achievement of allAchievements) {
-      // Kiểm tra đã unlock chưa
-      const existing = await UserAchievement.findOne({
-        user: userId,
-        achievement: achievement._id,
-      });
-
-      if (existing) continue; // Đã unlock rồi
+      if (unlockedIds.has(achievement._id.toString())) continue;
 
       let shouldUnlock = false;
 
@@ -102,11 +88,11 @@ const checkAndUnlockAchievements = async (userId) => {
         user.level = Math.floor(user.xp / 500) + 1;
         await user.save();
 
-        unlockedAchievements.push(achievement);
+        newUnlocked.push(achievement);
       }
     }
 
-    return unlockedAchievements;
+    return newUnlocked;
   } catch (error) {
     console.error('Error checking achievements:', error);
     return [];
@@ -136,23 +122,10 @@ const getUserAchievements = async (userId) => {
 /**
  * Lấy progress của tất cả achievements
  */
-const getAchievementsProgress = async (userId) => {
+const getAchievementsProgress = async (userId, quizResults, studySessions) => {
   try {
     const user = await User.findById(userId);
     if (!user) return [];
-
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const quizResults = await QuizResult.find({
-      user: userId,
-      createdAt: { $gte: thirtyDaysAgo },
-    }).populate('quiz', 'subject');
-
-    const studySessions = await StudySession.find({
-      user: userId,
-      date: { $gte: thirtyDaysAgo },
-    });
 
     const stats = {
       quizCount: quizResults.length,

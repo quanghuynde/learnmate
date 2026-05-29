@@ -1,15 +1,36 @@
 const Post = require('../models/Post');
 
-// @desc    Lấy danh sách bài viết
+// @desc    Lấy danh sách bài viết (hỗ trợ tìm kiếm)
 // @route   GET /api/posts
 const getPosts = async (req, res) => {
   try {
-    const posts = await Post.find()
+    const { search } = req.query;
+    let query = {};
+    
+    if (search) {
+      query.content = { $regex: search, $options: 'i' };
+    }
+
+    const posts = await Post.find(query)
       .populate('author', 'name avatar')
       .populate('comments.user', 'name avatar')
       .sort({ createdAt: -1 })
       .limit(20);
     res.json({ count: posts.length, posts });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Upload ảnh bài viết
+// @route   POST /api/posts/upload-image
+const uploadPostImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Vui lòng chọn ảnh' });
+    }
+    const imageUrl = `/uploads/posts/${req.file.filename}`;
+    res.json({ imageUrl });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -45,7 +66,7 @@ const toggleLike = async (req, res) => {
     }
     await post.save();
 
-    res.json({ message: index === -1 ? 'Đã thích' : 'Đã bỏ thích', likesCount: post.likes.length });
+    res.json({ message: index === -1 ? 'Đã thích' : 'Đã bỏ thích', likesCount: post.likes.length, isLiked: index === -1 });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -64,8 +85,11 @@ const addComment = async (req, res) => {
     post.comments.push({ user: req.user.id, content });
     await post.save();
 
-    const populated = await post.populate('comments.user', 'name avatar');
-    res.status(201).json({ message: 'Bình luận thành công', comments: populated.comments });
+    // Fetch again with population to ensure consistency
+    const updatedPost = await Post.findById(req.params.id)
+      .populate('comments.user', 'name avatar');
+      
+    res.status(201).json({ message: 'Bình luận thành công', comments: updatedPost.comments });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -85,4 +109,4 @@ const deletePost = async (req, res) => {
   }
 };
 
-module.exports = { getPosts, createPost, toggleLike, addComment, deletePost };
+module.exports = { getPosts, createPost, uploadPostImage, toggleLike, addComment, deletePost };

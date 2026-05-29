@@ -23,8 +23,10 @@ const protect = async (req, res, next) => {
 
     next();
   } catch (error) {
+    console.error('Authentication Error:', error.message);
     res.status(401).json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
   }
+
 };
 
 // Middleware kiểm tra role admin

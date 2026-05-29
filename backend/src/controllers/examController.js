@@ -1,4 +1,6 @@
 const Exam = require('../models/Exam');
+const QuizResult = require('../models/QuizResult');
+const StudySession = require('../models/StudySession');
 const {
   calculateReadinessScore,
   getRadarChartData,
@@ -77,17 +79,31 @@ const getExamReadiness = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy kỳ thi' });
     }
 
-    // Calculate days remaining
     const today = new Date();
     const examDate = new Date(exam.examDate);
     const daysRemaining = Math.ceil((examDate - today) / (1000 * 60 * 60 * 24));
 
-    // Get analytics data
-    const readinessScore = await calculateReadinessScore(req.user.id, exam._id);
-    const metrics = await getOverallMetrics(req.user.id, exam._id);
-    const radarData = await getRadarChartData(req.user.id, exam._id);
-    const trendData = await getTrendData(req.user.id, exam._id, 30);
-    const topics = await getTopicsAnalysis(req.user.id, exam._id);
+    // Pre-fetch raw data for the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [quizResults, sessions] = await Promise.all([
+      QuizResult.find({
+        user: req.user.id,
+        createdAt: { $gte: thirtyDaysAgo }
+      }).populate('quiz', 'subject title'),
+      StudySession.find({
+        user: req.user.id,
+        date: { $gte: thirtyDaysAgo }
+      })
+    ]);
+
+    // Use pre-fetched data for analytics
+    const readinessScore = await calculateReadinessScore(req.user.id, exam._id, quizResults, sessions);
+    const metrics = await getOverallMetrics(exam._id, quizResults, sessions);
+    const radarData = await getRadarChartData(quizResults, sessions);
+    const trendData = await getTrendData(req.user.id, exam._id, quizResults, sessions, 30);
+    const topics = await getTopicsAnalysis(quizResults, sessions);
 
     // Update exam readiness score
     exam.readinessScore = readinessScore;
