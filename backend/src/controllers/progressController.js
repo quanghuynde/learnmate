@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const StudySession = require('../models/StudySession');
 const QuizResult = require('../models/QuizResult');
 
@@ -20,35 +21,35 @@ const createSession = async (req, res) => {
   }
 };
 
-// @desc    Lấy tổng quan tiến độ
+// @desc    Lấy tổng quan tiến độ (365 ngày)
 // @route   GET /api/progress/overview
 const getOverview = async (req, res) => {
   try {
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const now = new Date();
+    const oneYearAgo = new Date();
+    oneYearAgo.setDate(oneYearAgo.getDate() - 365);
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const sessions = await StudySession.find({
-      user: req.user.id,
+    // 1. Tổng quát chung (30 ngày gần nhất cho các thẻ chính)
+    const recentSessions = await StudySession.find({
+      user: userId,
       date: { $gte: thirtyDaysAgo },
     });
 
-    const quizResults = await QuizResult.find({
-      user: req.user.id,
-      createdAt: { $gte: thirtyDaysAgo },
-    });
+    const totalMinutes = recentSessions.reduce((sum, s) => sum + s.duration, 0);
+    const totalHours = Math.round((totalMinutes / 60) * 10) / 10;
+    
+    const daysActive = new Set(recentSessions.map((s) => s.date.toISOString().split('T')[0])).size;
+    const avgDaily = daysActive > 0 ? Math.round((totalHours / daysActive) * 10) / 10 : 0;
 
-    // Tổng thời gian (phút -> giờ)
-    const totalMinutes = sessions.reduce((sum, s) => sum + s.duration, 0);
-    const totalHours = Math.round(totalMinutes / 60 * 10) / 10;
-
-    // TB hàng ngày
-    const daysActive = new Set(sessions.map((s) => s.date.toISOString().split('T')[0])).size;
-    const avgDaily = daysActive > 0 ? Math.round(totalHours / daysActive * 10) / 10 : 0;
-
-    // Phân bổ thời gian theo buổi
+    // 2. Phân bổ thời gian (30 ngày)
     const timeDistribution = { morning: 0, afternoon: 0, evening: 0 };
-    sessions.forEach((s) => {
-      timeDistribution[s.timeOfDay] += s.duration;
+    recentSessions.forEach((s) => {
+      if (timeDistribution.hasOwnProperty(s.timeOfDay)) {
+        timeDistribution[s.timeOfDay] += s.duration;
+      }
     });
     const totalDist = timeDistribution.morning + timeDistribution.afternoon + timeDistribution.evening;
     const distribution = {
@@ -57,26 +58,52 @@ const getOverview = async (req, res) => {
       evening: totalDist > 0 ? Math.round((timeDistribution.evening / totalDist) * 100) : 0,
     };
 
-    // Dữ liệu biểu đồ (giờ học theo ngày)
+    // 3. Dữ liệu biểu đồ nhiệt (365 ngày) - Sử dụng Aggregation cho hiệu năng
+    const chartDataResult = await StudySession.aggregate([
+      {
+        $match: {
+          user: userId,
+          date: { $gte: oneYearAgo },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
+          totalMinutes: { $sum: '$duration' },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Map kết quả aggregation vào mảng liên tục cho frontend
     const chartData = [];
-    for (let i = 0; i < 30; i++) {
+    const resultMap = new Map(chartDataResult.map((item) => [item._id, item.totalMinutes]));
+
+    for (let i = 364; i >= 0; i--) {
       const d = new Date();
-      d.setDate(d.getDate() - (29 - i));
+      d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-      const dayMinutes = sessions
-        .filter((s) => s.date.toISOString().split('T')[0] === dateStr)
-        .reduce((sum, s) => sum + s.duration, 0);
-      chartData.push({ day: (i + 1).toString(), hours: Math.round(dayMinutes / 60 * 10) / 10 });
+      const minutes = resultMap.get(dateStr) || 0;
+      chartData.push({
+        date: dateStr,
+        hours: Math.round((minutes / 60) * 10) / 10,
+      });
     }
+
+    const quizCount = await QuizResult.countDocuments({
+      user: userId,
+      createdAt: { $gte: thirtyDaysAgo },
+    });
 
     res.json({
       totalHours,
       avgDaily,
-      totalQuizzes: quizResults.length,
+      totalQuizzes: quizCount,
       distribution,
-      chartData,
+      chartData, // Mảng 365 ngày
     });
   } catch (error) {
+    console.error('Error in getOverview:', error);
     res.status(500).json({ message: error.message });
   }
 };

@@ -14,9 +14,9 @@ const documentSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['pdf', 'docx', 'pptx', 'txt', 'web', 'text'],
       required: true,
     },
+
     pages: {
       type: Number,
       default: 0,
@@ -43,7 +43,12 @@ const documentSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    summary: {
+      type: String,
+      default: '',
+    },
   },
+
   { timestamps: true }
 );
 

@@ -37,6 +37,12 @@ const updateStreak = async (user) => {
   
   // Update lastActivity to current time
   user.lastActivity = now;
+
+  // Update bestStreak if current streak is higher
+  if (user.streak > (user.bestStreak || 0)) {
+    user.bestStreak = user.streak;
+  }
+
   await user.save();
 };
 

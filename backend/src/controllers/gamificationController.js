@@ -1,3 +1,5 @@
+const QuizResult = require('../models/QuizResult');
+const StudySession = require('../models/StudySession');
 const {
   checkAndUnlockAchievements,
   getUserAchievements,
@@ -12,13 +14,28 @@ const getGamificationOverview = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
     
-    // Check và unlock achievements mới
-    const newAchievements = await checkAndUnlockAchievements(req.user.id);
+    // Pre-fetch data for achievements (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [quizResults, studySessions] = await Promise.all([
+      QuizResult.find({
+        user: req.user.id,
+        createdAt: { $gte: thirtyDaysAgo }
+      }).populate('quiz', 'subject'),
+      StudySession.find({
+        user: req.user.id,
+        date: { $gte: thirtyDaysAgo }
+      })
+    ]);
+
+    // Check và unlock achievements mới using pre-fetched data
+    const newAchievements = await checkAndUnlockAchievements(req.user.id, quizResults, studySessions);
     
-    // Lấy tất cả achievements với progress
-    const achievements = await getAchievementsProgress(req.user.id);
+    // Lấy tất cả achievements với progress using pre-fetched data
+    const achievements = await getAchievementsProgress(req.user.id, quizResults, studySessions);
     
-    // Lấy leaderboard
+    // Lấy leaderboard (vẫn dùng service cũ vì leaderboard không phụ thuộc vào data riêng lẻ của user này)
     const leaderboard = await getWeeklyLeaderboard(10);
     
     // Tính user rank

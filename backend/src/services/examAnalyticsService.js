@@ -10,20 +10,15 @@ const Exam = require('../models/Exam');
  * - Topics coverage: 20%
  * - Consistency: 10%
  */
-const calculateReadinessScore = async (userId, examId) => {
+/**
+ * Tính điểm sẵn sàng tổng hợp (0-100)
+ */
+const calculateReadinessScore = async (userId, examId, quizResults, sessions) => {
   try {
     const exam = await Exam.findById(examId);
     if (!exam) return 0;
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
     // 1. Quiz Accuracy (40 points)
-    const quizResults = await QuizResult.find({
-      user: userId,
-      createdAt: { $gte: thirtyDaysAgo },
-    }).populate('quiz', 'subject');
-
     let quizScore = 0;
     if (quizResults.length > 0) {
       const avgAccuracy = quizResults.reduce((sum, r) => sum + r.percentage, 0) / quizResults.length;
@@ -31,11 +26,6 @@ const calculateReadinessScore = async (userId, examId) => {
     }
 
     // 2. Study Hours (30 points)
-    const sessions = await StudySession.find({
-      user: userId,
-      date: { $gte: thirtyDaysAgo },
-    });
-
     const totalMinutes = sessions.reduce((sum, s) => sum + s.duration, 0);
     const totalHours = totalMinutes / 60;
     // Giả sử 30 giờ học = full 30 points
@@ -70,22 +60,9 @@ const calculateReadinessScore = async (userId, examId) => {
 /**
  * Lấy data cho radar chart - phân tích theo subjects
  */
-const getRadarChartData = async (userId, examId) => {
+const getRadarChartData = async (quizResults, sessions) => {
   try {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const quizResults = await QuizResult.find({
-      user: userId,
-      createdAt: { $gte: thirtyDaysAgo },
-    }).populate('quiz', 'subject');
-
-    const sessions = await StudySession.find({
-      user: userId,
-      date: { $gte: thirtyDaysAgo },
-    });
-
-    // Aggregate by subject
+    // Aggregation by subject
     const subjectData = {};
 
     quizResults.forEach((result) => {
@@ -122,8 +99,7 @@ const getRadarChartData = async (userId, examId) => {
       };
     });
 
-    // Nếu không có data, trả về empty array
-    return radarData.length > 0 ? radarData : [];
+    return radarData;
   } catch (error) {
     console.error('Error getting radar chart data:', error);
     return [];
@@ -133,36 +109,32 @@ const getRadarChartData = async (userId, examId) => {
 /**
  * Lấy xu hướng readiness theo ngày (30 ngày)
  */
-const getTrendData = async (userId, examId, days = 30) => {
+const getTrendData = async (userId, examId, allQuizResults, allSessions, days = 30) => {
   try {
-    const trendData = [];
     const today = new Date();
-
+    const trendData = [];
+    
+    // Process data day by day in memory
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
+      const dayEnd = new Date(date);
+      dayEnd.setHours(23, 59, 59, 999);
 
-      // Get quiz results up to this date
-      const quizResults = await QuizResult.find({
-        user: userId,
-        createdAt: { $lte: date },
-      }).limit(10).sort({ createdAt: -1 });
-
-      // Get study sessions up to this date
-      const sessions = await StudySession.find({
-        user: userId,
-        date: { $lte: date },
-      }).limit(20).sort({ date: -1 });
+      // Filter local results up to this day's end
+      const dayQuizzes = allQuizResults.filter(r => new Date(r.createdAt) <= dayEnd);
+      const daySessions = allSessions.filter(s => new Date(s.date) <= dayEnd);
 
       let score = 0;
-      if (quizResults.length > 0 || sessions.length > 0) {
-        // Simple calculation based on recent performance
-        const avgQuiz = quizResults.length > 0
-          ? quizResults.reduce((sum, r) => sum + r.percentage, 0) / quizResults.length
+      if (dayQuizzes.length > 0 || daySessions.length > 0) {
+        // Simple calculation based on performance up to this date
+        const recentQuizzes = dayQuizzes.slice(-10);
+        const avgQuiz = recentQuizzes.length > 0
+          ? recentQuizzes.reduce((sum, r) => sum + r.percentage, 0) / recentQuizzes.length
           : 0;
         
-        const totalMinutes = sessions.reduce((sum, s) => sum + s.duration, 0);
+        const recentSessions = daySessions.slice(-20);
+        const totalMinutes = recentSessions.reduce((sum, s) => sum + s.duration, 0);
         const hoursBonus = Math.min((totalMinutes / 60) / 20 * 30, 30);
         
         score = Math.round((avgQuiz * 0.7) + hoursBonus);
@@ -184,22 +156,8 @@ const getTrendData = async (userId, examId, days = 30) => {
 /**
  * Phân tích chi tiết từng chủ đề
  */
-const getTopicsAnalysis = async (userId, examId) => {
+const getTopicsAnalysis = async (quizResults, sessions) => {
   try {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const quizResults = await QuizResult.find({
-      user: userId,
-      createdAt: { $gte: thirtyDaysAgo },
-    }).populate('quiz', 'subject title');
-
-    const sessions = await StudySession.find({
-      user: userId,
-      date: { $gte: thirtyDaysAgo },
-    });
-
-    // Aggregate by subject
     const topicData = {};
 
     quizResults.forEach((result) => {
@@ -219,7 +177,6 @@ const getTopicsAnalysis = async (userId, examId) => {
       topicData[subject].studyTime += session.duration;
     });
 
-    // Format topics
     const topics = Object.keys(topicData).map((name) => {
       const data = topicData[name];
       const avgScore = data.quizCount > 0 ? Math.round(data.totalPercentage / data.quizCount) : 0;
@@ -236,13 +193,7 @@ const getTopicsAnalysis = async (userId, examId) => {
         color = 'bg-warning text-warning';
       }
 
-      return {
-        name,
-        score: avgScore,
-        time: `${hours}h`,
-        status,
-        color,
-      };
+      return { name, score: avgScore, time: `${hours}h`, status, color };
     });
 
     return topics.sort((a, b) => b.score - a.score);
@@ -255,57 +206,27 @@ const getTopicsAnalysis = async (userId, examId) => {
 /**
  * Lấy metrics tổng quan
  */
-const getOverallMetrics = async (userId, examId) => {
+const getOverallMetrics = async (examId, quizResults, sessions) => {
   try {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const quizResults = await QuizResult.find({
-      user: userId,
-      createdAt: { $gte: thirtyDaysAgo },
-    });
-
-    const sessions = await StudySession.find({
-      user: userId,
-      date: { $gte: thirtyDaysAgo },
-    });
-
-    // Quiz accuracy
     const quizAccuracy = quizResults.length > 0
       ? Math.round(quizResults.reduce((sum, r) => sum + r.percentage, 0) / quizResults.length)
       : 0;
 
-    // Total hours
     const totalMinutes = sessions.reduce((sum, s) => sum + s.duration, 0);
     const totalHours = Math.round((totalMinutes / 60) * 10) / 10;
 
-    // Topics mastered
     const uniqueSubjects = new Set();
-    quizResults.forEach((r) => {
-      if (r.quiz?.subject) uniqueSubjects.add(r.quiz.subject);
-    });
-    sessions.forEach((s) => {
-      if (s.subject) uniqueSubjects.add(s.subject);
-    });
+    quizResults.forEach((r) => { if (r.quiz?.subject) uniqueSubjects.add(r.quiz.subject); });
+    sessions.forEach((s) => { if (s.subject) uniqueSubjects.add(s.subject); });
 
     const exam = await Exam.findById(examId);
     const totalTopics = exam?.totalTopics || uniqueSubjects.size || 5;
     const topicsMastered = uniqueSubjects.size;
 
-    return {
-      quizAccuracy,
-      totalHours,
-      topicsMastered,
-      totalTopics,
-    };
+    return { quizAccuracy, totalHours, topicsMastered, totalTopics };
   } catch (error) {
     console.error('Error getting overall metrics:', error);
-    return {
-      quizAccuracy: 0,
-      totalHours: 0,
-      topicsMastered: 0,
-      totalTopics: 0,
-    };
+    return { quizAccuracy: 0, totalHours: 0, topicsMastered: 0, totalTopics: 0 };
   }
 };
 
