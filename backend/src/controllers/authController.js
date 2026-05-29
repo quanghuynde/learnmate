@@ -1,7 +1,8 @@
-﻿const jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const crypto = require('crypto');
+const speakeasy = require('speakeasy');
 const sendEmail = require('../services/emailService');
 const { updateStreak } = require('../services/userService');
 
@@ -21,10 +22,12 @@ const serializeUser = (user) => ({
   xp: user.xp,
   level: user.level,
   streak: user.streak,
+  bestStreak: user.bestStreak || 0,
   avatar: user.avatar,
   studyGoal: user.studyGoal,
   subjects: user.subjects,
   preferences: user.preferences,
+  twoFactorEnabled: user.twoFactorEnabled,
 });
 
 const register = async (req, res) => {
@@ -60,6 +63,17 @@ const login = async (req, res) => {
     const user = await User.findOne({ email }).select('+password');
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: 'Email hoac mat khau khong dung' });
+    }
+
+    if (user.twoFactorEnabled) {
+      const tempToken = jwt.sign({ id: user._id, isTemp: true }, process.env.JWT_SECRET, {
+        expiresIn: '5m',
+      });
+      return res.json({
+        message: 'Yêu cầu xác thực 2 bước',
+        requires2FA: true,
+        tempToken,
+      });
     }
 
     const token = generateToken(user._id);
@@ -110,6 +124,17 @@ const googleLogin = async (req, res) => {
       user.googleId = payload.sub || user.googleId;
       if (!user.avatar && payload.picture) user.avatar = payload.picture;
       await user.save();
+    }
+
+    if (user.twoFactorEnabled) {
+      const tempToken = jwt.sign({ id: user._id, isTemp: true }, process.env.JWT_SECRET, {
+        expiresIn: '5m',
+      });
+      return res.json({
+        message: 'Yêu cầu xác thực 2 bước (Google Login)',
+        requires2FA: true,
+        tempToken,
+      });
     }
 
     const token = generateToken(user._id);
@@ -213,6 +238,53 @@ const resetPassword = async (req, res) => {
   }
 };
 
-module.exports = { register, login, googleLogin, getMe, forgotPassword, resetPassword };
+const verify2FALogin = async (req, res) => {
+  try {
+    const { tempToken, otpCode } = req.body;
+    if (!tempToken || !otpCode) {
+      return res.status(400).json({ message: 'Thiếu tempToken hoặc mã OTP' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ message: 'Token tạm thời không hợp lệ hoặc đã hết hạn' });
+    }
+
+    if (!decoded.isTemp) {
+      return res.status(401).json({ message: 'Token không hợp lệ' });
+    }
+
+    const user = await User.findById(decoded.id).select('+twoFactorSecret');
+    if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
+      return res.status(400).json({ message: 'Người dùng chưa bật 2FA hoặc không tìm thấy' });
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFactorSecret,
+      encoding: 'base32',
+      token: otpCode,
+      window: 2,
+    });
+
+    if (!verified) {
+      return res.status(400).json({ message: 'Mã OTP không chính xác' });
+    }
+
+    const token = generateToken(user._id);
+    await updateStreak(user);
+
+    res.json({
+      message: 'Xác thực thành công',
+      token,
+      user: serializeUser(user),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { register, login, googleLogin, getMe, forgotPassword, resetPassword, verify2FALogin };
 
 

@@ -1,4 +1,4 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema(
@@ -51,6 +51,10 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    bestStreak: {
+      type: Number,
+      default: 0,
+    },
     xp: {
       type: Number,
       default: 0,
@@ -97,6 +101,18 @@ const userSchema = new mongoose.Schema(
         type: Boolean,
         default: true,
       },
+      dataSharing: {
+        type: Boolean,
+        default: true,
+      },
+    },
+    twoFactorSecret: {
+      type: String,
+      select: false,
+    },
+    twoFactorEnabled: {
+      type: Boolean,
+      default: false,
     },
     isActive: {
       type: Boolean,
