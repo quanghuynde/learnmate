@@ -426,8 +426,14 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
                   </label>
 
                   {docsLoading ? (
-                    <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl text-slate-500 text-sm">
-                      <Loader2 size={16} className="animate-spin" /> Đang tải danh sách tài liệu...
+                    <div className="space-y-3">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl animate-pulse">
+                          <div className="w-4 h-4 bg-slate-200 rounded shrink-0" />
+                          <div className="w-4 h-4 bg-slate-200 rounded shrink-0" />
+                          <div className="h-4 bg-slate-200 rounded w-2/3" />
+                        </div>
+                      ))}
                     </div>
                   ) : documents.length === 0 ? (
                     <div className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
