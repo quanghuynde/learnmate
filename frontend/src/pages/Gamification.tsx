@@ -87,6 +87,7 @@ export function Gamification({ token, user }: GamificationProps) {
 
   return (
     <div className="space-y-6 pb-20">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <Gamepad2 className="text-primary" /> Gamification
@@ -160,5 +161,5 @@ export function Gamification({ token, user }: GamificationProps) {
         </div>
       </div>
     </div>
-  );
+  )
 }

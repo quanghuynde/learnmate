@@ -15,9 +15,11 @@ const notificationRoutes = require('./src/routes/notificationRoutes');
 const ttsRoutes = require('./src/routes/ttsRoutes');
 const aiAssistantRoutes = require('./src/routes/aiAssistantRoutes');
 const errorHandler = require('./src/middleware/errorHandler');
+const { startDailyReminderJob } = require('./src/services/dailyReminderService');
 
 // Kết nối MongoDB
 connectDB();
+startDailyReminderJob();
 
 const app = express();
 

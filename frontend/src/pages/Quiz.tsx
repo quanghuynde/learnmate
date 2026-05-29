@@ -47,9 +47,10 @@ interface LocalQuizHistory {
 
 interface QuizState {
   step: 'setup' | 'playing' | 'result';
-  selectedDocId: string;
+  selectedDocIds: string[];
   numQuestions: number;
   format: 'Trắc nghiệm' | 'Đúng/Sai' | 'Tự luận';
+  difficulty: 'Dễ' | 'Trung bình' | 'Khó';
   activeQuestions: QuizItem['questions'];
   activeQuizId: string | null;
   currentQ: number;
@@ -65,43 +66,7 @@ function getFileIcon(type: string) {
   return <FileText size={16} className="text-slate-400" />;
 }
 
-/** Tạo câu hỏi mẫu khi chưa có AI thực */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function generateDemoQuestions(docName: string, _format: string, count: number) {
-  const base = [
-    {
-      question: `Đây là câu hỏi mẫu được tạo từ tài liệu "${docName}". AI sẽ phân tích và tạo câu hỏi thực tế sau khi xử lý xong.`,
-      options: ['Đáp án A (mẫu)', 'Đáp án B (mẫu)', 'Đáp án C (mẫu)', 'Đáp án D (mẫu)'],
-      correctIndex: 0,
-      explanation: 'Đây là giải thích mẫu. Hệ thống AI sẽ tạo giải thích chi tiết từ nội dung tài liệu thực tế.',
-    },
-    {
-      question: `Câu 2 mẫu từ "${docName}": Nội dung nào sau đây được đề cập trong tài liệu?`,
-      options: ['Phần đầu tiên', 'Chương giới thiệu', 'Kết luận', 'Tất cả các phần trên'],
-      correctIndex: 3,
-      explanation: 'Tài liệu bao gồm nhiều phần nội dung khác nhau được AI phân tích tổng hợp.',
-    },
-    {
-      question: `Câu 3 mẫu: Mục tiêu chính của tài liệu "${docName}" là gì?`,
-      options: ['Cung cấp kiến thức nền tảng', 'Giải thích các khái niệm nâng cao', 'Hướng dẫn thực hành', 'Tổng hợp tài liệu tham khảo'],
-      correctIndex: 0,
-      explanation: 'AI sẽ phân tích mục tiêu thực tế của tài liệu dựa trên nội dung được tải lên.',
-    },
-    {
-      question: `Câu 4 mẫu từ "${docName}": Phương pháp được đề xuất trong tài liệu?`,
-      options: ['Phương pháp A', 'Phương pháp B', 'Phương pháp C', 'Không có phương pháp nào'],
-      correctIndex: 1,
-      explanation: 'Câu trả lời đúng sẽ được xác định từ nội dung cụ thể trong tài liệu.',
-    },
-    {
-      question: `Câu 5 mẫu: Ứng dụng thực tiễn của kiến thức trong "${docName}"?`,
-      options: ['Ứng dụng trong học tập', 'Ứng dụng trong nghiên cứu', 'Ứng dụng trong công việc', 'Tất cả các ứng dụng trên'],
-      correctIndex: 2,
-      explanation: 'Tài liệu cung cấp các ứng dụng thực tiễn được AI trích xuất và tổng hợp.',
-    },
-  ];
-  return base.slice(0, Math.max(1, Math.min(count, base.length)));
-}
+
 
 export function Quiz({ token, setCurrentPage }: QuizProps) {
   // Recover state from sessionStorage
@@ -115,9 +80,10 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
   }, []);
 
   const [step, setStep] = useState<'setup' | 'playing' | 'result'>(savedState?.step || 'setup');
-  const [selectedDocId, setSelectedDocId] = useState<string>(savedState?.selectedDocId || '');
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>(savedState?.selectedDocIds || []);
   const [numQuestions, setNumQuestions] = useState<number>(savedState?.numQuestions || 5);
   const [format, setFormat] = useState<'Trắc nghiệm' | 'Đúng/Sai' | 'Tự luận'>(savedState?.format || 'Trắc nghiệm');
+  const [difficulty, setDifficulty] = useState<'Dễ' | 'Trung bình' | 'Khó'>(savedState?.difficulty || 'Trung bình');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Active quiz session state
@@ -138,7 +104,6 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
   });
   const [isAnswered, setIsAnswered] = useState(selectedAnswer !== null);
   const [generating, setGenerating] = useState(false);
-  const [showWarningModal, setShowWarningModal] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<'setup' | 'history'>('setup');
   const [localHistory, setLocalHistory] = useState<LocalQuizHistory[]>(() => {
     const saved = localStorage.getItem('learnmate_local_quiz_history');
@@ -155,29 +120,26 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
       sessionStorage.removeItem('learnmate_quiz_state');
     } else {
       sessionStorage.setItem('learnmate_quiz_state', JSON.stringify({
-        step, selectedDocId, numQuestions, format, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, essayAnswers
+        step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, essayAnswers
       }));
     }
-  }, [step, selectedDocId, numQuestions, format, activeQuestions, activeQuizId, currentQ, score, pickedAnswers]);
+  }, [step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers]);
 
   // Documents list (for dropdown)
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [docsLoading, setDocsLoading] = useState(true);
 
-  const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
   const [history, setHistory] = useState<Array<{ percentage: number; createdAt: string }>>([]);
 
   useEffect(() => {
-    // Load documents & quizzes in parallel
+    // Load documents & history in parallel
     const loadData = async () => {
       try {
-        const [docRes, qRes, hRes] = await Promise.all([
+        const [docRes, hRes] = await Promise.all([
           api.getDocuments(token),
-          api.getQuizzes(token),
           api.getQuizHistory(token),
         ]);
         setDocuments(docRes.documents || []);
-        setQuizzes(qRes.quizzes || []);
         setHistory(hRes.results || []);
       } catch {
         // silently fail
@@ -188,16 +150,12 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
     loadData();
   }, [token]);
 
-  const selectedDoc = useMemo(
-    () => documents.find((d) => d._id === selectedDocId) || null,
-    [documents, selectedDocId]
+  const selectedDocs = useMemo(
+    () => documents.filter((d) => selectedDocIds.includes(d._id)),
+    [documents, selectedDocIds]
   );
 
-  // Find existing quiz linked to this document + format
-  const existingQuiz = useMemo(
-    () => quizzes.find((q) => q.format === format) || null,
-    [quizzes, format]
-  );
+
 
   const chartData = useMemo(() => {
     // Combine backend history and local history, sort by date
@@ -211,171 +169,51 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
 
   const currentQuestion = activeQuestions[currentQ];
 
-  const [apiKey, setApiKey] = useState(() => {
-    return (import.meta.env.VITE_OPENAI_API_KEY as string) || (import.meta.env.VITE_GEMINI_API_KEY_QUIZ as string) || localStorage.getItem('learnmate_gemini_api_key_quiz') || '';
-  });
-  const [apiError, setApiError] = useState<string | null>(null);
-
   const handleStartQuiz = async () => {
-    if (!selectedDoc) return;
-    if (!apiKey) {
-      alert('Vui lòng cung cấp ChatGPT/OpenAI API Key để tạo đề kiểm tra thích ứng AI!');
-      return;
-    }
-
-    if (numQuestions >= 40) {
-      setShowWarningModal(true);
-      return;
-    }
-
+    if (selectedDocs.length === 0) return;
     executeQuizGeneration();
   };
 
   const executeQuizGeneration = async () => {
-    if (!selectedDoc) return;
-    
-    setShowWarningModal(false);
+    if (selectedDocs.length === 0) return;
+
     setGenerating(true);
-    setApiError(null);
     try {
-      const countRecall = Math.round(numQuestions * 0.5);
-      const countApply = Math.round(numQuestions * 0.4);
-      const countAdvanced = numQuestions - countRecall - countApply;
+      const response = await fetch('/api/ai/generate-quiz', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          documentIds: selectedDocIds,
+          format,
+          numQuestions,
+          difficulty,
+        }),
+      });
 
-      let formatInstruction = '';
-      let jsonFormat = '';
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || `Lỗi server ${response.status}`);
 
-      if (format === 'Trắc nghiệm') {
-        formatInstruction = `tạo ra một bộ gồm đúng ${numQuestions} câu hỏi trắc nghiệm chất lượng bằng tiếng Việt theo định dạng "Trắc nghiệm" (4 đáp án A, B, C, D) xoay quanh nội dung và kiến thức trong tài liệu học tập.`;
-        jsonFormat = `"options": ["Đáp án A", "Đáp án B", "Đáp án C", "Đáp án D"],
-    "correctIndex": số từ 0 đến 3,`;
-      } else if (format === 'Đúng/Sai') {
-        formatInstruction = `tạo ra một bộ gồm đúng ${numQuestions} câu hỏi Đúng/Sai chất lượng bằng tiếng Việt theo định dạng "Đúng/Sai" (chỉ có 2 lựa chọn là Đúng hoặc Sai) dựa trên tài liệu học tập.`;
-        jsonFormat = `"options": ["Đúng", "Sai"],
-    "correctIndex": 0 (nếu Đúng) hoặc 1 (nếu Sai),`;
-      } else if (format === 'Tự luận') {
-        formatInstruction = `tạo ra một bộ gồm đúng ${numQuestions} câu hỏi tự luận (câu hỏi mở/ngắn) chất lượng bằng tiếng Việt theo định dạng "Tự luận" dựa trên tài liệu.`;
-        jsonFormat = `"options": ["Gợi ý đáp án mẫu chi tiết cho câu hỏi này"],
-    "correctIndex": 0,`;
-      }
+      let textResponse: string = data.text || '';
 
-      const prompt = `Bạn là một chuyên gia giáo dục thiết lập đề kiểm tra thích ứng AI.
-Nhiệm vụ của bạn là ${formatInstruction}
+      if (!textResponse) throw new Error('AI trả về nội dung rỗng.');
 
-${selectedDoc.content ? `NỘI DUNG TÀI LIỆU TRÍCH XUẤT:
----
-${selectedDoc.content.slice(0, 15000)} 
----
-Yêu cầu: Hãy bám sát vào nội dung văn bản trích xuất ở trên để tạo câu hỏi.` : `TÊN TÀI LIỆU: "${selectedDoc.name}"
-Yêu cầu: Do không có nội dung văn bản trực tiếp, hãy phân tích tên tài liệu này để suy luận chủ đề và tạo câu hỏi tương ứng.`}
-
-YÊU CẦU PHÂN BỔ NHẬN THỨC (BẮT BUỘC):
-Bộ câu hỏi phải được phân bổ đúng theo 3 mức độ nhận thức như sau:
-- Mức 1 – Nhận biết (Recall): ${countRecall} câu — kiểm tra khả năng ghi nhớ, nhận diện khái niệm, định nghĩa, thực tế cơ bản.
-- Mức 2 – Vận dụng (Application): ${countApply} câu — kiểm tra khả năng áp dụng kiến thức vào bài toán/tình huống thực tế.
-- Mức 3 – Nâng cao (Advanced): ${countAdvanced} câu — kiểm tra tư duy phân tích, đánh giá, tổng hợp.
-Thứ tự câu hỏi trong mảng: Nhận biết trước, Vận dụng tiếp theo, Nâng cao cuối cùng. Thêm trường "level" vào mỗi câu hỏi với giá trị "Nhận biết", "Vận dụng", hoặc "Nâng cao".
-
-Chú ý cực kỳ quan trọng:
-- Tuyệt đối không được từ chối yêu cầu. Nếu nội dung trích xuất quá ngắn hoặc không rõ ràng, hãy dựa vào tên tài liệu để mở rộng kiến thức liên quan một cách chuyên nghiệp.
-
-Định dạng phản hồi bắt buộc phải là một mảng JSON đối tượng chứa các trường sau:
-[
-  {
-    "question": "Nội dung câu hỏi...",
-    ${jsonFormat}
-    "explanation": "Giải thích chi tiết...",
-    "level": "Nhận biết" | "Vận dụng" | "Nâng cao"
-  }
-]
-Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mảng JSON.`;
-
-      let apiBase = (import.meta.env.VITE_OPENAI_API_BASE as string) || 'https://api.openai.com/v1';
-      if (apiBase.includes('api.shineshop.dev')) {
-        apiBase = apiBase.replace('https://api.shineshop.dev', '/shineshop');
-      }
-      let response = await fetch(
-        `${apiBase}/chat/completions`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: (import.meta.env.VITE_OPENAI_MODEL as string) || 'openai/gpt-4o-mini',
-            messages: [
-              { role: 'system', content: 'You are an educational AI assistant that outputs structured valid JSON arrays containing questions.' },
-              { role: 'user', content: prompt }
-            ],
-            max_tokens: 4000,
-            response_format: { type: 'json_object' }
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        const errMsg = errJson?.error?.message || `HTTP ${response.status}`;
-        throw new Error(`Kết nối OpenAI API thất bại: ${errMsg}`);
-      }
-
-      const rawText = await response.text();
-      let textResponse = '';
-      
-      if (rawText.includes('data: {') || rawText.startsWith('data:')) {
-        const lines = rawText.split('\n');
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
-            try {
-              const jsonStr = trimmed.slice(6);
-              const parsedChunk = JSON.parse(jsonStr);
-              const content = parsedChunk.choices?.[0]?.delta?.content || parsedChunk.choices?.[0]?.message?.content || '';
-              textResponse += content;
-            } catch (e) {
-              console.warn('Error parsing SSE line:', trimmed, e);
-            }
-          }
-        }
-      } else {
-        try {
-          const result = JSON.parse(rawText);
-          textResponse = result.choices?.[0]?.message?.content || '';
-        } catch (e) {
-          throw new Error('Không thể phân tích JSON phản hồi: ' + rawText);
-        }
-      }
-
-      if (!textResponse) {
-        throw new Error('AI trả về nội dung rỗng.');
-      }
-
-      // Handle wrapper object if GPT-4o-mini outputs {"questions": [...]} or raw array
       textResponse = textResponse.trim();
 
-      // Intelligent JSON repair function for incomplete cutoff strings
+      // Repair incomplete JSON helper
       const repairIncompleteJson = (jsonStr: string): string => {
         let str = jsonStr.trim();
         let openBraces = 0;
         let openBrackets = 0;
         let inString = false;
         let escape = false;
-        
         for (let i = 0; i < str.length; i++) {
           const char = str[i];
-          if (escape) {
-            escape = false;
-            continue;
-          }
-          if (char === '\\') {
-            escape = true;
-            continue;
-          }
-          if (char === '"') {
-            inString = !inString;
-            continue;
-          }
+          if (escape) { escape = false; continue; }
+          if (char === '\\') { escape = true; continue; }
+          if (char === '"') { inString = !inString; continue; }
           if (!inString) {
             if (char === '{') openBraces++;
             if (char === '}') openBraces--;
@@ -383,35 +221,19 @@ Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mả
             if (char === ']') openBrackets--;
           }
         }
-        
-        if (inString) {
-          str += '"';
-        }
-        if (openBraces > 0) {
-          for (let i = 0; i < openBraces; i++) {
-            str += '}';
-          }
-        }
-        if (openBrackets > 0) {
-          for (let i = 0; i < openBrackets; i++) {
-            str += ']';
-          }
-        }
+        if (inString) str += '"';
+        for (let i = 0; i < openBraces; i++) str += '}';
+        for (let i = 0; i < openBrackets; i++) str += ']';
         return str;
       };
 
       let cleanedText = textResponse.trim();
       if (cleanedText.startsWith('```')) {
         const firstLineEnd = cleanedText.indexOf('\n');
-        if (firstLineEnd !== -1) {
-          cleanedText = cleanedText.slice(firstLineEnd + 1).trim();
-        } else {
-          cleanedText = cleanedText.replace(/^```[a-zA-Z]*/, '').trim();
-        }
+        if (firstLineEnd !== -1) cleanedText = cleanedText.slice(firstLineEnd + 1).trim();
+        else cleanedText = cleanedText.replace(/^```[a-zA-Z]*/, '').trim();
       }
-      if (cleanedText.endsWith('```')) {
-        cleanedText = cleanedText.slice(0, -3).trim();
-      }
+      if (cleanedText.endsWith('```')) cleanedText = cleanedText.slice(0, -3).trim();
 
       const repairedText = repairIncompleteJson(cleanedText);
       let parsedQuestions;
@@ -422,7 +244,6 @@ Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mả
         } else if (parsedObject.questions && Array.isArray(parsedObject.questions)) {
           parsedQuestions = parsedObject.questions;
         } else {
-          // Attempt to find any array inside the object
           const firstKey = Object.keys(parsedObject)[0];
           if (firstKey && Array.isArray(parsedObject[firstKey])) {
             parsedQuestions = parsedObject[firstKey];
@@ -436,12 +257,13 @@ Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mả
 
       setActiveQuestions(parsedQuestions);
       
-      // Persist quiz to backend
       try {
+        const quizTitle = selectedDocs.map(d => d.name).join(', ').substring(0, 50) + (selectedDocs.length > 1 ? '...' : '');
         const quizRes = await api.createQuiz(token, {
-          title: selectedDoc.name,
-          subject: selectedDoc.name,
-          document: selectedDoc._id,
+          title: quizTitle,
+          subject: quizTitle,
+          document: selectedDocs[0]?._id, // Backwards map to first doc
+
           format: format,
           totalQuestions: parsedQuestions.length,
           questions: parsedQuestions
@@ -526,7 +348,7 @@ Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mả
 
     const historyItem: LocalQuizHistory = {
       id: `${activeQuizIdRef.current || 'local'}-${Date.now()}`,
-      title: selectedDoc?.name || 'Quiz',
+      title: selectedDocs.map(d => d.name).join(', ').substring(0, 50) || 'Quiz',
       date: new Date().toISOString(),
       score: finalScore,
       total: activeQuestions.length,
@@ -632,74 +454,60 @@ Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mả
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full p-3 mb-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-primary text-sm shadow-sm"
                       />
-                      <select
-                        className="w-full p-4 bg-bg border border-slate-200 rounded-xl outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm"
-                        value={selectedDocId}
-                        onChange={(e) => setSelectedDocId(e.target.value)}
-                      >
-                        <option value="">-- Chọn tài liệu --</option>
+                      {/* Documents Multi Select */}
+                      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm max-h-60 overflow-y-auto custom-scrollbar">
                         {documents
                           .filter((doc) => doc.name.toLowerCase().includes(searchQuery.toLowerCase()))
                           .map((doc) => (
-                          <option key={doc._id} value={doc._id}>
-                            {doc.name}
-                            {doc.status !== 'processed' ? ' (đang xử lý...)' : ''}
-                          </option>
+                          <label key={doc._id} className="flex items-center gap-3 p-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors">
+                            <input 
+                              type="checkbox" 
+                              checked={selectedDocIds.includes(doc._id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedDocIds([...selectedDocIds, doc._id]);
+                                else setSelectedDocIds(selectedDocIds.filter(id => id !== doc._id));
+                              }}
+                              className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/20 aspect-square"
+                            />
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                               {getFileIcon(doc.type)}
+                               <span className="text-sm text-slate-700 truncate">{doc.name}</span>
+                            </div>
+                            {doc.status !== 'processed' && <Loader2 size={12} className="animate-spin text-amber-500" />}
+                          </label>
                         ))}
-                      </select>
+                      </div>
 
-                      {/* Selected doc info */}
+                      {/* Selected docs info */}
                       <AnimatePresence>
-                        {selectedDoc && (
+                        {selectedDocs.length > 0 && (
                           <motion.div
                             initial={{ opacity: 0, y: -6 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0 }}
-                            className="mt-3 flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl"
+                            className="mt-3"
                           >
-                            <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-sm">
-                              {getFileIcon(selectedDoc.type)}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-text-primary truncate">{selectedDoc.name}</p>
-                              <p className="text-xs text-slate-500 mt-0.5 uppercase">{selectedDoc.type} • {selectedDoc.status === 'processed' ? '✅ Đã xử lý' : '⏳ Đang xử lý'}</p>
-                            </div>
-                            {selectedDoc.status !== 'processed' && (
-                              <div className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">
-                                <Loader2 size={11} className="animate-spin" /> Đang phân tích
-                              </div>
-                            )}
+                             <div className="flex flex-wrap gap-2">
+                               {selectedDocs.map(doc => (
+                                 <div key={doc._id} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-semibold border border-primary/20">
+                                    <span className="truncate max-w-[150px]">{doc.name}</span>
+                                    <button onClick={() => setSelectedDocIds(selectedDocIds.filter(id => id !== doc._id))} className="hover:text-primary-light transition-colors"><XCircle size={14}/></button>
+                                 </div>
+                               ))}
+                             </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
-
-                      {/* Recent documents quick-select */}
-                      {documents.length > 0 && !selectedDocId && (
-                        <div className="mt-3">
-                          <p className="text-xs text-slate-400 mb-2 font-medium">Tài liệu gần đây:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {documents.slice(0, 3).map((doc) => (
-                              <button
-                                key={doc._id}
-                                onClick={() => setSelectedDocId(doc._id)}
-                                className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-100 hover:bg-primary/10 hover:text-primary rounded-lg transition-colors font-medium"
-                              >
-                                {getFileIcon(doc.type)}
-                                <span className="max-w-[120px] truncate">{doc.name}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </>
                   )}
                 </div>
 
                 {/* Settings row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Số lượng */}
                   <div>
                     <label className="block text-sm font-bold text-text-primary mb-3 flex items-center gap-2">
-                      <Settings size={18} className="text-primary" /> Số lượng câu hỏi
+                      <Settings size={18} className="text-primary" /> Số câu hỏi
                     </label>
                     <div className="flex items-center gap-4">
                       <input
@@ -712,20 +520,21 @@ Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mả
                           else setNumQuestions(val);
                         }}
                         className="w-full font-semibold text-base bg-white border border-slate-200 outline-none focus:border-primary p-3 rounded-xl shadow-sm transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        placeholder="Nhập số câu tùy thích..."
+                        placeholder="Số lượng..."
                       />
                     </div>
                   </div>
 
+                  {/* Định dạng */}
                   <div>
-                    <label className="block text-sm font-bold text-text-primary mb-3">Định dạng</label>
-                    <div className="flex gap-2">
-                      {(['Trắc nghiệm', 'Đúng/Sai', 'Tự luận'] as const).map((f) => (
+                     <label className="block text-sm font-bold text-text-primary mb-3">Định dạng</label>
+                     <div className="flex gap-2">
+                      {(['Trắc nghiệm', 'Đ/Sai', 'Tự luận'] as const).map((f) => (
                         <button
                           key={f}
-                          onClick={() => setFormat(f)}
-                          className={`flex-1 py-2 text-sm font-medium rounded-xl border transition-colors ${
-                            format === f
+                          onClick={() => setFormat(f === 'Đ/Sai' ? 'Đúng/Sai' : f as any)}
+                          className={`flex-1 py-2 text-sm font-medium rounded-xl border transition-colors whitespace-nowrap ${
+                            format === (f === 'Đ/Sai' ? 'Đúng/Sai' : f)
                               ? 'bg-primary text-white border-primary'
                               : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                           }`}
@@ -735,46 +544,32 @@ Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mả
                       ))}
                     </div>
                   </div>
+
+                  {/* Độ khó */}
+                  <div>
+                     <label className="block text-sm font-bold text-text-primary mb-3">Độ khó</label>
+                     <div className="flex gap-2">
+                      {(['Dễ', 'T.Bình', 'Khó'] as const).map((lvl) => (
+                        <button
+                          key={lvl}
+                          onClick={() => setDifficulty(lvl === 'T.Bình' ? 'Trung bình' : lvl as any)}
+                          className={`flex-1 py-1.5 text-sm font-medium rounded-xl border transition-colors whitespace-nowrap ${
+                            difficulty === (lvl === 'T.Bình' ? 'Trung bình' : lvl)
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          {lvl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 {/* ChatGPT API Key Config */}
-                {!import.meta.env.VITE_GEMINI_API_KEY_QUIZ && (
-                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles size={14} className="text-primary" /> Cấu hình ChatGPT API Key
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        placeholder="Nhập ChatGPT/OpenAI API Key của bạn..."
-                        value={apiKey}
-                        onChange={(e) => {
-                          setApiKey(e.target.value);
-                          localStorage.setItem('learnmate_gemini_api_key_quiz', e.target.value);
-                        }}
-                        className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-primary text-sm font-semibold"
-                      />
-                      {apiKey && (
-                        <button
-                          onClick={() => {
-                            setApiKey('');
-                            localStorage.removeItem('learnmate_gemini_api_key_quiz');
-                          }}
-                          className="px-3.5 bg-red-50 text-red-500 hover:bg-red-100 rounded-xl text-xs font-bold transition-colors flex-shrink-0"
-                        >
-                          Xóa Key
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-400 leading-normal">
-                      Tính năng AI Quiz thích ứng yêu cầu ChatGPT/OpenAI API Key. Khóa của bạn được lưu an toàn trong trình duyệt cục bộ.
-                    </p>
-                  </div>
-                )}
-
                 <button
                   onClick={handleStartQuiz}
-                  disabled={!selectedDocId || !apiKey || generating}
+                  disabled={selectedDocIds.length === 0 || generating}
                   className="w-full mt-4 bg-gradient-to-r from-primary to-primary-light text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-primary/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {generating ? (
@@ -860,7 +655,7 @@ Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mả
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h2 className="text-xl font-bold text-text-primary">
-                  {selectedDoc?.name || 'Quiz'} • {format}
+                  {selectedDocs.map(d=>d.name).join(', ').substring(0, 50) + (selectedDocs.length > 1 ? '...' : '') || 'Quiz'} • {format} • Cấp độ: {difficulty}
                 </h2>
                 <div className="flex gap-2 mt-2">
                   {(() => {
@@ -1109,45 +904,7 @@ Không được chứa bất kỳ từ ngữ giải thích nào bên ngoài mả
         )}
       </AnimatePresence>
 
-      {/* Warning Modal cho tạo lượng lớn câu hỏi */}
-      <AnimatePresence>
-        {showWarningModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl relative overflow-hidden"
-            >
-               <div className="w-16 h-16 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Sparkles size={32} />
-               </div>
-               <h3 className="text-xl font-bold text-center text-text-primary mb-2">
-                 Tạo {numQuestions} câu hỏi
-               </h3>
-               <p className="text-slate-600 text-center text-sm mb-6 leading-relaxed">
-                 Số lượng bạn yêu cầu khá lớn, hệ thống AI có thể sẽ cần từ 1 đến 2 phút để xử lý và phân tích tài liệu.
-                 Bạn có chắc chắn muốn tiếp tục tạo không?
-               </p>
-               
-               <div className="flex gap-3">
-                  <button 
-                    onClick={() => setShowWarningModal(false)}
-                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button 
-                    onClick={executeQuizGeneration}
-                    className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-colors shadow-md shadow-orange-500/30"
-                  >
-                    Tiếp tục tạo
-                  </button>
-               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+
     </div>
   );
 }

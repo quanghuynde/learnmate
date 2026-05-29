@@ -51,6 +51,11 @@ export type UserItem = {
     dailyGoal?: number;
     quizDifficulty?: string;
     notificationType?: string;
+    emailNotifications?: boolean;
+    pushNotifications?: boolean;
+    dailyReminderEnabled?: boolean;
+    dailyReminderTime?: string;
+    systemUpdates?: boolean;
   };
 };
 
@@ -63,6 +68,26 @@ export type ExamItem = {
   topicsMastered: number;
   totalTopics: number;
   isActive: boolean;
+};
+
+export type ExamReadinessData = {
+  exam: ExamItem & { daysRemaining: number };
+  readinessScore: number;
+  metrics: {
+    quizAccuracy: number;
+    totalHours: number;
+    topicsMastered: number;
+    totalTopics: number;
+  };
+  radarData: Array<{ subject: string; A: number }>;
+  trendData: Array<{ day: string; score: number }>;
+  topics: Array<{
+    name: string;
+    score: number;
+    time: string;
+    status: string;
+    color: string;
+  }>;
 };
 
 export type StudyPlanItem = {
@@ -138,6 +163,55 @@ export type AssistantAction = {
 export type AssistantGuideResponse = {
   message: string;
   actions?: AssistantAction[];
+export type AchievementItem = {
+  _id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  rarity: string;
+  xpReward: number;
+  isUnlocked: boolean;
+  progress: number;
+  current: number;
+  target: number;
+};
+
+export type LeaderboardItem = {
+  rank: number;
+  userId: string;
+  name: string;
+  avatar: string;
+  xp: number;
+  level: number;
+  streak: number;
+};
+
+export type GamificationOverview = {
+  user: {
+    name: string;
+    avatar: string;
+    xp: number;
+    level: number;
+    streak: number;
+    levelProgress: number;
+    nextLevelXP: number;
+  };
+  achievements: {
+    total: number;
+    unlocked: number;
+    list: AchievementItem[];
+  };
+  leaderboard: {
+    userRank: number | null;
+    top: LeaderboardItem[];
+  };
+  newAchievements: Array<{
+    name: string;
+    description: string;
+    icon: string;
+    xpReward: number;
+  }>;
 };
 
 export const api = {
@@ -159,8 +233,12 @@ export const api = {
     request<{ user: UserItem }>('/users/profile', { method: 'PUT', token, body: payload }),
 
   getExams: (token: string) => request<{ exams: ExamItem[] }>('/exams', { token }),
+  createExam: (token: string, data: any) =>
+    request<{ exam: ExamItem }>('/exams', { method: 'POST', token, body: data }),
   updateExam: (token: string, id: string, data: any) =>
     request<{ exam: ExamItem }>(`/exams/${id}`, { method: 'PUT', token, body: data }),
+  getExamReadiness: (token: string, examId: string) =>
+    request<ExamReadinessData>(`/exams/${examId}/readiness`, { token }),
 
   getStudyPlans: (token: string) => request<{ studyPlans: StudyPlanItem[] }>('/study-plans', { token }),
   createStudyPlan: (token: string, data: any) =>
@@ -220,5 +298,16 @@ export const api = {
       };
     }
   ) => request<AssistantGuideResponse>('/ai-assistant/guide', { method: 'POST', token, body: payload }),
+
+  // Gamification
+  getGamificationOverview: (token: string) =>
+    request<GamificationOverview>('/gamification/overview', { token }),
+  getAchievements: (token: string) =>
+    request<{ achievements: AchievementItem[] }>('/gamification/achievements', { token }),
+  getLeaderboard: (token: string, limit?: number) =>
+    request<{ userRank: number | null; leaderboard: LeaderboardItem[] }>(
+      `/gamification/leaderboard${limit ? `?limit=${limit}` : ''}`,
+      { token }
+    ),
 };
 

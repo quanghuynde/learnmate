@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema(
@@ -62,7 +62,7 @@ const userSchema = new mongoose.Schema(
     preferences: {
       studyTime: {
         type: String,
-        default: 'Buổi sáng (6h - 12h)',
+        default: 'Buoi sang (6h - 12h)',
       },
       dailyGoal: {
         type: Number,
@@ -70,11 +70,32 @@ const userSchema = new mongoose.Schema(
       },
       quizDifficulty: {
         type: String,
-        default: 'Thích ứng',
+        default: 'Thich ung',
       },
       notificationType: {
         type: String,
-        default: 'Nhắc nhở thông minh',
+        default: 'Nhac nho thong minh',
+      },
+      emailNotifications: {
+        type: Boolean,
+        default: true,
+      },
+      pushNotifications: {
+        type: Boolean,
+        default: true,
+      },
+      dailyReminderEnabled: {
+        type: Boolean,
+        default: false,
+      },
+      dailyReminderTime: {
+        type: String,
+        default: '09:00',
+        match: [/^([01]\d|2[0-3]):([0-5]\d)$/, 'dailyReminderTime phai theo dinh dang HH:mm'],
+      },
+      systemUpdates: {
+        type: Boolean,
+        default: true,
       },
     },
     isActive: {
@@ -84,6 +105,7 @@ const userSchema = new mongoose.Schema(
     resetPasswordToken: String,
     resetPasswordExpires: Date,
     lastActivity: Date,
+    lastDailyReminderSentAt: Date,
   },
   { timestamps: true }
 );

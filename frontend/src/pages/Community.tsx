@@ -1,73 +1,60 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Trophy, Medal, Flame, MessageSquare, Heart, Share2, Image as ImageIcon, Send } from 'lucide-react';
-import { api, LeaderboardItem, UserItem } from '../lib/api';
+import React, { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import {
+  Trophy,
+  Medal,
+  MessageSquare,
+  Heart,
+  Share2,
+  Image as ImageIcon,
+  Send,
+  Flame,
+} from 'lucide-react'
+import { api, LeaderboardItem, UserItem } from '../lib/api'
 
 interface CommunityProps {
-  token: string;
-  user: UserItem | null;
+  token: string
+  user: UserItem | null
 }
 
 export function Community({ token, user }: CommunityProps) {
-  const [activeTab, setActiveTab] = useState('leaderboard');
-  const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([]);
-  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+  const [activeTab, setActiveTab] = useState('leaderboard')
+  const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false)
+  const [posts, setPosts] = useState<any[]>([])
+  const [loadingPosts, setLoadingPosts] = useState(false)
 
-  const posts: any[] = [];
+  useEffect(() => {
+    if (token) {
+      fetchLeaderboard()
+    }
+  }, [token])
 
-  const loadLeaderboard = async () => {
-    setLoadingLeaderboard(true);
+  const fetchLeaderboard = async () => {
+    setLoadingLeaderboard(true)
     try {
-      const res = await api.getLeaderboard(token);
-      setLeaderboard(res.leaderboard || []);
-    } catch {
-      setLeaderboard([]);
+      const res = await api.getLeaderboard(token, 10)
+      setLeaderboard(res.leaderboard)
+    } catch (err) {
+      console.error('Failed to fetch leaderboard:', err)
     } finally {
-      setLoadingLeaderboard(false);
+      setLoadingLeaderboard(false)
     }
-  };
+  }
 
-  useEffect(() => {
-    loadLeaderboard().catch(() => null);
-  }, [token]);
+  const getReadyPercentage = (item: LeaderboardItem) => {
+    const baseScore = Math.min(100, Math.max(0, item.xp / 10))
+    return `${Math.round(baseScore)}%`
+  }
 
-  const myRank = useMemo(() => {
-    if (!user?.id) return null;
-    const found = leaderboard.find((item) => item.userId === user.id);
-    return found ? found.rank : null;
-  }, [leaderboard, user?.id]);
-
-  useEffect(() => {
-    if (!user?.id || !token || !myRank) return;
-
-    const rankKey = `learnmate_last_rank_${user.id}`;
-    const notifyKey = `learnmate_drop_top3_${user.id}`;
-    const lastRank = Number(localStorage.getItem(rankKey));
-
-    const handleDropOut = async () => {
-      const signature = `${lastRank}->${myRank}`;
-      if (localStorage.getItem(notifyKey) === signature) return;
-
-      await api.createSystemEventNotification(token, {
-        event: 'leaderboard_drop_top3',
-        data: {
-          previousRank: lastRank,
-        },
-      });
-
-      localStorage.setItem(notifyKey, signature);
-    };
-
-    if (Number.isFinite(lastRank) && lastRank <= 3 && myRank > 3) {
-      handleDropOut().catch(() => null);
-    }
-
-    if (myRank <= 3) {
-      localStorage.removeItem(notifyKey);
-    }
-
-    localStorage.setItem(rankKey, String(myRank));
-  }, [myRank, token, user?.id]);
+  const userInitials = user?.name
+    ? user.name
+        .split(' ')
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    : '?'
 
   return (
     <div className="max-w-5xl mx-auto pb-20 space-y-6">
@@ -97,7 +84,76 @@ export function Community({ token, user }: CommunityProps) {
       </div>
 
       {activeTab === 'leaderboard' && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+        <motion.div
+          initial={{
+            opacity: 0,
+            y: 10,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          className="space-y-8"
+        >
+          {leaderboard.length > 0 && (
+            <div className="flex justify-center items-end gap-4 h-64 pt-10">
+              {leaderboard[1] && (
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600 border-4 border-white shadow-md z-10 -mb-4 overflow-hidden">
+                    {leaderboard[1].avatar ? (
+                      <img src={leaderboard[1].avatar} alt={leaderboard[1].name} className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      leaderboard[1].name.substring(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div className="w-24 h-32 bg-gradient-to-t from-slate-300 to-slate-100 rounded-t-xl flex flex-col items-center justify-start pt-6 shadow-lg">
+                    <span className="text-2xl font-bold text-slate-500">2</span>
+                    <span className="text-xs font-medium text-slate-600 mt-1">
+                      {getReadyPercentage(leaderboard[1])}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {leaderboard[0] && (
+                <div className="flex flex-col items-center">
+                  <Trophy size={32} className="text-accent mb-2 drop-shadow-md" />
+                  <div className="w-20 h-20 rounded-full bg-accent/20 flex items-center justify-center font-bold text-accent border-4 border-white shadow-md z-10 -mb-4 text-xl overflow-hidden">
+                    {leaderboard[0].avatar ? (
+                      <img src={leaderboard[0].avatar} alt={leaderboard[0].name} className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      leaderboard[0].name.substring(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div className="w-28 h-40 bg-gradient-to-t from-accent to-yellow-300 rounded-t-xl flex flex-col items-center justify-start pt-8 shadow-xl">
+                    <span className="text-3xl font-bold text-white drop-shadow-md">
+                      1
+                    </span>
+                    <span className="text-sm font-bold text-white mt-1">{getReadyPercentage(leaderboard[0])}</span>
+                  </div>
+                </div>
+              )}
+
+              {leaderboard[2] && (
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full bg-orange-200 flex items-center justify-center font-bold text-orange-700 border-4 border-white shadow-md z-10 -mb-4 overflow-hidden">
+                    {leaderboard[2].avatar ? (
+                      <img src={leaderboard[2].avatar} alt={leaderboard[2].name} className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      leaderboard[2].name.substring(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div className="w-24 h-24 bg-gradient-to-t from-orange-300 to-orange-200 rounded-t-xl flex flex-col items-center justify-start pt-4 shadow-lg">
+                    <span className="text-2xl font-bold text-orange-700">3</span>
+                    <span className="text-xs font-medium text-orange-800 mt-1">
+                      {getReadyPercentage(leaderboard[2])}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             <table className="w-full text-left">
               <thead>
@@ -112,34 +168,58 @@ export function Community({ token, user }: CommunityProps) {
               <tbody className="divide-y divide-slate-100">
                 {loadingLeaderboard ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-500">Đang tải bảng xếp hạng...</td>
+                    <td colSpan={5} className="p-8 text-center text-slate-500">
+                      Đang tải bảng xếp hạng...
+                    </td>
                   </tr>
                 ) : leaderboard.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-slate-500">Chưa có dữ liệu bảng xếp hạng.</td>
                   </tr>
                 ) : (
-                  leaderboard.map((entry) => {
-                    const isCurrentUser = entry.userId === user?.id;
-                    return (
-                      <tr key={entry.userId} className={`hover:bg-slate-50 transition-colors ${isCurrentUser ? 'bg-primary/5' : ''}`}>
-                        <td className="p-4 pl-6 font-bold text-slate-400">
-                          {entry.rank === 1 ? <Medal className="text-accent" /> : entry.rank === 2 ? <Medal className="text-slate-400" /> : entry.rank === 3 ? <Medal className="text-orange-400" /> : `#${entry.rank}`}
-                        </td>
-                        <td className="p-4 flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isCurrentUser ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}>
-                            {entry.avatar}
-                          </div>
-                          <span className={`font-medium ${isCurrentUser ? 'text-primary font-bold' : 'text-text-primary'}`}>{entry.name}</span>
-                        </td>
-                        <td className="p-4 text-center font-bold text-text-primary">{entry.score}</td>
-                        <td className="p-4 text-center text-orange-500 font-medium flex items-center justify-center gap-1">
-                          <Flame size={14} /> {entry.streak}
-                        </td>
-                        <td className="p-4 text-center text-slate-600">{entry.quiz}</td>
-                      </tr>
-                    );
-                  })
+                  leaderboard.map((u) => (
+                    <tr
+                      key={u.rank}
+                      className={`hover:bg-slate-50 transition-colors ${u.userId === user?.id ? 'bg-primary/5' : ''}`}
+                    >
+                      <td className="p-4 pl-6 font-bold text-slate-400">
+                        {u.rank === 1 ? (
+                          <Medal className="text-accent" />
+                        ) : u.rank === 2 ? (
+                          <Medal className="text-slate-400" />
+                        ) : u.rank === 3 ? (
+                          <Medal className="text-orange-400" />
+                        ) : (
+                          `#${u.rank}`
+                        )}
+                      </td>
+                      <td className="p-4 flex items-center gap-3">
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden ${u.userId === user?.id ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}
+                        >
+                          {u.avatar ? (
+                            <img src={u.avatar} alt={u.name} className="w-full h-full rounded-full object-cover" />
+                          ) : (
+                            u.name.substring(0, 2).toUpperCase()
+                          )}
+                        </div>
+                        <span
+                          className={`font-medium ${u.userId === user?.id ? 'text-primary font-bold' : 'text-text-primary'}`}
+                        >
+                          {u.name} {u.userId === user?.id && '(Bạn)'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center font-bold text-text-primary">
+                        {getReadyPercentage(u)}
+                      </td>
+                      <td className="p-4 text-center text-orange-500 font-medium flex items-center justify-center gap-1">
+                        <Flame size={14} /> {u.streak}
+                      </td>
+                      <td className="p-4 text-center text-slate-600">
+                        {Math.floor(u.xp / 50)}
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -148,9 +228,21 @@ export function Community({ token, user }: CommunityProps) {
       )}
 
       {activeTab === 'posts' && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-2xl mx-auto">
+        <motion.div
+          initial={{
+            opacity: 0,
+            y: 10,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          className="space-y-6 max-w-2xl mx-auto"
+        >
           <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex gap-4">
-            <div className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center font-bold flex-shrink-0 shadow-sm">YOU</div>
+            <div className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center font-bold flex-shrink-0 shadow-sm">
+              {userInitials}
+            </div>
             <div className="flex-1">
               <textarea
                 placeholder="Bạn đang nghĩ gì? Chia sẻ tiến độ hoặc đặt câu hỏi..."
@@ -204,5 +296,5 @@ export function Community({ token, user }: CommunityProps) {
         </motion.div>
       )}
     </div>
-  );
+  )
 }

@@ -14,7 +14,7 @@ const documentSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['pdf', 'docx', 'pptx'],
+      enum: ['pdf', 'docx', 'pptx', 'txt', 'web', 'text'],
       required: true,
     },
     pages: {

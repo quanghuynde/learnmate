@@ -147,6 +147,8 @@ export function ExamReadiness({ token }: { token: string }) {
               <span className="text-xs text-slate-500 mt-1">ĐIỂM TỔNG HỢP</span>
             </div>
           </div>
+        )}
+      </div>
 
           <p className="text-sm text-slate-600 mb-6">Làm thêm quiz và học tập đều đặn để hệ thống đánh giá độ sẵn sàng chính xác hơn.</p>
 
@@ -167,6 +169,7 @@ export function ExamReadiness({ token }: { token: string }) {
             </div>
           </div>
         </div>
+      )}
 
         <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
           <h3 className="font-bold text-text-primary mb-4">Cân bằng kiến thức</h3>
