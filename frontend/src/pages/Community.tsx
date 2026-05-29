@@ -68,26 +68,19 @@ export function Community({ token, user }: CommunityProps) {
       </div>
 
       <div className="flex gap-2 border-b border-slate-200 overflow-x-auto hide-scrollbar">
-        {['Bảng xếp hạng', 'Bài viết'].map(
-          (tab, i) => {
-            const id = ['leaderboard', 'posts'][i]
-            return (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                className={`px-6 py-3 font-medium text-sm relative transition-colors ${activeTab === id ? 'text-primary' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                {tab}
-                {activeTab === id && (
-                  <motion.div
-                    layoutId="communityTab"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
-                  />
-                )}
-              </button>
-            )
-          },
-        )}
+        {['Bảng xếp hạng', 'Bài viết'].map((tab, i) => {
+          const id = ['leaderboard', 'posts'][i];
+          return (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`px-6 py-3 font-medium text-sm relative transition-colors ${activeTab === id ? 'text-primary' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              {tab}
+              {activeTab === id && <motion.div layoutId="communityTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+            </button>
+          );
+        })}
       </div>
 
       {activeTab === 'leaderboard' && (
@@ -167,9 +160,9 @@ export function Community({ token, user }: CommunityProps) {
                 <tr className="bg-slate-50 text-xs font-bold text-slate-500 uppercase">
                   <th className="p-4 pl-6 w-16">Hạng</th>
                   <th className="p-4">Sinh viên</th>
-                  <th className="p-4 text-center">Sẵn sàng</th>
+                  <th className="p-4 text-center">Điểm</th>
                   <th className="p-4 text-center">Chuỗi</th>
-                  <th className="p-4 text-center">Quiz</th>
+                  <th className="p-4 text-center">Level</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -181,9 +174,7 @@ export function Community({ token, user }: CommunityProps) {
                   </tr>
                 ) : leaderboard.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-500">
-                      Chưa có dữ liệu bảng xếp hạng.
-                    </td>
+                    <td colSpan={5} className="p-8 text-center text-slate-500">Chưa có dữ liệu bảng xếp hạng.</td>
                   </tr>
                 ) : (
                   leaderboard.map((u) => (
@@ -270,15 +261,10 @@ export function Community({ token, user }: CommunityProps) {
 
           <div className="space-y-4">
             {posts.length === 0 ? (
-              <div className="text-center p-8 bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-500">
-                Chưa có bài viết nào hoạt động.
-              </div>
+              <div className="text-center p-8 bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-500">Chưa có bài viết nào hoạt động.</div>
             ) : (
               posts.map((post) => (
-                <div
-                  key={post.id}
-                  className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm"
-                >
+                <div key={post.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold border border-slate-200">
                       {post.author
@@ -287,17 +273,11 @@ export function Community({ token, user }: CommunityProps) {
                         .join('')}
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-900 text-sm">
-                        {post.author}
-                      </h4>
-                      <p className="text-xs text-slate-500 font-medium">
-                        {post.time}
-                      </p>
+                      <h4 className="font-bold text-slate-900 text-sm">{post.author}</h4>
+                      <p className="text-xs text-slate-500 font-medium">{post.time}</p>
                     </div>
                   </div>
-                  <p className="text-slate-700 text-sm mb-5 leading-relaxed">
-                    {post.content}
-                  </p>
+                  <p className="text-slate-700 text-sm mb-5 leading-relaxed">{post.content}</p>
                   <div className="flex items-center gap-6 border-t border-slate-100 pt-4">
                     <button className="flex items-center gap-2 text-slate-500 hover:text-danger text-sm font-medium transition-colors">
                       <Heart size={18} /> {post.likes}
