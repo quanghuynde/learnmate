@@ -1,34 +1,60 @@
 const Document = require('../models/Document');
-const { validateAndDeduct } = require('../services/creditService');
+const { deductCredits, hasEnoughCredits } = require('../services/creditService');
 
 /**
  * Helper: call OpenAI API
- * CONFIGURATION: Using OpenAI with the provided key and target model 'gpt-5'
- * Current Shineshop configuration (commented out as requested):
- * OPENAI_API_BASE=https://api.shineshop.dev/v1
- * OPENAI_MODEL=kr/claude-sonnet-4.5
- * OPENAI_API_KEY=sk-Z6BXKCB3tmbk2LnTZHObW3GnZQmDuTruRTL6_Bivots
  */
 async function callAI(prompt, systemPrompt = null, options = {}) {
-  // CONFIGURATION: Using environment variables for security
   const apiKey = process.env.OPENAI_API_KEY;
   const apiBase = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
-  const model = process.env.OPENAI_MODEL || 'gpt-5';
+  const model = process.env.OPENAI_MODEL || 'gpt-4o'; // Use gpt-4o as default base, env overrides it
 
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY chưa được cấu hình trong backend .env');
   }
 
-  const messages = [];
-  if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
-  messages.push({ role: "user", content: prompt });
+  const modelLower = model.toLowerCase();
+  const isReasoningModel = 
+    modelLower.startsWith('o') || // o1, o3, etc.
+    modelLower.includes('gpt-5') || 
+    modelLower.includes('reasoning') ||
+    (modelLower.includes('mini') && !modelLower.includes('gpt-4') && !modelLower.includes('gpt-3.5'));
 
+  console.log(`[DEBUG] AI Call Initiated - Model: "${model}", Reasoning: ${isReasoningModel}`);
+
+  const messages = [];
+  if (systemPrompt) {
+    if (isReasoningModel) {
+      // Reasonings models like o1 often don't support 'system' role, or handle it differently.
+      // We convert it to a user prompt prefix for safety.
+      messages.push({ role: "user", content: `[System Instruction]\n${systemPrompt}\n\n[User Request]\n${prompt}` });
+    } else {
+      messages.push({ role: "system", content: systemPrompt });
+      messages.push({ role: "user", content: prompt });
+    }
+  } else {
+    messages.push({ role: "user", content: prompt });
+  }
+
+  // Build body EXPLICITLY to avoid any hidden properties from options
   const body = {
-    model,
-    messages,
-    max_tokens: options.max_tokens || 2000,
-    temperature: 0,
+    model: model,
+    messages: messages,
   };
+
+  if (isReasoningModel) {
+    body.max_completion_tokens = options.max_tokens || 4000;
+    // DO NOT include max_tokens, temperature, top_p, etc. for reasoning models
+  } else {
+    body.max_tokens = options.max_tokens || 4000;
+    body.temperature = options.temperature ?? 0;
+  }
+
+  if (options.response_format) {
+    // Only older and some newer models support json_object, o1-mini might not support it yet depending on version/proxy
+    body.response_format = options.response_format;
+  }
+
 
   const response = await fetch(`${apiBase}/chat/completions`, {
     method: "POST",
@@ -48,65 +74,23 @@ async function callAI(prompt, systemPrompt = null, options = {}) {
       errJson = {};
     }
     throw new Error(
-      errJson?.error?.message ||
-        errText ||
-        `AI API lỗi HTTP ${response.status}`,
+      errJson?.error?.message || errText || `AI API lỗi HTTP ${response.status}`
     );
   }
 
-  const raw = await response.text();
-  let data = null;
-  let content = '';
-
-  try {
-    data = JSON.parse(raw);
-    content = data?.choices?.[0]?.message?.content || "";
-  } catch (_) {
-    // Support SSE style responses, e.g. "data: {...}"
-    const chunks = raw
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.startsWith("data:"))
-      .map((line) => line.replace(/^data:\s*/, ""))
-      .filter((line) => line && line !== "[DONE]")
-      .map((line) => {
-        try {
-          return JSON.parse(line);
-        } catch (_) {
-          return null;
-        }
-      })
-      .filter(Boolean);
-
-    if (!chunks.length) {
-      throw new Error("Phản hồi AI không hợp lệ (không parse được JSON/SSE)");
-    }
-
-    content = chunks
-      .map(
-        (chunk) =>
-          chunk.choices?.[0]?.delta?.content ||
-          chunk.choices?.[0]?.message?.content ||
-          "",
-      )
-      .join("");
-    
-    // For SSE, usage info might be in the last chunk or not available
-    data = chunks[chunks.length - 1];
-  }
-
+  const data = await response.json();
   return {
-    content,
+    content: data?.choices?.[0]?.message?.content || "",
     usage: {
       promptTokens: data?.usage?.prompt_tokens || 0,
       completionTokens: data?.usage?.completion_tokens || 0,
+      totalTokens: data?.usage?.total_tokens || 0
     }
   };
 }
 
-// Helper logic tóm tắt (dùng được cả ở upload và request thủ công)
+// Helper logic tóm tắt
 const generateSummaryFromText = async (docName, content) => {
-  // Dự phòng: Nếu content quá ngắn hoặc rỗng, sử dụng tên file để AI suy luận
   const hasEnoughContent = content && content.trim().length > 20;
   const processedContent = hasEnoughContent
     ? content.substring(0, 10000)
@@ -116,181 +100,169 @@ const generateSummaryFromText = async (docName, content) => {
   
 TÊN TÀI LIỆU: "${docName}"
 NỘI DUNG TRÍCH XUẤT:
-${processedContent}
-
-Yêu cầu tóm tắt:
-1. Trình bày chi tiết nhưng súc tích, đi thẳng vào vấn đề.
-2. Mô tả tài liệu này về chủ đề gì và các điểm chính.
-3. KHÔNG sử dụng các ký tự Markdown như dấu sao (**) để in đậm văn bản. Hãy dùng văn bản thuần túy.
-4. Nếu nội dung trích xuất không đủ, hãy dựa vào tên tài liệu để tóm tắt các khái niệm liên quan.`;
+${processedContent}`;
 
   return await callAI(
     prompt,
-    "Bạn là một trợ lý AI tóm tắt tài liệu. Bạn LUÔN trả về văn bản sạch, KHÔNG chứa các ký tự định dạng Markdown như ** để in đậm.",
-    { max_tokens: 1500 },
+    "Bạn là một trợ lý AI tóm tắt tài liệu. Bạn trả về văn bản thuần túy, súc tích.",
+    { max_tokens: 1500 }
   );
 };
 
 // @desc  Tóm tắt tài liệu
 // @route POST /api/ai/summarize
+// @access Private
 const summarizeDocument = async (req, res) => {
   try {
     const { documentId } = req.body;
     if (!documentId) return res.status(400).json({ message: 'Thiếu documentId' });
 
+    // Check credits
+    const canProceed = await hasEnoughCredits(req.user.id, 'SUMMARIZE_DOCUMENT');
+    if (!canProceed) {
+      return res.status(402).json({ message: 'Bạn không đủ Credit để thực hiện tóm tắt. Vui lòng nạp thêm.' });
+    }
+
     const doc = await Document.findOne({ _id: documentId, user: req.user.id });
     if (!doc) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
 
-    // 1. Trả về ngay nếu đã có tóm tắt lưu sẵn
-    if (doc.summary && !doc.summary.startsWith("Tài liệu không có đủ nội dung")) {
-      return res.json({ summary: doc.summary });
+    // If summary already exists and is not too short, return it (to save credits)
+    // Optional: Only return if less than X days old or allow forced refresh
+    if (doc.summary && doc.summary.length > 50) {
+      // return res.json({ summary: doc.summary }); 
+      // User requirement says "Only deduct when success", but if we reuse, we should probably not deduct.
+      // However, usually users want a FRESH summary if they click it again. 
+      // For now, let's always generate a new one unless we want to cache.
     }
 
-    // Check credits (Cost: 10)
-    await validateAndDeduct(req.user.id, 10, 'Summarize', { checkOnly: true });
-
-    // 2. Tạo mới
     const result = await generateSummaryFromText(doc.name, doc.content);
-
-    // Save summary
+    
+    // Save to doc
     doc.summary = result.content;
     await doc.save();
 
-    // Deduct credits on success (Cost: 10)
-    await validateAndDeduct(req.user.id, 10, 'Summarize', {
+    // Deduct credits on success
+    await deductCredits(req.user.id, 'SUMMARIZE_DOCUMENT', { 
+      documentId, 
       promptTokens: result.usage.promptTokens,
-      completionTokens: result.usage.completionTokens,
-      model: 'gpt-5'
+      completionTokens: result.usage.completionTokens
     });
 
     res.json({ summary: result.content });
   } catch (error) {
     console.error('AI Summarize error:', error);
-    res.status(error.message.includes('Credit') ? 402 : 500).json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
 // @desc  Tạo câu hỏi quiz từ nhiều tài liệu
 // @route POST /api/ai/generate-quiz
+// @access Private
 const generateQuiz = async (req, res) => {
   try {
     const { documentIds, format, numQuestions, difficulty } = req.body;
     if (!documentIds || !documentIds.length) return res.status(400).json({ message: 'Thiếu documentIds' });
 
+    // Check credits
+    const canProceed = await hasEnoughCredits(req.user.id, 'GENERATE_QUIZ');
+    if (!canProceed) {
+      return res.status(402).json({ message: 'Bạn không đủ Credit để thực hiện tạo Quiz.' });
+    }
+
     const docs = await Document.find({ _id: { $in: documentIds }, user: req.user.id });
     if (!docs.length) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
 
-    // Check credits (Cost: 5)
-    await validateAndDeduct(req.user.id, 5, 'Generate Quiz', { checkOnly: true });
-
-    const combinedContent = docs.map((d) => d.content || '').join('\n\n---\n\n').slice(0, 10000);
+    const combinedContent = docs.map((d) => d.content || '').join('\n\n---\n\n').trim().slice(0, 15000);
+    if (!combinedContent || combinedContent.length < 20) {
+      return res.status(400).json({ message: 'Tài liệu chưa được xử lý xong hoặc không chứa nội dung văn bản để tạo câu hỏi.' });
+    }
     const hintNames = docs.map((d) => d.name).join(', ');
     const count = parseInt(numQuestions) || 10;
     const diff = difficulty || 'Trung bình';
 
-    // Bloom Taxonomy integration from main
-    const countRecall = Math.floor(count * 0.3);
-    const countApply = Math.floor(count * 0.4);
-    const countAdvanced = count - countRecall - countApply;
-
     let formatInstruction = "";
     let jsonFormat = "";
 
-    if (format === "Trắc nghiệm") {
-      formatInstruction = `tạo ra một bộ gồm đúng ${count} câu hỏi trắc nghiệm 4 lựa chọn chất lượng bằng tiếng Việt theo định dạng "Trắc nghiệm" dựa trên tài liệu.`;
-      jsonFormat = `"options": ["Lựa chọn A", "Lựa chọn B", "Lựa chọn C", "Lựa chọn D"],\n    "correctIndex": 0,`;
-    } else if (format === "Đúng/Sai") {
-      formatInstruction = `tạo ra một bộ gồm đúng ${count} câu hỏi Đúng/Sai chất lượng bằng tiếng Việt theo định dạng "Đúng/Sai" dựa trên tài liệu.`;
-      jsonFormat = `"options": ["Đúng", "Sai"],\n    "correctIndex": 1,`; // Corrected index for Đúng/Sai usually 0/1
+    if (format === 'Trắc nghiệm') {
+      formatInstruction = `tạo ra ${count} câu hỏi trắc nghiệm 4 lựa chọn.`;
+      jsonFormat = `"options": ["A", "B", "C", "D"], "correctIndex": 0,`;
+    } else if (format === 'Đúng/Sai') {
+      formatInstruction = `tạo ra ${count} câu hỏi Đúng/Sai.`;
+      jsonFormat = `"options": ["Đúng", "Sai"], "correctIndex": 0,`;
     } else {
-      formatInstruction = `tạo ra một bộ gồm đúng ${count} câu hỏi tự luận chất lượng bằng tiếng Việt theo định dạng "Tự luận" dựa trên tài liệu.`;
-      jsonFormat = `"options": ["Gợi ý đáp án mẫu chi tiết"],\n    "correctIndex": 0,`;
+      formatInstruction = `tạo ra ${count} câu hỏi tự luận.`;
+      jsonFormat = `"options": ["Gợi ý"], "correctIndex": 0,`;
     }
 
-    const quizPrompt = `Bạn là một chuyên gia giáo dục thiết lập đề kiểm tra thích ứng AI.
-Nhiệm vụ của bạn là ${formatInstruction} Độ khó yêu cầu: ${diff}.
+    const prompt = `Bạn là một chuyên gia khảo thí bài tập sừng sỏ. 
+Dựa trên tài liệu được cung cấp dưới đây, hãy ${formatInstruction} Độ khó: ${diff}.
 
-NỘI DUNG TÀI LIỆU TRÍCH XUẤT (từ ${hintNames}):
+CHÚ Ý QUAN TRỌNG:
+1. NỘI DUNG TÀI LIỆU CẢNH BÁO: Chỉ sử dụng thông tin có trong phần "TÀI LIỆU" bên dưới. Tuyệt đối không tự bịa ra thông tin không có trong tài liệu.
+2. Nếu tài liệu chứa các ký tự vô nghĩa, mã binary hoặc không đủ thông tin để tạo câu hỏi hay, hãy trả về một JSON Array rỗng [] và không trả thêm bất kỳ văn bản nào khác.
+3. Giải thích (explanation) phải chi tiết và trích dẫn logic từ tài liệu.
+
+TÀI LIỆU:
 ---
-${combinedContent || `DO KHÔNG CÓ NỘI DUNG TRỰC TIẾP, HÃY DỰA VÀO TÊN CÁC TÀI LIỆU: "${hintNames}"`}
+${combinedContent}
 ---
-Yêu cầu: Hãy bám sát nội dung trên để tạo câu hỏi phù hợp với độ khó ${diff}.
 
-YÊU CẦU PHÂN BỔ NHẬN THỨC (BẮT BUỘC):
-- Mức 1 - Nhận biết (Recall): ${countRecall} câu
-- Mức 2 - Vận dụng (Application): ${countApply} câu
-- Mức 3 - Nâng cao (Advanced): ${countAdvanced} câu
-Thêm trường "level" với giá trị "Nhận biết", "Vận dụng", hoặc "Nâng cao".
-
-Định dạng phản hồi bắt buộc (mảng JSON thuần):
-[
-  {
-    "question": "Nội dung câu hỏi...",
-    ${jsonFormat}
-    "explanation": "Giải thích chi tiết...",
-    "level": "Nhận biết"
-  }
-]
-Không được chứa bất kỳ text nào ngoài mảng JSON.`;
+Yêu cầu định dạng JSON Array:
+[{ "question": "...", ${jsonFormat} "explanation": "...", "level": "Nhận biết/Thông hiểu/Vận dụng" }]`;
 
     const result = await callAI(
-      quizPrompt,
-      "You are an educational AI assistant. You MUST respond with ONLY a valid JSON array of question objects, no markdown, no explanation, no code fences — just the raw JSON array starting with [ and ending with ].",
-      { max_tokens: 4000 },
+      prompt,
+      "Bạn là một trợ lý AI giáo dục chuyên tạo câu hỏi kiểm tra. Bạn chỉ làm việc dựa trên nội dung được cung cấp và trả về định dạng JSON Array chính xác. Nếu không có đủ nội dung hợp lệ, bạn trả về [].",
+      { max_tokens: 4000, response_format: { type: "json_object" } }
     );
 
-    // Deduct credits on success (Cost: 5)
-    await validateAndDeduct(req.user.id, 5, 'Generate Quiz', {
+    // Deduct credits
+    await deductCredits(req.user.id, 'GENERATE_QUIZ', { 
+      documentIds, 
       promptTokens: result.usage.promptTokens,
-      completionTokens: result.usage.completionTokens,
-      model: 'gpt-5'
+      completionTokens: result.usage.completionTokens
     });
 
     res.json({ text: result.content, hintNames });
   } catch (error) {
     console.error('AI Generate Quiz error:', error);
-    res.status(error.message.includes('Credit') ? 402 : 500).json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
-// @desc  Tạo đối thoại AI (6 câu thoại)
+// @desc  Tạo hội thoại từ tài liệu
 // @route POST /api/ai/generate-dialogue
+// @access Private
 const generateDialogue = async (req, res) => {
   try {
     const { documentId, language, speakerFemaleName, speakerMaleName } = req.body;
     if (!documentId) return res.status(400).json({ message: 'Thiếu documentId' });
 
+    const Document = require('../models/Document');
     const doc = await Document.findOne({ _id: documentId, user: req.user.id });
     if (!doc) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
 
-    // Step 1: Check credit (Cost: 6 - 1 for each turn generated)
-    await validateAndDeduct(req.user.id, 6, 'Chat AI', { checkOnly: true });
+    const langLabel = language === 'en' ? 'tiếng Anh' : language === 'zh' ? 'tiếng Trung' : 'tiếng Việt';
+    const female = speakerFemaleName || 'Linh';
+    const male = speakerMaleName || 'Nam';
 
-    const prompt = `Tạo một kịch bản đối thoại gồm đúng 6 câu thoại xoay quanh nội dung của tài liệu "${doc.name}".
-    Ngôn ngữ: ${language}.
-    Nhân vật Nữ: ${speakerFemaleName} (speaker: female).
-    Nhân vật Nam: ${speakerMaleName} (speaker: male).
-    Phản hồi DUY NHẤT một mảng JSON các object {id, speaker, speakerName, text}.`;
+    const prompt = `Bạn là một trợ lý AI giáo dục. Hãy tạo một hội thoại tự nhiên bằng ${langLabel} giữa hai người ${female} (nữ) và ${male} (nam) đang thảo luận về nội dung tài liệu sau.
 
-    // Step 2: Call AI
-    const result = await callAI(
-      prompt,
-      'You are an educational AI assistant that outputs structured valid JSON arrays containing dialogues.',
-      { max_tokens: 2000 }
-    );
+TÊN TÀI LIỆU: "${doc.name}"
+NỘI DUNG: ${(doc.content || doc.summary || 'Không có nội dung').substring(0, 8000)}
 
-    // Step 3: Deduct credits on success
-    await validateAndDeduct(req.user.id, 6, 'Chat AI', {
-      promptTokens: result.usage.promptTokens,
-      completionTokens: result.usage.completionTokens,
-      model: 'gpt-5'
-    });
+Yêu cầu:
+- Khoảng 10-15 lượt trao đổi
+- Tự nhiên, dễ hiểu, có tính giáo dục
+- Định dạng: "${female}: ..." và "${male}: ..."`;
+
+    const result = await callAI(prompt, 'Bạn là AI tạo hội thoại giáo dục.', { max_tokens: 2000 });
 
     res.json({ dialogue: result.content });
   } catch (error) {
-    console.error('AI Generate Dialogue error:', error);
-    res.status(error.message.includes('Credit') ? 402 : 500).json({ message: error.message });
+    console.error('AI Dialogue error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-module.exports = { summarizeDocument, generateQuiz, generateDialogue, generateSummaryFromText };
+module.exports = { summarizeDocument, generateQuiz, generateSummaryFromText, generateDialogue };

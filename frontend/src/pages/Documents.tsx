@@ -389,6 +389,10 @@ export function Documents({ token }: DocumentsProps) {
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
                         <CheckCircle2 size={13} /> Đã xử lý
                       </div>
+                    ) : doc.status === 'error' ? (
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-full">
+                        <AlertCircle size={13} /> Lỗi xử lý
+                      </div>
                     ) : (
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full">
                         <Loader2 size={13} className="animate-spin" /> Đang xử lý
