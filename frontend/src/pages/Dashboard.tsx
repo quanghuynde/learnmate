@@ -16,6 +16,7 @@ import {
   X,
   Mail,
   Bell,
+  Coins,
 } from 'lucide-react';
 import { api, ExamItem, StudyPlanItem, UserItem } from '../lib/api';
 
@@ -162,8 +163,6 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
   }, [studyPlans]);
 
   const readiness = exam?.readinessScore || 0;
-  const topicsMastered = exam?.topicsMastered || (overview?.totalQuizzes ? Math.round(overview.totalQuizzes / 2) : 0);
-  const totalTopics = exam?.totalTopics || 0;
 
   const heat = useMemo(() => {
     const arr = overview?.chartData || [];
@@ -289,12 +288,21 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
             </div>
 
             <div className="bg-card rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center text-success flex-shrink-0"><Brain size={24} /></div>
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                <Coins size={24} />
+              </div>
               <div>
-                <p className="text-sm text-slate-500 font-medium">Chủ đề đã nắm</p>
-                <p className="text-xl font-bold text-text-primary">
-                  {topicsMastered} <span className="text-sm text-slate-400 font-normal">/ {totalTopics}</span>
-                </p>
+                <p className="text-sm text-slate-500 font-medium">Số dư Credit</p>
+                <div className="flex items-baseline gap-1">
+                  <p className="text-xl font-bold text-text-primary">{(userProp?.currentCredits ?? 0).toLocaleString()}</p>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Credits</span>
+                </div>
+                <button 
+                  onClick={() => setCurrentPage('pricing')}
+                  className="text-[10px] text-primary font-bold hover:underline mt-1 uppercase"
+                >
+                  Nạp thêm
+                </button>
               </div>
             </div>
           </div>
@@ -385,7 +393,7 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
               <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Podcast bài giảng dài</div>
               <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Mentor 1-1 ưu tiên</div>
             </div>
-            <button onClick={() => setCurrentPage('pricing')} className="w-full bg-white text-sidebar font-bold py-2.5 rounded-xl hover:bg-slate-100 transition-colors relative z-10">Nâng cấp ngay - 99k/tháng</button>
+            <button onClick={() => setCurrentPage('pricing')} className="w-full bg-white text-sidebar font-bold py-2.5 rounded-xl hover:bg-slate-100 transition-colors relative z-10">Nâng cấp ngay - Chỉ từ 49k</button>
           </div>
         </div>
       </div>

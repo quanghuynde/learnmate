@@ -469,17 +469,20 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
                             <input 
                               type="checkbox" 
                               checked={selectedDocIds.includes(doc._id)}
+                              disabled={doc.status !== 'processed'}
                               onChange={(e) => {
                                 if (e.target.checked) setSelectedDocIds([...selectedDocIds, doc._id]);
                                 else setSelectedDocIds(selectedDocIds.filter(id => id !== doc._id));
                               }}
-                              className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/20 aspect-square"
+                              className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/20 aspect-square disabled:opacity-30 disabled:cursor-not-allowed"
                             />
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <div className={`flex items-center gap-2 flex-1 min-w-0 ${doc.status !== 'processed' ? 'opacity-50' : ''}`}>
                                {getFileIcon(doc.type)}
                                <span className="text-sm text-slate-700 truncate">{doc.name}</span>
                             </div>
-                            {doc.status !== 'processed' && <Loader2 size={12} className="animate-spin text-amber-500" />}
+                            {doc.status === 'processing' && <Loader2 size={12} className="animate-spin text-amber-500" />}
+                            {doc.status === 'error' && <XCircle size={14} className="text-red-500" />}
+                            {doc.status === 'uploading' && <Loader2 size={12} className="animate-spin text-blue-500" />}
                           </label>
                         ))}
                       </div>
