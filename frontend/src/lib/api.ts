@@ -90,6 +90,24 @@ export type UserItem = {
     dataSharing?: boolean;
   };
   twoFactorEnabled?: boolean;
+  currentCredits?: number;
+  lastCreditReset?: string;
+};
+
+export type PackageItem = {
+  _id: string;
+  name: string;
+  credits: number;
+  price: number;
+  description: string;
+};
+
+export type CreditTransactionItem = {
+  _id: string;
+  amount: number;
+  type: 'add' | 'deduct';
+  description: string;
+  createdAt: string;
 };
 
 export type ExamItem = {
@@ -336,6 +354,7 @@ export const api = {
       `/gamification/leaderboard${limit ? `?limit=${limit}` : ''}`,
       { token }
     ),
+
   // Community / Posts
   getPosts: (token: string, search?: string) =>
     request<{ count: number; posts: PostItem[] }>(`/posts${search ? `?search=${encodeURIComponent(search)}` : ''}`, { token }),
@@ -359,6 +378,15 @@ export const api = {
     if (key) cache.delete(key);
     else cache.clear();
   },
+
+  // Payment & Credit
+  getPackages: (token: string) => request<{ packages: PackageItem[] }>('/payments/packages', { token }),
+  createCheckout: (token: string, packageId: string) =>
+    request<{ paymentUrl: string }>('/payments/checkout', { method: 'POST', token, body: { packageId } }),
+  
+  // Admin
+  getAdminStats: (token: string) => request<any>('/admin/stats', { token }),
+
+  generateDialogue: (token: string, data: { documentId: string; language: string; speakerFemaleName: string; speakerMaleName: string }) =>
+    request<{ dialogue: string }>('/ai/generate-dialogue', { method: 'POST', token, body: data }),
 };
-
-

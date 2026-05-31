@@ -44,7 +44,7 @@ export function Community({ token, user }: CommunityProps) {
     try {
       const res = await api.getPosts(token, search)
       setPosts(res.posts)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch posts:', err)
     } finally {
       setLoadingPosts(false)
@@ -67,7 +67,7 @@ export function Community({ token, user }: CommunityProps) {
     try {
       const res = await api.getLeaderboard(token, 10)
       setLeaderboard(res.leaderboard)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch leaderboard:', err)
     } finally {
       setLoadingLeaderboard(false)
@@ -141,7 +141,7 @@ export function Community({ token, user }: CommunityProps) {
   const userInitials = user?.name
     ? user.name
         .split(' ')
-        .map((w) => w[0])
+        .map((w: string) => w[0])
         .slice(0, 2)
         .join('')
         .toUpperCase()
@@ -171,7 +171,7 @@ export function Community({ token, user }: CommunityProps) {
 
       <div className="flex gap-2 border-b border-slate-200 overflow-x-auto hide-scrollbar">
         {['Bảng xếp hạng', 'Bài viết'].map(
-          (tab, i) => {
+          (tab: string, i: number) => {
             const id = ['leaderboard', 'posts'][i]
             return (
               <button
@@ -288,7 +288,7 @@ export function Community({ token, user }: CommunityProps) {
                     </td>
                   </tr>
                 ) : (
-                  leaderboard.map((u) => (
+                  leaderboard.map((u: LeaderboardItem) => (
                     <tr
                       key={u.rank}
                       className={`hover:bg-slate-50 transition-colors ${u.userId === user?.id ? 'bg-primary/5' : ''}`}
@@ -413,7 +413,7 @@ export function Community({ token, user }: CommunityProps) {
                 {searchQuery ? 'Không tìm thấy bài viết nào phù hợp.' : 'Chưa có bài viết nào hoạt động.'}
               </div>
             ) : (
-              posts.map((post) => (
+              posts.map((post: PostItem) => (
                 <div
                   key={post._id}
                   className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm"
@@ -423,7 +423,7 @@ export function Community({ token, user }: CommunityProps) {
                       {post.author.avatar ? (
                         <img src={post.author.avatar} alt={post.author.name} className="w-full h-full object-cover" />
                       ) : (
-                        post.author.name.split(' ').map(n => n[0]).join('')
+                        post.author.name.split(' ').map((n: string) => n[0]).join('')
                       )}
                     </div>
                     <div>
@@ -463,7 +463,7 @@ export function Community({ token, user }: CommunityProps) {
                     </button>
                     <button 
                       onClick={() => {
-                        const handleShare = async (post: any) => {
+                        const handleShare = async (post: PostItem) => {
                           if (navigator.share) {
                             try {
                               await navigator.share({
@@ -489,7 +489,7 @@ export function Community({ token, user }: CommunityProps) {
 
                   {/* Comments Section */}
                   <div className="mt-4 p-4 bg-slate-50 rounded-2xl space-y-4">
-                    {post.comments.map(comment => (
+                    {post.comments.map((comment: any) => (
                       <div key={comment._id} className="flex gap-3">
                         <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[10px] font-bold border border-slate-200 overflow-hidden flex-shrink-0">
                           {comment.user.avatar ? (
@@ -511,7 +511,7 @@ export function Community({ token, user }: CommunityProps) {
                         placeholder="Viết bình luận..."
                         id={`comment-input-${post._id}`}
                         className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-1.5 text-xs outline-none focus:border-primary transition-all shadow-sm"
-                        onKeyDown={(e) => {
+                        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                           if (e.key === 'Enter') {
                             handleAddComment(post._id, e.currentTarget.value);
                             e.currentTarget.value = '';

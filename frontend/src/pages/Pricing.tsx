@@ -1,89 +1,185 @@
-﻿import React, { useEffect, useState } from 'react';
-import { Sparkles, Crown, Zap } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Check, Zap, Crown, Shield, CreditCard, Coins, ArrowRight, Loader2 } from 'lucide-react';
+import { api, PackageItem } from '../lib/api';
 
 interface PricingProps {
   setCurrentPage: (page: string) => void;
 }
 
-type PlanType = 'free' | 'pro' | 'premium';
-
 export function Pricing({ setCurrentPage }: PricingProps) {
-  const [selectedPlan, setSelectedPlan] = useState<PlanType>(() => (localStorage.getItem('learnmate_plan') as PlanType) || 'pro');
+  const [packages, setPackages] = useState<PackageItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [buying, setBuying] = useState<string | null>(null);
+  const token = localStorage.getItem('learnmate_token') || '';
 
   useEffect(() => {
-    localStorage.setItem('learnmate_plan', selectedPlan);
-  }, [selectedPlan]);
+    const fetchPackages = async () => {
+      try {
+        const res = await api.getPackages(token);
+        setPackages(res.packages);
+      } catch (error) {
+        console.error('Failed to fetch packages:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPackages();
+  }, [token]);
 
-  const features = [
-    { name: 'Số môn học', free: '1 môn', pro: '5 môn', premium: 'Không giới hạn' },
-    { name: 'Quiz mỗi ngày', free: '5 câu', pro: '50 câu', premium: 'Không giới hạn' },
-    { name: 'AI Podcast', free: '—', pro: '10 tập/tháng', premium: 'Không giới hạn' },
-    { name: 'Video tóm tắt', free: '3 video', pro: 'Tất cả', premium: 'Tất cả + Tùy chỉnh' },
-    { name: 'Mentor hỗ trợ', free: '—', pro: 'AI + 2 buổi/tháng', premium: 'AI + Không giới hạn' },
-  ];
-
-  const selectPlan = (plan: PlanType) => {
-    setSelectedPlan(plan);
-    setCurrentPage('dashboard');
+  const handlePurchase = async (pkgId: string) => {
+    try {
+      setBuying(pkgId);
+      const res = await api.createCheckout(token, pkgId);
+      if (res.paymentUrl) {
+        window.location.href = res.paymentUrl;
+      }
+    } catch (error: any) {
+      alert(error.message || 'Không thể tạo thanh toán');
+    } finally {
+      setBuying(null);
+    }
   };
 
-  const cardBase = 'rounded-3xl p-8 border shadow-sm transition-all';
+  if (loading) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-20 gap-4">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+        <p className="text-slate-500 font-medium font-inter">Đang tải các gói Credit...</p>
+      </div>
+    );
+  }
+
+  const icons = {
+    Free: <Zap className="text-blue-500" />,
+    Basic: <Zap className="text-primary" />,
+    Premium: <Crown className="text-amber-500" />
+  };
+
+  const colors = {
+    Free: 'border-slate-100',
+    Basic: 'border-primary-light shadow-lg shadow-primary/10 ring-1 ring-primary/20',
+    Premium: 'border-amber-400 bg-amber-50/10'
+  };
 
   return (
-    <div className="max-w-5xl mx-auto pb-20 space-y-12 pt-8">
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold text-slate-900">Nâng cấp LearnMate</h1>
-        <p className="text-slate-500 text-lg">Mở khóa toàn bộ tính năng để ôn thi hiệu quả hơn</p>
+    <div className="max-w-6xl mx-auto py-12 px-6">
+      <div className="text-center mb-16">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-bold mb-6"
+        >
+          <Coins size={16} />
+          Hỗ trợ học tập bằng AI
+        </motion.div>
+        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-6 tracking-tight">
+          Nâng cấp trải nghiệm <span className="text-primary">LearnMate</span>
+        </h1>
+        <p className="text-lg text-slate-600 max-w-2xl mx-auto font-inter">
+          Tối ưu hóa việc học của bạn với các tính năng AI mạnh mẽ. Chọn gói Credit phù hợp để bắt đầu hành trình chinh phục kiến thức ngay hôm nay.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-        <div className={`${cardBase} ${selectedPlan === 'free' ? 'border-primary' : 'border-slate-100'}`}>
-          <h3 className="text-xl font-bold text-slate-900 mb-4">Miễn phí</h3>
-          <div className="flex items-baseline gap-1 mb-2"><span className="text-6xl font-bold text-slate-900">0đ</span><span className="text-slate-500 text-3xl">/tháng</span></div>
-          <p className="text-slate-500 text-sm mb-8">Bắt đầu ôn thi cơ bản</p>
-          <button onClick={() => selectPlan('free')} className={`w-full py-3 px-4 font-bold rounded-xl ${selectedPlan === 'free' ? 'bg-primary text-white' : 'bg-slate-50 text-slate-700'}`}>{selectedPlan === 'free' ? 'Đã chọn' : 'Chọn gói'}</button>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+        {packages.map((pkg, idx) => (
+          <motion.div
+            key={pkg._id}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.1 }}
+            className={`flex flex-col p-8 rounded-3xl border-2 transition-all relative overflow-hidden bg-white ${colors[pkg.name as keyof typeof colors] || 'border-slate-100'}`}
+          >
+            {pkg.name === 'Basic' && (
+              <div className="absolute top-0 right-0 bg-primary text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider">
+                Phổ biến nhất
+              </div>
+            )}
 
-        <div className={`${cardBase} ${selectedPlan === 'pro' ? 'border-2 border-primary shadow-xl' : 'border-slate-100'}`}>
-          <div className="absolute" />
-          <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">Pro <Sparkles size={18} className="text-orange-400" /></h3>
-          <div className="flex items-baseline gap-1 mb-2"><span className="text-6xl font-bold text-slate-900">99.000đ</span><span className="text-slate-500 text-3xl">/tháng</span></div>
-          <p className="text-slate-500 text-sm mb-8">Ôn thi toàn diện với AI</p>
-          <button onClick={() => selectPlan('pro')} className={`w-full py-3 px-4 font-bold rounded-xl ${selectedPlan === 'pro' ? 'bg-primary text-white shadow-md' : 'bg-slate-900 text-white'}`}>{selectedPlan === 'pro' ? 'Đã chọn Pro' : 'Nâng cấp Pro'}</button>
-        </div>
+            <div className="mb-8">
+              <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mb-6">
+                {(icons as any)[pkg.name] || <Zap />}
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900 mb-2">{pkg.name}</h3>
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-extrabold text-slate-900">
+                  {pkg.price.toLocaleString('vi-VN')}
+                </span>
+                <span className="text-slate-500 font-medium">VND</span>
+              </div>
+            </div>
 
-        <div className={`${cardBase} ${selectedPlan === 'premium' ? 'border-primary' : 'border-slate-100'}`}>
-          <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">Premium <Crown size={18} className="text-yellow-500" /></h3>
-          <div className="flex items-baseline gap-1 mb-2"><span className="text-6xl font-bold text-slate-900">199.000đ</span><span className="text-slate-500 text-3xl">/tháng</span></div>
-          <p className="text-slate-500 text-sm mb-8">Trải nghiệm không giới hạn</p>
-          <button onClick={() => selectPlan('premium')} className={`w-full py-3 px-4 font-bold rounded-xl ${selectedPlan === 'premium' ? 'bg-primary text-white' : 'bg-slate-900 text-white'}`}>{selectedPlan === 'premium' ? 'Đã chọn Premium' : 'Nâng cấp Premium'}</button>
+            <div className="space-y-4 mb-8 flex-1">
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                  <Check size={12} className="text-green-600" />
+                </div>
+                <span className="text-slate-700 font-medium">
+                  <strong>{pkg.credits.toLocaleString()}</strong> Credit sử dụng
+                </span>
+              </div>
+              
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Check size={12} className="text-green-600" />
+                </div>
+                <p className="text-sm text-slate-600 leading-relaxed font-inter italic">
+                  {pkg.description}
+                </p>
+              </div>
+
+              {pkg.name === 'Free' && (
+                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                  <p className="text-xs text-blue-700 font-medium mb-1 flex items-center gap-1">
+                    <Zap size={12} /> Cơ chế hồi Credit
+                  </p>
+                  <p className="text-[11px] text-blue-600 leading-tight">
+                    Hồi 100 Credit tự động sau mỗi 1 tuần. Không cộng dồn.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => pkg.price === 0 ? setCurrentPage('dashboard') : handlePurchase(pkg._id)}
+              disabled={buying === pkg._id}
+              className={`w-full py-4 rounded-2xl font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 ${
+                pkg.price === 0
+                  ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  : 'bg-primary text-white hover:bg-primary-dark shadow-lg shadow-primary/20'
+              } disabled:opacity-50`}
+            >
+              {buying === pkg._id ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  {pkg.price === 0 ? 'Dùng gói này' : 'Nâng cấp ngay'}
+                  <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="mt-20 p-8 rounded-3xl bg-slate-900 text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 blur-[100px] rounded-full -mr-32 -mt-32" />
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="max-w-xl">
+            <h2 className="text-2xl font-bold mb-4">Bạn cần giải pháp tuỳ chỉnh?</h2>
+            <p className="text-slate-400 font-inter">
+              Nếu bạn là tổ chức giáo dục hoặc doanh nghiệp cần lượng Credit lớn cho nhiều người dùng, hãy liên hệ với chúng tôi để có chính sách giá ưu đãi.
+            </p>
+          </div>
+          <button className="px-8 py-4 bg-white text-slate-900 rounded-2xl font-bold hover:bg-slate-100 transition-colors whitespace-nowrap">
+            Liên hệ hỗ trợ
+          </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-100"><h3 className="font-bold text-slate-900">So sánh tính năng</h3></div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500 font-medium">
-                <th className="p-4 pl-6 w-1/4">Tính năng</th>
-                <th className="p-4 w-1/4 text-center">Miễn phí</th>
-                <th className="p-4 w-1/4 text-center">Pro</th>
-                <th className="p-4 w-1/4 text-center">Premium</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {features.map((feature) => (
-                <tr key={feature.name} className="hover:bg-slate-50/50">
-                  <td className="p-4 pl-6 text-slate-700 font-medium">{feature.name}</td>
-                  <td className="p-4 text-center text-slate-500">{feature.free}</td>
-                  <td className="p-4 text-center text-primary font-medium">{feature.pro}</td>
-                  <td className="p-4 text-center text-slate-900 font-medium">{feature.premium}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="mt-12 flex items-center justify-center gap-8 text-slate-400 grayscale opacity-60">
+        <div className="flex items-center gap-2"><Shield size={20} /> <span className="text-xs font-bold uppercase tracking-widest">Bảo mật VNPay</span></div>
+        <div className="flex items-center gap-2"><CreditCard size={20} /> <span className="text-xs font-bold uppercase tracking-widest">Thanh toán an toàn</span></div>
       </div>
     </div>
   );

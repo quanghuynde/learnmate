@@ -114,6 +114,18 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    currentCredits: {
+      type: Number,
+      default: 100,
+    },
+    lastCreditReset: {
+      type: Date,
+      default: Date.now,
+    },
+    refreshToken: {
+      type: String,
+      select: false,
+    },
     isActive: {
       type: Boolean,
       default: true,

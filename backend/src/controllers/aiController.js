@@ -1,13 +1,23 @@
-const Document = require("../models/Document");
+const Document = require('../models/Document');
+const { validateAndDeduct } = require('../services/creditService');
 
-// Helper: call OpenAI-compatible API
+/**
+ * Helper: call OpenAI API
+ * CONFIGURATION: Using OpenAI with the provided key and target model 'gpt-5'
+ * Current Shineshop configuration (commented out as requested):
+ * OPENAI_API_BASE=https://api.shineshop.dev/v1
+ * OPENAI_MODEL=kr/claude-sonnet-4.5
+ * OPENAI_API_KEY=sk-Z6BXKCB3tmbk2LnTZHObW3GnZQmDuTruRTL6_Bivots
+ */
 async function callAI(prompt, systemPrompt = null, options = {}) {
+  // CONFIGURATION: Using environment variables for security
   const apiKey = process.env.OPENAI_API_KEY;
-  const apiBase = process.env.OPENAI_API_BASE || "https://api.openai.com/v1";
-  const model = process.env.OPENAI_MODEL || "openai/gpt-4o-mini";
+  const apiBase = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
+  const model = process.env.OPENAI_MODEL || 'gpt-5';
 
-  if (!apiKey)
-    throw new Error("OPENAI_API_KEY chưa được cấu hình trong backend .env");
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY chưa được cấu hình trong backend .env');
+  }
 
   const messages = [];
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
@@ -46,8 +56,11 @@ async function callAI(prompt, systemPrompt = null, options = {}) {
 
   const raw = await response.text();
   let data = null;
+  let content = '';
+
   try {
     data = JSON.parse(raw);
+    content = data?.choices?.[0]?.message?.content || "";
   } catch (_) {
     // Support SSE style responses, e.g. "data: {...}"
     const chunks = raw
@@ -69,7 +82,7 @@ async function callAI(prompt, systemPrompt = null, options = {}) {
       throw new Error("Phản hồi AI không hợp lệ (không parse được JSON/SSE)");
     }
 
-    return chunks
+    content = chunks
       .map(
         (chunk) =>
           chunk.choices?.[0]?.delta?.content ||
@@ -77,9 +90,18 @@ async function callAI(prompt, systemPrompt = null, options = {}) {
           "",
       )
       .join("");
+    
+    // For SSE, usage info might be in the last chunk or not available
+    data = chunks[chunks.length - 1];
   }
 
-  return data?.choices?.[0]?.message?.content || "";
+  return {
+    content,
+    usage: {
+      promptTokens: data?.usage?.prompt_tokens || 0,
+      completionTokens: data?.usage?.completion_tokens || 0,
+    }
+  };
 }
 
 // Helper logic tóm tắt (dùng được cả ở upload và request thủ công)
@@ -111,69 +133,64 @@ Yêu cầu tóm tắt:
 
 // @desc  Tóm tắt tài liệu
 // @route POST /api/ai/summarize
-// @access Private
 const summarizeDocument = async (req, res) => {
   try {
     const { documentId } = req.body;
-    if (!documentId) {
-      return res.status(400).json({ message: "Thiếu documentId" });
-    }
+    if (!documentId) return res.status(400).json({ message: 'Thiếu documentId' });
 
     const doc = await Document.findOne({ _id: documentId, user: req.user.id });
-    if (!doc) {
-      return res.status(404).json({ message: "Không tìm thấy tài liệu" });
-    }
+    if (!doc) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
 
-    // 1. Trả về ngay nếu đã có tóm tắt lưu sẵn (và không phải là thông báo lỗi cũ)
-    const errorPrefix = "Tài liệu không có đủ nội dung";
-    if (doc.summary && !doc.summary.startsWith(errorPrefix)) {
+    // 1. Trả về ngay nếu đã có tóm tắt lưu sẵn
+    if (doc.summary && !doc.summary.startsWith("Tài liệu không có đủ nội dung")) {
       return res.json({ summary: doc.summary });
     }
 
-    // 2. Nếu chưa có (cho các file cũ), tạo mới và lưu lại
-    const summary = await generateSummaryFromText(doc.name, doc.content);
+    // Check credits (Cost: 10)
+    await validateAndDeduct(req.user.id, 10, 'Summarize', { checkOnly: true });
 
-    doc.summary = summary;
+    // 2. Tạo mới
+    const result = await generateSummaryFromText(doc.name, doc.content);
+
+    // Save summary
+    doc.summary = result.content;
     await doc.save();
 
-    res.json({ summary });
+    // Deduct credits on success (Cost: 10)
+    await validateAndDeduct(req.user.id, 10, 'Summarize', {
+      promptTokens: result.usage.promptTokens,
+      completionTokens: result.usage.completionTokens,
+      model: 'gpt-5'
+    });
+
+    res.json({ summary: result.content });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('AI Summarize error:', error);
+    res.status(error.message.includes('Credit') ? 402 : 500).json({ message: error.message });
   }
 };
 
 // @desc  Tạo câu hỏi quiz từ nhiều tài liệu
 // @route POST /api/ai/generate-quiz
-// @access Private
 const generateQuiz = async (req, res) => {
   try {
     const { documentIds, format, numQuestions, difficulty } = req.body;
+    if (!documentIds || !documentIds.length) return res.status(400).json({ message: 'Thiếu documentIds' });
 
-    if (!documentIds || !documentIds.length) {
-      return res.status(400).json({ message: "Thiếu documentIds" });
-    }
+    const docs = await Document.find({ _id: { $in: documentIds }, user: req.user.id });
+    if (!docs.length) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
 
-    // Load documents belonging to this user
-    const docs = await Document.find({
-      _id: { $in: documentIds },
-      user: req.user.id,
-    });
+    // Check credits (Cost: 5)
+    await validateAndDeduct(req.user.id, 5, 'Generate Quiz', { checkOnly: true });
 
-    if (!docs.length) {
-      return res.status(404).json({ message: "Không tìm thấy tài liệu" });
-    }
-
-    const combinedContent = docs
-      .map((d) => d.content || "")
-      .join("\n\n---\n\n")
-      .slice(0, 10000);
-    const hintNames = docs.map((d) => d.name).join(", ");
-
+    const combinedContent = docs.map((d) => d.content || '').join('\n\n---\n\n').slice(0, 10000);
+    const hintNames = docs.map((d) => d.name).join(', ');
     const count = parseInt(numQuestions) || 10;
-    const diff = difficulty || "Trung bình";
+    const diff = difficulty || 'Trung bình';
 
-    const countRecall = Math.round(count * 0.5);
-    const countApply = Math.round(count * 0.4);
+    // Bloom Taxonomy integration from main
+    const countRecall = Math.floor(count * 0.3);
+    const countApply = Math.floor(count * 0.4);
     const countAdvanced = count - countRecall - countApply;
 
     let formatInstruction = "";
@@ -184,13 +201,13 @@ const generateQuiz = async (req, res) => {
       jsonFormat = `"options": ["Lựa chọn A", "Lựa chọn B", "Lựa chọn C", "Lựa chọn D"],\n    "correctIndex": 0,`;
     } else if (format === "Đúng/Sai") {
       formatInstruction = `tạo ra một bộ gồm đúng ${count} câu hỏi Đúng/Sai chất lượng bằng tiếng Việt theo định dạng "Đúng/Sai" dựa trên tài liệu.`;
-      jsonFormat = `"options": ["Đúng", "Sai"],\n    "correctIndex": 0,`;
+      jsonFormat = `"options": ["Đúng", "Sai"],\n    "correctIndex": 1,`; // Corrected index for Đúng/Sai usually 0/1
     } else {
       formatInstruction = `tạo ra một bộ gồm đúng ${count} câu hỏi tự luận chất lượng bằng tiếng Việt theo định dạng "Tự luận" dựa trên tài liệu.`;
       jsonFormat = `"options": ["Gợi ý đáp án mẫu chi tiết"],\n    "correctIndex": 0,`;
     }
 
-    const prompt = `Bạn là một chuyên gia giáo dục thiết lập đề kiểm tra thích ứng AI.
+    const quizPrompt = `Bạn là một chuyên gia giáo dục thiết lập đề kiểm tra thích ứng AI.
 Nhiệm vụ của bạn là ${formatInstruction} Độ khó yêu cầu: ${diff}.
 
 NỘI DUNG TÀI LIỆU TRÍCH XUẤT (từ ${hintNames}):
@@ -216,16 +233,64 @@ Thêm trường "level" với giá trị "Nhận biết", "Vận dụng", hoặc
 ]
 Không được chứa bất kỳ text nào ngoài mảng JSON.`;
 
-    const textResponse = await callAI(
-      prompt,
+    const result = await callAI(
+      quizPrompt,
       "You are an educational AI assistant. You MUST respond with ONLY a valid JSON array of question objects, no markdown, no explanation, no code fences — just the raw JSON array starting with [ and ending with ].",
       { max_tokens: 4000 },
     );
 
-    res.json({ text: textResponse, hintNames });
+    // Deduct credits on success (Cost: 5)
+    await validateAndDeduct(req.user.id, 5, 'Generate Quiz', {
+      promptTokens: result.usage.promptTokens,
+      completionTokens: result.usage.completionTokens,
+      model: 'gpt-5'
+    });
+
+    res.json({ text: result.content, hintNames });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('AI Generate Quiz error:', error);
+    res.status(error.message.includes('Credit') ? 402 : 500).json({ message: error.message });
   }
 };
 
-module.exports = { summarizeDocument, generateQuiz, generateSummaryFromText };
+// @desc  Tạo đối thoại AI (6 câu thoại)
+// @route POST /api/ai/generate-dialogue
+const generateDialogue = async (req, res) => {
+  try {
+    const { documentId, language, speakerFemaleName, speakerMaleName } = req.body;
+    if (!documentId) return res.status(400).json({ message: 'Thiếu documentId' });
+
+    const doc = await Document.findOne({ _id: documentId, user: req.user.id });
+    if (!doc) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
+
+    // Step 1: Check credit (Cost: 6 - 1 for each turn generated)
+    await validateAndDeduct(req.user.id, 6, 'Chat AI', { checkOnly: true });
+
+    const prompt = `Tạo một kịch bản đối thoại gồm đúng 6 câu thoại xoay quanh nội dung của tài liệu "${doc.name}".
+    Ngôn ngữ: ${language}.
+    Nhân vật Nữ: ${speakerFemaleName} (speaker: female).
+    Nhân vật Nam: ${speakerMaleName} (speaker: male).
+    Phản hồi DUY NHẤT một mảng JSON các object {id, speaker, speakerName, text}.`;
+
+    // Step 2: Call AI
+    const result = await callAI(
+      prompt,
+      'You are an educational AI assistant that outputs structured valid JSON arrays containing dialogues.',
+      { max_tokens: 2000 }
+    );
+
+    // Step 3: Deduct credits on success
+    await validateAndDeduct(req.user.id, 6, 'Chat AI', {
+      promptTokens: result.usage.promptTokens,
+      completionTokens: result.usage.completionTokens,
+      model: 'gpt-5'
+    });
+
+    res.json({ dialogue: result.content });
+  } catch (error) {
+    console.error('AI Generate Dialogue error:', error);
+    res.status(error.message.includes('Credit') ? 402 : 500).json({ message: error.message });
+  }
+};
+
+module.exports = { summarizeDocument, generateQuiz, generateDialogue, generateSummaryFromText };

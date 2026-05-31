@@ -15,12 +15,19 @@ const notificationRoutes = require('./src/routes/notificationRoutes');
 const ttsRoutes = require('./src/routes/ttsRoutes');
 const gamificationRoutes = require('./src/routes/gamificationRoutes');
 const aiRoutes = require('./src/routes/aiRoutes');
+const paymentRoutes = require('./src/routes/paymentRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
 const errorHandler = require('./src/middleware/errorHandler');
 const { startDailyReminderJob } = require('./src/services/dailyReminderService');
+const { initCreditRenewalJob } = require('./src/services/creditRenewalService');
+const { initDocumentWorker } = require('./src/workers/documentWorker');
+const { apiLimiter } = require('./src/middleware/rateLimitMiddleware');
 
 // Kết nối MongoDB
 connectDB();
 startDailyReminderJob();
+initCreditRenewalJob();
+initDocumentWorker();
 
 const app = express();
 
@@ -31,6 +38,7 @@ app.use(
     credentials: true,
   })
 );
+app.use(apiLimiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -48,6 +56,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/tts', ttsRoutes);
 app.use('/api/gamification', gamificationRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -20,6 +20,7 @@ const HybridMentoring = lazy(() => import('./pages/HybridMentoring').then(m => (
 const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const Gamification = lazy(() => import('./pages/Gamification').then(m => ({ default: m.Gamification })));
 const Pricing = lazy(() => import('./pages/Pricing').then(m => ({ default: m.Pricing })));
+const PaymentResult = lazy(() => import('./pages/PaymentResult').then(m => ({ default: m.PaymentResult })));
 const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
 
 const LoadingPage = () => (
@@ -46,7 +47,14 @@ export function App() {
   // Simple routing for reset password
   const path = window.location.pathname;
   const isResetPath = path.startsWith('/reset-password/');
+  const isPaymentResultPath = path.startsWith('/payment-result');
   const resetToken = isResetPath ? path.split('/').pop() || '' : '';
+
+  useEffect(() => {
+    if (isPaymentResultPath && currentPage !== 'payment-result') {
+      setCurrentPage('payment-result');
+    }
+  }, [isPaymentResultPath]);
 
   useEffect(() => {
     const validateToken = async () => {
@@ -134,6 +142,8 @@ case 'community':
         return <Gamification token={token} />;
       case 'pricing':
         return <Pricing setCurrentPage={setCurrentPage} />;
+      case 'payment-result':
+        return <PaymentResult setCurrentPage={setCurrentPage} />;
       default:
         return <Dashboard setCurrentPage={setCurrentPage} token={token} user={user} />;
     }
@@ -150,7 +160,7 @@ case 'community':
       />
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
         <div className="relative z-[50]">
-          <TopBar token={token} user={user} />
+          <TopBar token={token} user={user} setCurrentPage={setCurrentPage} />
         </div>
         <main className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8 relative z-0">
           <AnimatePresence mode="wait">
