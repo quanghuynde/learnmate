@@ -22,7 +22,11 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const baseName = path.basename(file.originalname, ext).replace(/\s+/g, '-');
+    // Sanitize: Replace special chars and spaces with hyphens, keep only alphanumeric, hyphens and dots
+    const baseName = path.basename(file.originalname, ext)
+      .replace(/[^a-zA-Z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
     cb(null, `${Date.now()}-${baseName}${ext}`);
   },
 });

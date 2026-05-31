@@ -4,10 +4,10 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
-const { YoutubeTranscript } = require('youtube-transcript');
+const textract = require('textract');
+const officeparser = require('officeparser');
 const Document = require('../models/Document');
 const { validateAndDeduct } = require('../services/creditService');
-const { addDocumentToQueue } = require('../services/queueService');
 
 // @desc    Lay danh sach tai lieu cua user
 const getDocuments = async (req, res) => {
@@ -21,51 +21,92 @@ const getDocuments = async (req, res) => {
 
 // Helper function trích xuất text từ file
 const extractText = async (filePath, type) => {
+  const start = performance.now();
   try {
-    console.log(`Starting extraction: ${filePath}, type: ${type}`);
+    const docType = type.toLowerCase();
+    console.log(`[BG] Starting extraction: ${filePath}, type: ${docType}`);
+    
     if (!fs.existsSync(filePath)) {
-      console.error(`File not found at: ${filePath}`);
+      console.error(`[BG] File not found at: ${filePath}`);
       return '';
     }
 
-    const dataBuffer = fs.readFileSync(filePath);
-    console.log(`File read successfully. Buffer size: ${dataBuffer.length} bytes`);
+    let text = '';
 
-    if (type === 'pdf') {
+    if (docType === 'pdf') {
+      const dataBuffer = fs.readFileSync(filePath);
       const data = await pdf(dataBuffer);
-      console.log(`PDF parsed. Text length: ${data.text?.length || 0}`);
-      return data.text;
-    } else if (type === 'docx') {
+      text = data.text || '';
+    } else if (docType === 'docx') {
+      const dataBuffer = fs.readFileSync(filePath);
       const result = await mammoth.extractRawText({ buffer: dataBuffer });
-      console.log(`Docx parsed. Text length: ${result.value?.length || 0}`);
-      return result.value;
-    } else {
-      // Fallback: Thử đọc dưới dạng text UTF-8 cho mọi loại file khác (.txt, .md, .js, .csv, v.v.)
-      const text = dataBuffer.toString('utf8').trim();
-      console.log(`Read as generic text. Length: ${text.length}`);
+      text = result.value || '';
+    } else if (docType === 'pptx' || docType === 'ppt') {
+      try {
+        text = await new Promise((resolve, reject) => {
+          textract.fromFileWithPath(filePath, (error, data) => {
+            if (error) reject(error);
+            else resolve(data);
+          });
+        });
+      } catch (err) {
+        console.warn(`[BG] textract failed for ${docType}, falling back to officeparser:`, err.message);
+        text = await new Promise((resolve) => {
+          officeparser.parseOffice(filePath, (data, parseErr) => {
+            if (parseErr) resolve('');
+            else resolve(typeof data === 'string' ? data : String(data));
+          });
+        });
+      }
+    } else if (['txt', 'md', 'json', 'url', 'unknown'].includes(docType)) {
+      const dataBuffer = fs.readFileSync(filePath);
+      text = dataBuffer.toString('utf8').trim();
       
-      // Kiểm tra nếu là URL (giữ nguyên logic cũ cho txt/web)
+      // Handle URL scraping
       if (text.startsWith('http://') || text.startsWith('https://')) {
         try {
           if (text.includes('youtube.com') || text.includes('youtu.be')) {
             const transcript = await YoutubeTranscript.fetchTranscript(text);
-            return transcript.map(t => t.text).join(' ');
+            text = transcript.map(t => t.text).join(' ');
           } else {
-            // Web thông thường
             const { data } = await axios.get(text, {
                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36' }
             });
             const $ = cheerio.load(data);
             $('script, style, noscript, nav, footer, iframe').remove();
-            return $('body').text().replace(/\s+/g, ' ').trim().slice(0, 5000);
+            text = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 5000);
           }
         } catch (scrapeError) {
           console.error('Lỗi khi scrape URL:', scrapeError.message);
-          return text;
         }
       }
-      return text;
+    } else {
+      // Try any-text as a general fallback for other formats
+      try {
+        text = await anytext.getText(filePath);
+      } catch (err) {
+        console.warn(`[BG] Unsupported format ${docType} and any-text failed.`);
+      }
     }
+
+    // SANITIZATION: Remove binary/ZIP headers and non-readable chars
+    text = (text || '').toString();
+    
+    // If it looks like a ZIP file (starts with PK), it's probably failed extraction
+    if (text.startsWith('PK') && text.includes('[Content_Types].xml')) {
+      console.warn(`[BG] Extraction returned raw ZIP content for ${filePath}. Clearing.`);
+      text = '';
+    }
+
+    // Remove null bytes and non-printable control characters (except newlines/tabs)
+    text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    
+    // Collapse multiple spaces/newlines
+    text = text.replace(/\s+/g, ' ').trim();
+
+    const end = performance.now();
+    console.log(`[BG] ${docType.toUpperCase()} parsed in ${(end - start).toFixed(2)}ms. Text length: ${text.length}`);
+    return text;
 
   } catch (error) {
     console.error('Lỗi trích xuất text:', error);
@@ -73,14 +114,60 @@ const extractText = async (filePath, type) => {
   }
 };
 
-// @desc    Tai len tai lieu moi (Async with BullMQ)
+// Background processing using setImmediate (no Redis required)
+const processDocumentInBackground = (docId, filePath, type) => {
+  setImmediate(async () => {
+    try {
+      const content = (await extractText(filePath, type)) || '';
+      
+      // Secondary check for binary junk before saving
+      const isBinary = content.startsWith('PK\x03\x04') || content.includes('[Content_Types].xml') || content.includes('word/_rels/');
+      
+      if (content && content.trim().length > 20 && !isBinary) {
+        await Document.findByIdAndUpdate(docId, {
+          content: content,
+          status: 'processed',
+          pages: Math.ceil(content.length / 3000)
+        });
+        console.log(`[BG] ✅ Document ${docId} processed successfully.`);
+      } else {
+        console.warn(`[BG] ⚠️ Document ${docId} extraction failed or returned invalid content (binary: ${isBinary}).`);
+        await Document.findByIdAndUpdate(docId, { status: 'error', content: '' });
+      }
+    } catch (err) {
+      console.error(`[BG] ❌ Error processing document ${docId}:`, err.message);
+      await Document.findByIdAndUpdate(docId, { status: 'error' });
+    }
+  });
+};
+
+/**
+ * Startup repair: Resume processing for documents lost during server restart
+ */
+const resumeProcessing = async () => {
+  try {
+    const stuckDocs = await Document.find({ status: 'processing' });
+    if (stuckDocs.length > 0) {
+      console.log(`[REPAIR] Found ${stuckDocs.length} documents stuck in "processing". Retrying...`);
+      for (const doc of stuckDocs) {
+        const relativePath = doc.fileUrl.replace(/^\//, '');
+        const filePath = path.resolve(process.cwd(), relativePath);
+        processDocumentInBackground(doc._id, filePath, doc.type);
+      }
+    }
+  } catch (err) {
+    console.error('[REPAIR] Error during startup repair:', err.message);
+  }
+};
+
+// @desc    Tai len tai lieu moi
 const createDocument = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'Vui lòng chọn file để tải lên' });
     }
 
-    // Step 1: Check and deduct credit (Cost: 10)
+    // Check and deduct credit (Cost: 10)
     try {
       await validateAndDeduct(req.user.id, 10, 'Upload Document');
     } catch (err) {
@@ -94,7 +181,6 @@ const createDocument = async (req, res) => {
     const ext = path.extname(originalNameUtf8).toLowerCase();
     const type = ext ? ext.replace('.', '') : 'unknown';
 
-    // Create document record entry
     const doc = await Document.create({
       user: req.user.id,
       name: originalNameUtf8,
@@ -102,18 +188,16 @@ const createDocument = async (req, res) => {
       pages: 0,
       fileUrl: `/uploads/documents/${req.file.filename}`,
       fileSize: req.file.size,
-      status: 'processing', // Bắt đầu ở trạng thái đang xử lý
+      status: 'processing',
     });
 
-    const filePath = path.join(__dirname, '../../', doc.fileUrl.replace(/^\//, ''));
+    const relativePath = doc.fileUrl.replace(/^\//, '');
+    const filePath = path.resolve(process.cwd(), relativePath);
 
-    // Step 2: OFF-LOAD TO BACKGROUND QUEUE
-    try {
-      await addDocumentToQueue(doc._id, filePath, type);
-    } catch (queueErr) {
-      console.error('Queue add error, falling back to sync:', queueErr);
-      // Fallback (optional) or just let it stay in "processing"
-    }
+    console.log(`[UPLOAD] Starting background processing for: ${filePath}`);
+
+    // Process in background (non-blocking, no Redis)
+    processDocumentInBackground(doc._id, filePath, type);
 
     res.status(201).json({ 
       message: 'Tải lên thành công. Hệ thống đang trích xuất nội dung trong nền.', 
@@ -155,4 +239,4 @@ const deleteDocument = async (req, res) => {
   }
 };
 
-module.exports = { getDocuments, createDocument, getDocument, deleteDocument, extractText };
+module.exports = { getDocuments, createDocument, getDocument, deleteDocument, extractText, resumeProcessing };
