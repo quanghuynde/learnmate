@@ -22,6 +22,8 @@ const Gamification = lazy(() => import('./pages/Gamification').then(m => ({ defa
 const Pricing = lazy(() => import('./pages/Pricing').then(m => ({ default: m.Pricing })));
 const PaymentResult = lazy(() => import('./pages/PaymentResult').then(m => ({ default: m.PaymentResult })));
 const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
+const TransactionHistory = lazy(() => import('./pages/TransactionHistory').then(m => ({ default: m.TransactionHistory })));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 
 const LoadingPage = () => (
   <div className="h-full w-full flex items-center justify-center p-20 text-slate-400">
@@ -144,6 +146,10 @@ case 'community':
         return <Pricing setCurrentPage={setCurrentPage} />;
       case 'payment-result':
         return <PaymentResult setCurrentPage={setCurrentPage} />;
+      case 'history':
+        return <TransactionHistory />;
+      case 'admin':
+        return <AdminDashboard />;
       default:
         return <Dashboard setCurrentPage={setCurrentPage} token={token} user={user} />;
     }

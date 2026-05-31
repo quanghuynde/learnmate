@@ -16,6 +16,8 @@ import {
   Gamepad2,
   User,
   Coins,
+  Clock,
+  ShieldCheck,
 } from 'lucide-react';
 import { UserItem } from '../../lib/api';
 
@@ -40,6 +42,7 @@ const navItems = [
   { id: 'video', label: 'Đối thoại AI', icon: MessageSquare },
   { id: 'mentor', label: 'Hỗ trợ Mentor', icon: UserCheck },
   { id: 'pricing', label: 'Gói Credit', icon: Coins },
+  { id: 'history', label: 'Lịch sử Credit', icon: Clock },
 ];
 
 function getInitials(name: string) {
@@ -100,6 +103,27 @@ export function Sidebar({ isOpen, setIsOpen, currentPage, setCurrentPage, user }
             </button>
           );
         })}
+        
+        {user?.role === 'admin' && (
+          <button
+            onClick={() => setCurrentPage('admin')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl relative group transition-colors ${
+              currentPage === 'admin' ? 'text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+            title={!isOpen ? 'Quản trị' : undefined}
+          >
+            {currentPage === 'admin' && (
+              <motion.div
+                layoutId="sidebar-active"
+                className="absolute inset-0 bg-primary/20 rounded-xl border-l-4 border-primary-light"
+                initial={false}
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              />
+            )}
+            <ShieldCheck size={20} className={`relative z-10 flex-shrink-0 ${currentPage === 'admin' ? 'text-primary-light' : ''}`} />
+            {isOpen && <span className="relative z-10 text-sm font-medium whitespace-nowrap flex-1 text-left">Quản trị</span>}
+          </button>
+        )}
       </div>
 
       {/* Bottom: User profile + AI button */}

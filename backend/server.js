@@ -19,15 +19,14 @@ const paymentRoutes = require('./src/routes/paymentRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const errorHandler = require('./src/middleware/errorHandler');
 const { startDailyReminderJob } = require('./src/services/dailyReminderService');
-const { initCreditRenewalJob } = require('./src/services/creditRenewalService');
-const { initDocumentWorker } = require('./src/workers/documentWorker');
-const { apiLimiter } = require('./src/middleware/rateLimitMiddleware');
+
+const { resumeProcessing } = require('./src/controllers/documentController');
 
 // Kết nối MongoDB
-connectDB();
+connectDB().then(() => {
+  resumeProcessing();
+});
 startDailyReminderJob();
-initCreditRenewalJob();
-initDocumentWorker();
 
 const app = express();
 
@@ -38,7 +37,7 @@ app.use(
     credentials: true,
   })
 );
-app.use(apiLimiter);
+// Rate limiting can be added later with express-rate-limit
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
