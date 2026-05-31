@@ -42,9 +42,7 @@ export function AIDialogue({ token }: AIDialogueProps) {
   const [selectedLang, setSelectedLang] = useState('vi-VN');
   const [loadingDocs, setLoadingDocs] = useState(true);
 
-  const [apiKey, setApiKey] = useState(() => {
-    return (import.meta.env.VITE_OPENAI_API_KEY as string) || (import.meta.env.VITE_GEMINI_API_KEY_DIALOGUE as string) || localStorage.getItem('learnmate_gemini_api_key_dialogue') || '';
-  });
+  // API Key is now handled securely in the Backend
 
   // States for generation flow
   const [isGenerating, setIsGenerating] = useState(false);
@@ -162,12 +160,9 @@ export function AIDialogue({ token }: AIDialogueProps) {
   );
 
   // Generate customized dialogue based on file name & selected language using Gemini API
+  // Generate customized dialogue using our secure backend API
   const handleCreateDialogue = async () => {
     if (!selectedDoc) return;
-    if (!apiKey) {
-      alert('Vui lòng cấu hình Gemini API Key trước khi sử dụng!');
-      return;
-    }
 
     setIsGenerating(true);
     setGenerationProgress(10);
@@ -180,195 +175,43 @@ export function AIDialogue({ token }: AIDialogueProps) {
     setActiveTurnIdx(-1);
 
     const progressInterval = setInterval(() => {
-      setGenerationProgress((p) => (p < 80 ? p + 5 : p));
+      setGenerationProgress((p) => (p < 90 ? p + 5 : p));
     }, 150);
 
     let speakerFemaleName = 'Lan (AI)';
     let speakerMaleName = 'Nam (AI)';
-    let languageNameInVietnamese = 'Tiếng Việt';
 
     if (selectedLang.startsWith('vi')) {
       speakerFemaleName = 'Lan (AI - Nữ)';
       speakerMaleName = 'Nam (AI - Nam)';
-      languageNameInVietnamese = 'Tiếng Việt';
     } else if (selectedLang.startsWith('en')) {
       speakerFemaleName = 'Emma (AI - Female)';
       speakerMaleName = 'John (AI - Male)';
-      languageNameInVietnamese = 'Tiếng Anh (English)';
     } else if (selectedLang.startsWith('fr')) {
       speakerFemaleName = 'Chloé (AI - Female)';
       speakerMaleName = 'Thomas (AI - Male)';
-      languageNameInVietnamese = 'Tiếng Pháp (French)';
     } else if (selectedLang.startsWith('ja')) {
       speakerFemaleName = 'さくら (Sakura - Female)';
       speakerMaleName = 'けんた (Kenta - Male)';
-      languageNameInVietnamese = 'Tiếng Nhật (Japanese)';
     } else if (selectedLang.startsWith('ko')) {
       speakerFemaleName = '민지 (Minji - Female)';
       speakerMaleName = '민수 (Minsu - Male)';
-      languageNameInVietnamese = 'Tiếng Hàn (Korean)';
     }
 
     try {
-      const prompt = `Bạn là một chuyên gia giáo dục thiết lập kịch bản đối thoại AI.
-Nhiệm vụ của bạn là tạo ra một kịch bản đối thoại gồm đúng 6 câu thoại xoay quanh nội dung, chủ đề, kiến thức cốt lõi và khái niệm liên quan đến tài liệu học tập có tên là "${selectedDoc.name}".
+      const res = await api.generateDialogue(token, {
+        documentId: selectedDoc._id,
+        language: selectedLang,
+        speakerFemaleName,
+        speakerMaleName
+      });
 
-YÊU CẦU BẮT BUỘC VỀ NGÔN NGỮ VÀ NHÂN VẬT:
-- Bạn PHẢI tạo kịch bản và toàn bộ câu thoại HOÀN TOÀN bằng ${languageNameInVietnamese} 100% (không trộn lẫn bất kỳ ngôn ngữ nào khác, tuyệt đối không viết bằng tiếng Anh).
-- Kịch bản là cuộc trao đổi qua lại giữa hai người:
-  1. Nhân vật Nữ: Tên hiển thị "${speakerFemaleName}" (speaker: "female").
-  2. Nhân vật Nam: Tên hiển thị "${speakerMaleName}" (speaker: "male").
-
-Chú ý cực kỳ quan trọng:
-- Do môi trường hệ thống hiện tại không truyền tệp đính kèm nhị phân trực tiếp, bạn TUYỆT ĐỐI KHÔNG ĐƯỢC từ chối yêu cầu, không được phàn nàn về việc thiếu tệp PDF, và không được yêu cầu người dùng đính kèm lại tệp.
-- Hãy phân tích tên tài liệu "${selectedDoc.name}" để suy luận chính xác chủ đề chính và các kiến thức chuyên ngành liên quan (Ví dụ: tên tài liệu chứa "AIA" hay "AI" thì tạo câu thoại về Trí tuệ nhân tạo, chứa "CEET" thì tạo câu thoại về kỹ thuật, điện, v.v.). Hãy tự tin tạo ra cuộc đối thoại xuất sắc nhất dựa trên suy luận chủ đề này.
-
-Định dạng trả về bắt buộc phải là một mảng JSON đối tượng chứa các trường sau:
-[
-  { "id": 1, "speaker": "female", "speakerName": "${speakerFemaleName}", "text": "Câu thoại bằng ${languageNameInVietnamese} của nhân vật nữ..." },
-  { "id": 2, "speaker": "male", "speakerName": "${speakerMaleName}", "text": "Câu thoại bằng ${languageNameInVietnamese} của nhân vật nam..." }
-]
-Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ văn bản giải thích nào ngoài mảng JSON. Hãy trả về duy nhất mảng JSON.`;
-
-      let apiBase = (import.meta.env.VITE_OPENAI_API_BASE as string) || 'https://api.openai.com/v1';
-      if (apiBase.includes('api.shineshop.dev')) {
-        apiBase = apiBase.replace('https://api.shineshop.dev', '/shineshop');
-      }
-      const response = await fetch(
-        `${apiBase}/chat/completions`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: (import.meta.env.VITE_OPENAI_MODEL as string) || 'kr/claude-opus-4.6',
-            messages: [
-              { role: 'system', content: 'You are an educational AI assistant that outputs structured valid JSON arrays containing dialogues.' },
-              { role: 'user', content: prompt }
-            ],
-            max_tokens: 4000,
-            response_format: { type: 'json_object' }
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        const errMsg = errJson?.error?.message || `HTTP ${response.status}`;
-        throw new Error(`Kết nối OpenAI API thất bại: ${errMsg}`);
-      }
-
-      const rawText = await response.text();
-      let textResponse = '';
-      
-      if (rawText.includes('data: {') || rawText.startsWith('data:')) {
-        const lines = rawText.split('\n');
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
-            try {
-              const jsonStr = trimmed.slice(6);
-              const parsedChunk = JSON.parse(jsonStr);
-              const content = parsedChunk.choices?.[0]?.delta?.content || parsedChunk.choices?.[0]?.message?.content || '';
-              textResponse += content;
-            } catch (e) {
-              console.warn('Error parsing SSE line:', trimmed, e);
-            }
-          }
-        }
-      } else {
-        try {
-          const result = JSON.parse(rawText);
-          textResponse = result.choices?.[0]?.message?.content || '';
-        } catch (e) {
-          throw new Error('Không thể phân tích JSON phản hồi: ' + rawText);
-        }
-      }
-
-      if (!textResponse) {
-        throw new Error('AI trả về nội dung rỗng.');
-      }
-
-      textResponse = textResponse.trim();
-
-      // Intelligent JSON repair function for incomplete cutoff strings
-      const repairIncompleteJson = (jsonStr: string): string => {
-        let str = jsonStr.trim();
-        let openBraces = 0;
-        let openBrackets = 0;
-        let inString = false;
-        let escape = false;
-        
-        for (let i = 0; i < str.length; i++) {
-          const char = str[i];
-          if (escape) {
-            escape = false;
-            continue;
-          }
-          if (char === '\\') {
-            escape = true;
-            continue;
-          }
-          if (char === '"') {
-            inString = !inString;
-            continue;
-          }
-          if (!inString) {
-            if (char === '{') openBraces++;
-            if (char === '}') openBraces--;
-            if (char === '[') openBrackets++;
-            if (char === ']') openBrackets--;
-          }
-        }
-        
-        if (inString) {
-          str += '"';
-        }
-        if (openBraces > 0) {
-          for (let i = 0; i < openBraces; i++) {
-            str += '}';
-          }
-        }
-        if (openBrackets > 0) {
-          for (let i = 0; i < openBrackets; i++) {
-            str += ']';
-          }
-        }
-        return str;
-      };
-
-      let cleanedText = textResponse.trim();
-      if (cleanedText.startsWith('```')) {
-        const firstLineEnd = cleanedText.indexOf('\n');
-        if (firstLineEnd !== -1) {
-          cleanedText = cleanedText.slice(firstLineEnd + 1).trim();
-        } else {
-          cleanedText = cleanedText.replace(/^```[a-zA-Z]*/, '').trim();
-        }
-      }
-      if (cleanedText.endsWith('```')) {
-        cleanedText = cleanedText.slice(0, -3).trim();
-      }
-
-      const repairedText = repairIncompleteJson(cleanedText);
-      let script;
+      let script: DialogueTurn[] = [];
       try {
-        const parsedObject = JSON.parse(repairedText);
-        if (Array.isArray(parsedObject)) {
-          script = parsedObject;
-        } else {
-          // Extract array from wrapper object e.g. {"dialogue": [...]}
-          const firstKey = Object.keys(parsedObject)[0];
-          if (firstKey && Array.isArray(parsedObject[firstKey])) {
-            script = parsedObject[firstKey];
-          } else {
-            throw new Error('Không phân tích được mảng đối thoại từ JSON.');
-          }
-        }
-      } catch (parseErr) {
-        throw new Error('Lỗi cú pháp JSON từ OpenAI: ' + textResponse);
+        const parsed = typeof res.dialogue === 'string' ? JSON.parse(res.dialogue) : res.dialogue;
+        script = Array.isArray(parsed) ? parsed : (parsed.dialogue || []);
+      } catch (e) {
+        throw new Error('Không thể phân tích dữ liệu đối thoại từ máy chủ.');
       }
 
       clearInterval(progressInterval);
@@ -381,11 +224,17 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
         setActiveTurnIdx(0);
       }, 500);
     } catch (err: any) {
-      console.error('API call failed:', err);
+      console.error('Dialogue generation failed:', err);
       clearInterval(progressInterval);
       setIsGenerating(false);
       setGenerationProgress(0);
-      alert(`Lỗi kết nối API: ${err.message || 'Không xác định'}`);
+      
+      const msg = err.message || 'Không xác định';
+      if (msg.includes('Credit')) {
+        alert('Bạn không đủ Credit để thực hiện tính năng này. Vui lòng nạp thêm Credit.');
+      } else {
+        alert(`Lỗi tạo đối thoại: ${msg}`);
+      }
     }
   };
 
@@ -803,7 +652,7 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
                   <div className="flex-shrink-0">
                     <button
                       onClick={handleCreateDialogue}
-                      disabled={!selectedDocId || !apiKey || isGenerating}
+                      disabled={!selectedDocId || isGenerating}
                       className="w-full md:w-auto bg-gradient-to-r from-primary to-primary-light text-white px-8 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-primary/30 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isGenerating ? (
@@ -819,40 +668,17 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
                   </div>
                 </div>
 
-                {/* API Key Panel inside Setup Card */}
-                {!import.meta.env.VITE_GEMINI_API_KEY_DIALOGUE && (
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles size={14} className="text-primary" /> Cấu hình ChatGPT API Key
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        placeholder="Nhập ChatGPT/OpenAI API Key của bạn để sử dụng AI thực tế..."
-                        value={apiKey}
-                        onChange={(e) => {
-                          setApiKey(e.target.value);
-                          localStorage.setItem('learnmate_gemini_api_key_dialogue', e.target.value);
-                        }}
-                        className="flex-1 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-primary text-sm font-semibold"
-                      />
-                      {apiKey && (
-                        <button
-                          onClick={() => {
-                            setApiKey('');
-                            localStorage.removeItem('learnmate_gemini_api_key_dialogue');
-                          }}
-                          className="px-4 bg-red-50 text-red-500 hover:bg-red-100 rounded-xl text-xs font-bold transition-colors flex-shrink-0"
-                        >
-                          Xóa Key
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-400">
-                      Lưu ý: Cuộc hội thoại AI được tạo trực tiếp từ mô hình GPT-4o Mini siêu tốc. Yêu cầu nhập API Key của bạn để mở khóa.
+                <div className="bg-primary/5 p-4 rounded-2xl border border-primary/10 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary flex-shrink-0">
+                    <Sparkles size={16} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-primary">Tính năng Cao cấp</p>
+                    <p className="text-[10px] text-slate-500">
+                      Mỗi lần tạo đối hội thoại tốn 6 Credit (tương ứng 1 Credit/câu thoại). Credit sẽ được trừ sau khi tạo thành công.
                     </p>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Column 3: Dialogue History */}
@@ -1258,10 +1084,10 @@ Hãy đảm bảo mảng JSON hoàn toàn hợp lệ, không chứa bất kỳ v
           <div className="max-w-md space-y-2">
             <h3 className="text-xl font-bold text-text-primary">Chào mừng tới Phòng Đối thoại AI! 🎙️</h3>
             <p className="text-slate-500 text-sm">
-              Bạn muốn ôn tập bài dễ nhớ hơn? Cấu hình ChatGPT API Key, chọn một tài liệu bạn đã tải lên, chọn ngôn ngữ và nhấn nút **Tạo cuộc trò chuyện** phía trên.
+              Bạn muốn ôn tập bài dễ nhớ hơn? Chọn một tài liệu bạn đã tải lên, chọn ngôn ngữ và nhấn nút **Tạo cuộc trò chuyện** phía trên.
             </p>
             <p className="text-slate-400 text-xs mt-1">
-              AI sẽ biến những trang lý thuyết khô khan thành một buổi trò chuyện thú vị giữa một giọng nam và một giọng nữ sinh động có sub chạy đồng bộ theo phong cách NhacCuaTui.
+              Hệ thống sẽ biến những trang lý thuyết khô khan thành một buổi trò chuyện thú vị giữa một giọng nam và một giọng nữ sinh động có sub chạy đồng bộ theo phong cách NhacCuaTui.
             </p>
           </div>
         </div>

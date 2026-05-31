@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Search, Bell, X, Check } from 'lucide-react';
+import { Search, Bell, X, Check, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, NotificationItem, UserItem } from '../../lib/api';
+// react-router-dom is not installed
 
 interface TopBarProps {
   token: string;
   user: UserItem | null;
+  setCurrentPage: (page: string) => void;
 }
 
 function getInitials(name: string) {
@@ -17,7 +19,7 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-export function TopBar({ token, user }: TopBarProps) {
+export function TopBar({ token, user, setCurrentPage }: TopBarProps) {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -68,6 +70,15 @@ export function TopBar({ token, user }: TopBarProps) {
       </div>
 
       <div className="flex items-center gap-4 ml-4">
+        {/* Credit Balance */}
+        <button 
+          onClick={() => setCurrentPage('pricing')}
+          className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-full hover:bg-primary/20 transition-all border border-primary/20"
+        >
+          <Coins size={16} />
+          <span className="text-sm font-bold">{user?.currentCredits?.toLocaleString() || 0}</span>
+          <span className="text-[10px] opacity-70">Credit</span>
+        </button>
         {/* Notifications */}
         <div className="relative">
           <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors relative">

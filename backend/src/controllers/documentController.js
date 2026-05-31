@@ -1,13 +1,15 @@
 const fs = require('fs');
 const path = require('path');
-const Document = require('../models/Document');
+const axios = require('axios');
+const cheerio = require('cheerio');
 const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
-const { generateSummaryFromText } = require('./aiController');
-
+const { YoutubeTranscript } = require('youtube-transcript');
+const Document = require('../models/Document');
+const { validateAndDeduct } = require('../services/creditService');
+const { addDocumentToQueue } = require('../services/queueService');
 
 // @desc    Lay danh sach tai lieu cua user
-// @route   GET /api/documents
 const getDocuments = async (req, res) => {
   try {
     const docs = await Document.find({ user: req.user.id }).sort({ createdAt: -1 });
@@ -16,10 +18,6 @@ const getDocuments = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
-const axios = require('axios');
-const cheerio = require('cheerio');
-const { YoutubeTranscript } = require('youtube-transcript');
 
 // Helper function trích xuất text từ file
 const extractText = async (filePath, type) => {
@@ -75,18 +73,28 @@ const extractText = async (filePath, type) => {
   }
 };
 
-// @desc    Tai len tai lieu moi
-// @route   POST /api/documents
+// @desc    Tai len tai lieu moi (Async with BullMQ)
 const createDocument = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: 'Vui long chon file de tai len' });
+      return res.status(400).json({ message: 'Vui lòng chọn file để tải lên' });
+    }
+
+    // Step 1: Check and deduct credit (Cost: 10)
+    try {
+      await validateAndDeduct(req.user.id, 10, 'Upload Document');
+    } catch (err) {
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(402).json({ message: err.message });
     }
 
     const originalNameUtf8 = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
     const ext = path.extname(originalNameUtf8).toLowerCase();
     const type = ext ? ext.replace('.', '') : 'unknown';
 
+    // Create document record entry
     const doc = await Document.create({
       user: req.user.id,
       name: originalNameUtf8,
@@ -97,56 +105,31 @@ const createDocument = async (req, res) => {
       status: 'processing', // Bắt đầu ở trạng thái đang xử lý
     });
 
-    // Trả về phản hồi cho client ngay lập tức
-    res.status(201).json({ message: 'Tải lên thành công, đang xử lý...', document: doc });
+    const filePath = path.join(__dirname, '../../', doc.fileUrl.replace(/^\//, ''));
 
-    // --- Xử lý ngầm (Background Task) ---
-    // Không dùng 'await' cho khối này để không chặn phản hồi HTTP
-    (async () => {
-      try {
-        console.log(`[Background] Starting extraction for: ${originalNameUtf8}`);
-        const filePath = path.join(__dirname, '../../', doc.fileUrl.replace(/^\//, ''));
-        const content = await extractText(filePath, type);
+    // Step 2: OFF-LOAD TO BACKGROUND QUEUE
+    try {
+      await addDocumentToQueue(doc._id, filePath, type);
+    } catch (queueErr) {
+      console.error('Queue add error, falling back to sync:', queueErr);
+      // Fallback (optional) or just let it stay in "processing"
+    }
 
-        console.log(`[Background] Generating summary for: ${originalNameUtf8}`);
-        let summary = '';
-        try {
-          summary = await generateSummaryFromText(originalNameUtf8, content);
-        } catch (aiError) {
-          console.error('[Background] AI Summary Error:', aiError.message);
-          summary = 'Không thể tự động tóm tắt lúc này. Bạn có thể thử lại sau.';
-        }
-
-        // Cập nhật trạng thái hoàn tất
-        await Document.findByIdAndUpdate(doc._id, {
-          content,
-          summary,
-          status: 'processed',
-          relevance: 'Đã phân tích',
-        });
-        console.log(`[Background] Finished processing: ${originalNameUtf8}`);
-      } catch (error) {
-        console.error(`[Background] Fatal Error processing ${originalNameUtf8}:`, error.message);
-        await Document.findByIdAndUpdate(doc._id, { status: 'error' });
-      }
-    })();
+    res.status(201).json({ 
+      message: 'Tải lên thành công. Hệ thống đang trích xuất nội dung trong nền.', 
+      document: doc 
+    });
   } catch (error) {
     console.error('Create Document Error:', error.message);
     res.status(500).json({ message: error.message });
   }
 };
 
-
-
-
-// @desc    Lay chi tiet tai lieu
-// @route   GET /api/documents/:id
+// @desc    Lay chi tiết tai lieu
 const getDocument = async (req, res) => {
   try {
     const doc = await Document.findOne({ _id: req.params.id, user: req.user.id });
-    if (!doc) {
-      return res.status(404).json({ message: 'Khong tim thay tai lieu' });
-    }
+    if (!doc) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
     res.json({ document: doc });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -154,13 +137,10 @@ const getDocument = async (req, res) => {
 };
 
 // @desc    Xoa tai lieu
-// @route   DELETE /api/documents/:id
 const deleteDocument = async (req, res) => {
   try {
     const doc = await Document.findOneAndDelete({ _id: req.params.id, user: req.user.id });
-    if (!doc) {
-      return res.status(404).json({ message: 'Khong tim thay tai lieu' });
-    }
+    if (!doc) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
 
     if (doc.fileUrl) {
       const filePath = path.join(__dirname, '../../', doc.fileUrl.replace(/^\//, ''));
@@ -169,10 +149,10 @@ const deleteDocument = async (req, res) => {
       }
     }
 
-    res.json({ message: 'Da xoa tai lieu' });
+    res.json({ message: 'Đã xóa tài liệu' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-module.exports = { getDocuments, createDocument, getDocument, deleteDocument };
+module.exports = { getDocuments, createDocument, getDocument, deleteDocument, extractText };

@@ -15,6 +15,7 @@ import {
   Sparkles,
   Gamepad2,
   User,
+  Coins,
 } from 'lucide-react';
 import { UserItem } from '../../lib/api';
 
@@ -38,6 +39,7 @@ const navItems = [
   { id: 'community', label: 'Cộng đồng', icon: Users },
   { id: 'video', label: 'Đối thoại AI', icon: MessageSquare },
   { id: 'mentor', label: 'Hỗ trợ Mentor', icon: UserCheck },
+  { id: 'pricing', label: 'Gói Credit', icon: Coins },
 ];
 
 function getInitials(name: string) {
