@@ -104,10 +104,21 @@ export type PackageItem = {
 
 export type CreditTransactionItem = {
   _id: string;
+  userId: string;
   amount: number;
   type: 'add' | 'deduct';
   description: string;
+  feature?: string;
   createdAt: string;
+};
+
+export type UsageLogItem = {
+  _id: string;
+  feature: string;
+  creditsUsed: number;
+  status: string;
+  createdAt: string;
+  metadata?: any;
 };
 
 export type ExamItem = {
@@ -384,6 +395,12 @@ export const api = {
   createCheckout: (token: string, packageId: string) =>
     request<{ paymentUrl: string }>('/payments/checkout', { method: 'POST', token, body: { packageId } }),
   
+  getCreditHistory: (token: string) =>
+    request<{ transactions: CreditTransactionItem[] }>('/payments/credits/history', { token }),
+  
+  getAIUsageLogs: (token: string) =>
+    request<{ logs: UsageLogItem[] }>('/payments/credits/usage', { token }),
+
   // Admin
   getAdminStats: (token: string) => request<any>('/admin/stats', { token }),
 
