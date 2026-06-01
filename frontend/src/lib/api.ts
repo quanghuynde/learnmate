@@ -91,6 +91,7 @@ export type UserItem = {
   };
   twoFactorEnabled?: boolean;
   currentCredits?: number;
+  monthlyXP?: number;
   lastCreditReset?: string;
 };
 
@@ -359,10 +360,10 @@ export const api = {
     cachedRequest<GamificationOverview>('gamification_overview', '/gamification/overview', { token }),
   getAchievements: (token: string) =>
     cachedRequest<{ achievements: AchievementItem[] }>('achievements', '/gamification/achievements', { token }),
-  getLeaderboard: (token: string, limit?: number) =>
+  getLeaderboard: (token: string, limit: number = 10, type: string = 'monthly', month?: number, year?: number) =>
     cachedRequest<{ userRank: number | null; leaderboard: LeaderboardItem[] }>(
-      `leaderboard_${limit || 10}`,
-      `/gamification/leaderboard${limit ? `?limit=${limit}` : ''}`,
+      `leaderboard_${limit}_${type}_${month || ''}_${year || ''}`,
+      `/gamification/leaderboard?limit=${limit}&type=${type}${month !== undefined ? `&month=${month}` : ''}${year !== undefined ? `&year=${year}` : ''}`,
       { token }
     ),
 
@@ -392,8 +393,15 @@ export const api = {
 
   // Payment & Credit
   getPackages: (token: string) => request<{ packages: PackageItem[] }>('/payments/packages', { token }),
-  createCheckout: (token: string, packageId: string) =>
-    request<{ paymentUrl: string }>('/payments/checkout', { method: 'POST', token, body: { packageId } }),
+  
+  createManualCheckout: (token: string, packageId: string) =>
+    request<{ 
+      paymentId: string; 
+      amount: number; 
+      memo: string; 
+      qrUrl: string; 
+      bankInfo: { bankId: string; accountNo: string; accountName: string } 
+    }>('/payments/checkout-manual', { method: 'POST', token, body: { packageId } }),
   
   getCreditHistory: (token: string) =>
     request<{ transactions: CreditTransactionItem[] }>('/payments/credits/history', { token }),

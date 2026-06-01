@@ -19,6 +19,8 @@ const paymentRoutes = require('./src/routes/paymentRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const errorHandler = require('./src/middleware/errorHandler');
 const { startDailyReminderJob } = require('./src/services/dailyReminderService');
+const { initCreditRenewalJob } = require('./src/services/creditRenewalService');
+const { startWeeklyRankingRewardJob } = require('./src/services/rankingRewardService');
 
 const { resumeProcessing } = require('./src/controllers/documentController');
 
@@ -27,6 +29,8 @@ connectDB().then(() => {
   resumeProcessing();
 });
 startDailyReminderJob();
+initCreditRenewalJob();
+startWeeklyRankingRewardJob();
 
 const app = express();
 

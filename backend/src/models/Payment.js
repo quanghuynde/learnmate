@@ -17,7 +17,7 @@ const paymentSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    default: 'VNPay',
+    default: 'VietQR',
   },
   status: {
     type: String,
@@ -25,7 +25,7 @@ const paymentSchema = new mongoose.Schema({
     default: 'pending',
   },
   transactionCode: String,
-  vnp_TxnRef: String, // VNPay reference
+  memo: String,
 }, { timestamps: true });
 
 module.exports = mongoose.model('Payment', paymentSchema);
