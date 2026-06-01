@@ -391,7 +391,6 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
             <div className="space-y-2 mb-6 relative z-10">
               <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Không giới hạn Quiz AI</div>
               <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Podcast bài giảng dài</div>
-              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Mentor 1-1 ưu tiên</div>
             </div>
             <button onClick={() => setCurrentPage('pricing')} className="w-full bg-white text-sidebar font-bold py-2.5 rounded-xl hover:bg-slate-100 transition-colors relative z-10">Nâng cấp ngay - Chỉ từ 49k</button>
           </div>

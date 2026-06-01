@@ -1,11 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
-const { getPackages, createVNPayUrl, vnpayIPN } = require('../controllers/paymentController');
+const { 
+  getPackages, 
+  createManualPayment,
+  sepayWebhook 
+} = require('../controllers/paymentController');
 
 router.get('/packages', protect, getPackages);
-router.post('/checkout', protect, createVNPayUrl);
-router.get('/vnpay-ipn', vnpayIPN); // Public webhook
+router.post('/checkout-manual', protect, createManualPayment);
+
+// SePay Webhook
+router.post('/sepay-webhook', sepayWebhook); // Change to POST for SePay
 
 // Credit history endpoints
 const { getCreditHistory, getAIUsageLogs } = require('../controllers/creditController');

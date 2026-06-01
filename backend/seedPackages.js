@@ -6,8 +6,8 @@ async function seedPackages() {
   await mongoose.connect(process.env.MONGODB_URI);
   
   const packages = [
-    { name: 'Basic', credits: 100, price: 0, description: 'Gói cơ bản miễn phí' },
-    { name: 'Pro', credits: 1000, price: 49000, description: 'Gói ôn thi chuyên sâu' },
+    { name: 'Basic', credits: 1000, price: 0, description: 'Gói cơ bản miễn phí' },
+    { name: 'Pro', credits: 2500, price: 49000, description: 'Gói ôn thi chuyên sâu' },
     { name: 'Premium', credits: 5000, price: 69000, description: 'Trải nghiệm không giới hạn' },
   ];
 

@@ -5,16 +5,32 @@ const {
   getUserAchievements,
   getAchievementsProgress,
   getWeeklyLeaderboard,
+  getMonthlyLeaderboard,
 } = require('../services/gamificationService');
 const User = require('../models/User');
+
+/**
+ * Helper to reset monthly XP if month changed
+ */
+const checkAndResetMonthlyXP = async (user) => {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  
+  if (!user.monthlyXPResetAt || user.monthlyXPResetAt < startOfMonth) {
+    user.monthlyXP = 0;
+    user.monthlyXPResetAt = startOfMonth;
+    await user.save();
+  }
+};
 
 // @desc    Lấy tổng quan gamification
 // @route   GET /api/gamification/overview
 const getGamificationOverview = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
+    await checkAndResetMonthlyXP(user);
     
-    // Pre-fetch data for achievements (last 30 days)
+    // ... rest of the code remains the same but updated below for clarity ...
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -29,19 +45,14 @@ const getGamificationOverview = async (req, res) => {
       })
     ]);
 
-    // Check và unlock achievements mới using pre-fetched data
     const newAchievements = await checkAndUnlockAchievements(req.user.id, quizResults, studySessions);
-    
-    // Lấy tất cả achievements với progress using pre-fetched data
     const achievements = await getAchievementsProgress(req.user.id, quizResults, studySessions);
     
-    // Lấy leaderboard (vẫn dùng service cũ vì leaderboard không phụ thuộc vào data riêng lẻ của user này)
-    const leaderboard = await getWeeklyLeaderboard(10);
+    // Default to monthly leaderboard for overview
+    const leaderboard = await getMonthlyLeaderboard(10);
     
-    // Tính user rank
     const userRank = leaderboard.findIndex((u) => u.userId.toString() === req.user.id.toString()) + 1;
 
-    // Tính level progress
     const currentLevelXP = (user.level - 1) * 500;
     const nextLevelXP = user.level * 500;
     const levelProgress = Math.round(((user.xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100);
@@ -51,6 +62,7 @@ const getGamificationOverview = async (req, res) => {
         name: user.name,
         avatar: user.avatar,
         xp: user.xp,
+        monthlyXP: user.monthlyXP,
         level: user.level,
         streak: user.streak,
         levelProgress,
@@ -93,8 +105,20 @@ const getAchievements = async (req, res) => {
 // @route   GET /api/gamification/leaderboard
 const getLeaderboard = async (req, res) => {
   try {
+    const type = req.query.type || 'monthly'; // 'weekly' or 'monthly'
     const limit = parseInt(req.query.limit) || 10;
-    const leaderboard = await getWeeklyLeaderboard(limit);
+    const month = req.query.month; // 0-11
+    const year = req.query.year;
+    
+    const user = await User.findById(req.user.id);
+    await checkAndResetMonthlyXP(user);
+
+    let leaderboard;
+    if (type === 'weekly') {
+      leaderboard = await getWeeklyLeaderboard(limit);
+    } else {
+      leaderboard = await getMonthlyLeaderboard(limit, month, year);
+    }
     
     const userRank = leaderboard.findIndex((u) => u.userId.toString() === req.user.id.toString()) + 1;
     

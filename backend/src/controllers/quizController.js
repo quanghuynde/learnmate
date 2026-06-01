@@ -86,6 +86,7 @@ const submitQuiz = async (req, res) => {
 
     const user = await User.findById(req.user.id);
     user.xp += xpEarned;
+    user.monthlyXP = (user.monthlyXP || 0) + xpEarned;
     user.level = Math.floor(user.xp / 500) + 1;
     await user.save();
     await updateStreak(user);

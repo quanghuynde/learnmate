@@ -3,6 +3,7 @@ const UserAchievement = require('../models/UserAchievement');
 const QuizResult = require('../models/QuizResult');
 const StudySession = require('../models/StudySession');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 
 /**
  * Kiểm tra và unlock achievements cho user
@@ -85,6 +86,7 @@ const checkAndUnlockAchievements = async (userId, quizResults, studySessions) =>
 
         // Thêm XP reward
         user.xp += achievement.xpReward;
+        user.monthlyXP = (user.monthlyXP || 0) + achievement.xpReward;
         user.level = Math.floor(user.xp / 500) + 1;
         await user.save();
 
@@ -203,26 +205,151 @@ const getAchievementsProgress = async (userId, quizResults, studySessions) => {
 };
 
 /**
- * Lấy leaderboard tuần
+ * Lấy leaderboard tuần (XP kiếm được trong 7 ngày qua)
  */
 const getWeeklyLeaderboard = async (limit = 10) => {
   try {
-    const users = await User.find({ role: 'student' })
-      .select('name email avatar xp level streak')
-      .sort({ xp: -1 })
-      .limit(limit);
+    const now = new Date();
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(now.getDate() - 7);
 
-    return users.map((user, index) => ({
-      rank: index + 1,
-      userId: user._id,
-      name: user.name,
-      avatar: user.avatar,
-      xp: user.xp,
-      level: user.level,
-      streak: user.streak,
-    }));
+    // 1. Lấy XP từ Quiz trong 7 ngày qua
+    const quizXP = await QuizResult.aggregate([
+      { $match: { createdAt: { $gte: sevenDaysAgo } } },
+      { $group: { _id: '$user', totalQuizXP: { $sum: '$xpEarned' } } }
+    ]);
+
+    // 2. Lấy XP từ Achievements trong 7 ngày qua
+    const achievementXP = await UserAchievement.aggregate([
+      { $match: { unlockedAt: { $gte: sevenDaysAgo } } },
+      {
+        $lookup: {
+          from: 'achievements',
+          localField: 'achievement',
+          foreignField: '_id',
+          as: 'meta'
+        }
+      },
+      { $unwind: '$meta' },
+      { $group: { _id: '$user', totalAchievementXP: { $sum: '$meta.xpReward' } } }
+    ]);
+
+    // 3. Hợp nhất kết quả
+    const userXPMap = new Map();
+    
+    quizXP.forEach(item => {
+      userXPMap.set(item._id.toString(), item.totalQuizXP);
+    });
+
+    achievementXP.forEach(item => {
+      const userId = item._id.toString();
+      const current = userXPMap.get(userId) || 0;
+      userXPMap.set(userId, current + item.totalAchievementXP);
+    });
+
+    // 4. Chuyển sang array và lấy info user
+    const usersData = Array.from(userXPMap.entries())
+      .map(([userId, xp]) => ({ userId, xp }))
+      .sort((a, b) => b.xp - a.xp)
+      .slice(0, limit);
+
+    const userIds = usersData.map(u => u.userId);
+    const usersInfo = await User.find({ _id: { $in: userIds } }).select('name avatar level streak');
+
+    const result = usersData.map((u, index) => {
+      const info = usersInfo.find(i => i._id.toString() === u.userId);
+      return {
+        rank: index + 1,
+        userId: u.userId,
+        name: info?.name || 'Unknown',
+        avatar: info?.avatar,
+        xp: u.xp,
+        level: info?.level || 1,
+        streak: info?.streak || 0,
+      };
+    });
+
+    return result;
   } catch (error) {
-    console.error('Error getting leaderboard:', error);
+    console.error('Error getting weekly leaderboard:', error);
+    return [];
+  }
+};
+
+
+/**
+ * Lấy leaderboard tháng (đã refactor sang aggregation)
+ */
+const getMonthlyLeaderboard = async (limit = 10, month, year) => {
+  try {
+    const now = new Date();
+    const m = month !== undefined ? parseInt(month) : now.getMonth();
+    const y = year !== undefined ? parseInt(year) : now.getFullYear();
+    
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 1);
+
+    // 1. Lấy XP từ Quiz
+    const quizXP = await QuizResult.aggregate([
+      { $match: { createdAt: { $gte: start, $lt: end } } },
+      { $group: { _id: '$user', totalQuizXP: { $sum: '$xpEarned' } } }
+    ]);
+
+    // 2. Lấy XP từ Achievements (cần join với bảng Achievement để lấy xpReward)
+    const achievementXP = await UserAchievement.aggregate([
+      { $match: { unlockedAt: { $gte: start, $lt: end } } },
+      {
+        $lookup: {
+          from: 'achievements',
+          localField: 'achievement',
+          foreignField: '_id',
+          as: 'meta'
+        }
+      },
+      { $unwind: '$meta' },
+      { $group: { _id: '$user', totalAchievementXP: { $sum: '$meta.xpReward' } } }
+    ]);
+
+    // 3. Hợp nhất kết quả
+    const userXPMap = new Map();
+    
+    quizXP.forEach(item => {
+      userXPMap.set(item._id.toString(), item.totalQuizXP);
+    });
+
+    achievementXP.forEach(item => {
+      const userId = item._id.toString();
+      const current = userXPMap.get(userId) || 0;
+      userXPMap.set(userId, current + item.totalAchievementXP);
+    });
+
+    // 4. Chuyển sang array và lấy info user
+    const usersData = Array.from(userXPMap.entries())
+      .map(([userId, xp]) => ({ userId, xp }))
+      .sort((a, b) => b.xp - a.xp)
+      .slice(0, limit);
+
+    // Join với bảng User để lấy tên và avatar
+    const User = require('../models/User');
+    const userIds = usersData.map(u => u.userId);
+    const usersInfo = await User.find({ _id: { $in: userIds } }).select('name avatar level streak');
+
+    const result = usersData.map((u, index) => {
+      const info = usersInfo.find(i => i._id.toString() === u.userId);
+      return {
+        rank: index + 1,
+        userId: u.userId,
+        name: info?.name || 'Unknown',
+        avatar: info?.avatar,
+        xp: u.xp,
+        level: info?.level || 1,
+        streak: info?.streak || 0,
+      };
+    });
+
+    return result;
+  } catch (error) {
+    console.error('Error getting monthly leaderboard:', error);
     return [];
   }
 };
@@ -232,4 +359,5 @@ module.exports = {
   getUserAchievements,
   getAchievementsProgress,
   getWeeklyLeaderboard,
+  getMonthlyLeaderboard,
 };
