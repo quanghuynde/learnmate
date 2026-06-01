@@ -63,6 +63,17 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 1,
     },
+    monthlyXP: {
+      type: Number,
+      default: 0,
+    },
+    monthlyXPResetAt: {
+      type: Date,
+      default: function() {
+        const d = new Date();
+        return new Date(d.getFullYear(), d.getMonth(), 1); // Start of current month
+      }
+    },
     preferences: {
       studyTime: {
         type: String,
@@ -121,6 +132,10 @@ const userSchema = new mongoose.Schema(
     lastCreditReset: {
       type: Date,
       default: Date.now,
+    },
+    subscriptionExpiresAt: {
+      type: Date,
+      default: null,
     },
     refreshToken: {
       type: String,
