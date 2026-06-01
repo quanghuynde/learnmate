@@ -19,10 +19,11 @@ interface CommunityProps {
 }
 
 export function Community({ token, user }: CommunityProps) {
-  const [activeTab, setActiveTab] = useState('posts') // Start with posts as requested
+  const [activeTab, setActiveTab] = useState('leaderboard')
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false)
   
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState<string>('monthly-current')
   const [posts, setPosts] = useState<PostItem[]>([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   const [postContent, setPostContent] = useState('')
@@ -32,12 +33,13 @@ export function Community({ token, user }: CommunityProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [isPosting, setIsPosting] = useState(false)
 
-  useEffect(() => {
-    if (token) {
-      if (activeTab === 'leaderboard') fetchLeaderboard()
-      if (activeTab === 'posts') fetchPosts()
-    }
-  }, [token, activeTab])
+  // Parse period string (e.g., 'monthly-0-2026')
+  const getLeaderboardParams = (period: string) => {
+    if (period === 'weekly') return { type: 'weekly' };
+    if (period === 'monthly-current') return { type: 'monthly' };
+    const [type, m, y] = period.split('-');
+    return { type, month: parseInt(m), year: parseInt(y) };
+  }
 
   const fetchPosts = async (search?: string) => {
     setLoadingPosts(true)
@@ -65,7 +67,8 @@ export function Community({ token, user }: CommunityProps) {
   const fetchLeaderboard = async () => {
     setLoadingLeaderboard(true)
     try {
-      const res = await api.getLeaderboard(token, 10)
+      const params = getLeaderboardParams(leaderboardPeriod);
+      const res = await api.getLeaderboard(token, 10, params.type, params.month, params.year)
       setLeaderboard(res.leaderboard)
     } catch (err: any) {
       console.error('Failed to fetch leaderboard:', err)
@@ -74,7 +77,36 @@ export function Community({ token, user }: CommunityProps) {
     }
   }
 
+  useEffect(() => {
+    if (token) {
+      if (activeTab === 'leaderboard') fetchLeaderboard()
+      if (activeTab === 'posts') fetchPosts()
+    }
+  }, [token, activeTab, leaderboardPeriod])
+
+  // Generate week options
+  const weekOptions = React.useMemo(() => [
+    { id: 'weekly', label: 'Tuần này' },
+    { id: 'weekly-last', label: 'Tuần trước' }
+  ], []);
+
+  // Generate month options
+  const monthOptions = React.useMemo(() => {
+    const options = [];
+    const now = new Date();
+    
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const m = d.getMonth();
+      const y = d.getFullYear();
+      const label = i === 0 ? `Tháng này` : `Tháng ${String(m + 1).padStart(2, '0')}/${y}`;
+      options.push({ id: `monthly-${m}-${y}`, label });
+    }
+    return options;
+  }, []);
+
   const getReadyPercentage = (item: LeaderboardItem) => {
+    // Treat XP as monthly XP if monthly subtab
     const baseScore = Math.min(100, Math.max(0, item.xp / 10))
     return `${Math.round(baseScore)}%`
   }
@@ -147,6 +179,14 @@ export function Community({ token, user }: CommunityProps) {
         .toUpperCase()
     : '?'
 
+  const getRewardInfo = (rank: number) => {
+    // Reward for both weekly and monthly for now, as requested
+    if (rank === 1) return { amount: 80, icon: <Trophy size={14} className="text-accent" /> };
+    if (rank === 2) return { amount: 60, icon: <Medal size={14} className="text-slate-400" /> };
+    if (rank === 3) return { amount: 40, icon: <Medal size={14} className="text-orange-400" /> };
+    return null;
+  }
+
   return (
     <div className="max-w-5xl mx-auto pb-20 space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -204,6 +244,49 @@ export function Community({ token, user }: CommunityProps) {
           }}
           className="space-y-8"
         >
+          {/* Custom Selects for Leaderboard Period */}
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            {/* Week Filter */}
+            <div className="relative w-full max-w-[200px]">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block px-2">Lọc theo tuần</label>
+              <select
+                value={leaderboardPeriod.startsWith('weekly') ? leaderboardPeriod : ''}
+                onChange={(e) => {
+                  if (e.target.value) setLeaderboardPeriod(e.target.value);
+                }}
+                className="w-full h-11 pl-4 pr-10 bg-white border border-slate-200 rounded-2xl text-sm font-bold appearance-none outline-none focus:border-primary shadow-sm cursor-pointer transition-all hover:bg-slate-50"
+              >
+                <option value="" disabled>Chọn tuần...</option>
+                {weekOptions.map(opt => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+              <div className="absolute right-4 top-[34px] pointer-events-none text-slate-400">
+                <PlusCircle size={18} className="rotate-45" />
+              </div>
+            </div>
+
+            {/* Month Filter */}
+            <div className="relative w-full max-w-[200px]">
+               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block px-2">Lọc theo tháng</label>
+              <select
+                value={leaderboardPeriod.startsWith('monthly') ? leaderboardPeriod : ''}
+                onChange={(e) => {
+                  if (e.target.value) setLeaderboardPeriod(e.target.value);
+                }}
+                className="w-full h-11 pl-4 pr-10 bg-white border border-slate-200 rounded-2xl text-sm font-bold appearance-none outline-none focus:border-primary shadow-sm cursor-pointer transition-all hover:bg-slate-50"
+              >
+                <option value="" disabled>Chọn tháng...</option>
+                {monthOptions.map(opt => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+              <div className="absolute right-4 top-[34px] pointer-events-none text-slate-400">
+                <PlusCircle size={18} className="rotate-45" />
+              </div>
+            </div>
+          </div>
+
           {leaderboard.length > 0 && (
             <div className="flex justify-center items-end gap-4 h-64 pt-10">
               {leaderboard[1] && (
@@ -220,6 +303,7 @@ export function Community({ token, user }: CommunityProps) {
                     <span className="text-xs font-medium text-slate-600 mt-1">
                       {getReadyPercentage(leaderboard[1])}
                     </span>
+                    <span className="mt-2 px-2 py-0.5 bg-white/50 rounded-full text-[10px] font-bold text-slate-600">+60 CR</span>
                   </div>
                 </div>
               )}
@@ -239,6 +323,7 @@ export function Community({ token, user }: CommunityProps) {
                       1
                     </span>
                     <span className="text-sm font-bold text-white mt-1">{getReadyPercentage(leaderboard[0])}</span>
+                    <span className="mt-3 px-3 py-1 bg-white/30 backdrop-blur-sm rounded-full text-[10px] font-black text-white">+80 CR</span>
                   </div>
                 </div>
               )}
@@ -257,6 +342,7 @@ export function Community({ token, user }: CommunityProps) {
                     <span className="text-xs font-medium text-orange-800 mt-1">
                       {getReadyPercentage(leaderboard[2])}
                     </span>
+                    <span className="mt-1 px-2 py-0.5 bg-white/50 rounded-full text-[10px] font-bold text-orange-800">+40 CR</span>
                   </div>
                 </div>
               )}
@@ -269,9 +355,9 @@ export function Community({ token, user }: CommunityProps) {
                 <tr className="bg-slate-50 text-xs font-bold text-slate-500 uppercase">
                   <th className="p-4 pl-6 w-16">Hạng</th>
                   <th className="p-4">Sinh viên</th>
-                  <th className="p-4 text-center">Sẵn sàng</th>
+                  <th className="p-4 text-center">XP tích luỹ</th>
                   <th className="p-4 text-center">Chuỗi</th>
-                  <th className="p-4 text-center">Quiz</th>
+                  <th className="p-4 text-center">Thưởng</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -288,49 +374,59 @@ export function Community({ token, user }: CommunityProps) {
                     </td>
                   </tr>
                 ) : (
-                  leaderboard.map((u: LeaderboardItem) => (
-                    <tr
-                      key={u.rank}
-                      className={`hover:bg-slate-50 transition-colors ${u.userId === user?.id ? 'bg-primary/5' : ''}`}
-                    >
-                      <td className="p-4 pl-6 font-bold text-slate-400">
-                        {u.rank === 1 ? (
-                          <Medal className="text-accent" />
-                        ) : u.rank === 2 ? (
-                          <Medal className="text-slate-400" />
-                        ) : u.rank === 3 ? (
-                          <Medal className="text-orange-400" />
-                        ) : (
-                          `#${u.rank}`
-                        )}
-                      </td>
-                      <td className="p-4 flex items-center gap-3">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden ${u.userId === user?.id ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}
-                        >
-                          {u.avatar ? (
-                            <img src={u.avatar} alt={u.name} className="w-full h-full rounded-full object-cover" />
+                  leaderboard.map((u: LeaderboardItem, idx: number) => {
+                    const reward = getRewardInfo(idx + 1);
+                    return (
+                      <tr
+                        key={u.userId}
+                        className={`hover:bg-slate-50 transition-colors ${u.userId === user?.id ? 'bg-primary/5' : ''}`}
+                      >
+                        <td className="p-4 pl-6 font-bold text-slate-400">
+                          {idx === 0 ? (
+                            <Medal className="text-accent" />
+                          ) : idx === 1 ? (
+                            <Medal className="text-slate-400" />
+                          ) : idx === 2 ? (
+                            <Medal className="text-orange-400" />
                           ) : (
-                            u.name.substring(0, 2).toUpperCase()
+                            `#${idx + 1}`
                           )}
-                        </div>
-                        <span
-                          className={`font-medium ${u.userId === user?.id ? 'text-primary font-bold' : 'text-text-primary'}`}
-                        >
-                          {u.name} {u.userId === user?.id && '(Bạn)'}
-                        </span>
-                      </td>
-                      <td className="p-4 text-center font-bold text-text-primary">
-                        {getReadyPercentage(u)}
-                      </td>
-                      <td className="p-4 text-center text-orange-500 font-medium flex items-center justify-center gap-1">
-                        <Flame size={14} /> {u.streak}
-                      </td>
-                      <td className="p-4 text-center text-slate-600">
-                        {Math.floor(u.xp / 50)}
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="p-4 flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden ${u.userId === user?.id ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}
+                          >
+                            {u.avatar ? (
+                              <img src={u.avatar} alt={u.name} className="w-full h-full rounded-full object-cover" />
+                            ) : (
+                              u.name.substring(0, 2).toUpperCase()
+                            )}
+                          </div>
+                          <span
+                            className={`font-medium ${u.userId === user?.id ? 'text-primary font-bold' : 'text-text-primary'}`}
+                          >
+                            {u.name} {u.userId === user?.id && '(Bạn)'}
+                          </span>
+                        </td>
+                        <td className="p-4 text-center font-bold text-primary">
+                          {u.xp.toLocaleString()} XP
+                        </td>
+                        <td className="p-4 text-center text-orange-500 font-medium flex items-center justify-center gap-1">
+                          <Flame size={14} /> {u.streak}
+                        </td>
+                        <td className="p-4 text-center">
+                          {reward ? (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/5 text-primary rounded-full text-[10px] font-black border border-primary/10">
+                              {reward.icon}
+                              +{reward.amount} CR
+                            </div>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
