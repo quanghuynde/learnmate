@@ -9,7 +9,6 @@ import {
   TrendingUp,
   Users,
   MessageSquare,
-  UserCheck,
   ChevronLeft,
   ChevronRight,
   Sparkles,
@@ -40,7 +39,6 @@ const navItems = [
   { id: 'progress', label: 'Tiến độ', icon: TrendingUp },
   { id: 'community', label: 'Cộng đồng', icon: Users },
   { id: 'video', label: 'Đối thoại AI', icon: MessageSquare },
-  { id: 'mentor', label: 'Hỗ trợ Mentor', icon: UserCheck },
   { id: 'pricing', label: 'Gói Credit', icon: Coins },
   { id: 'history', label: 'Lịch sử Credit', icon: Clock },
 ];
