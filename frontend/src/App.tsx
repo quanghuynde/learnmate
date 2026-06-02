@@ -16,7 +16,6 @@ const ExamReadiness = lazy(() => import('./pages/ExamReadiness').then(m => ({ de
 const Progress = lazy(() => import('./pages/Progress').then(m => ({ default: m.Progress })));
 const Community = lazy(() => import('./pages/Community').then(m => ({ default: m.Community })));
 const AIDialogue = lazy(() => import('./pages/AIDialogue').then(m => ({ default: m.AIDialogue })));
-const HybridMentoring = lazy(() => import('./pages/HybridMentoring').then(m => ({ default: m.HybridMentoring })));
 const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const Gamification = lazy(() => import('./pages/Gamification').then(m => ({ default: m.Gamification })));
 const Pricing = lazy(() => import('./pages/Pricing').then(m => ({ default: m.Pricing })));
@@ -136,8 +135,6 @@ case 'community':
          return <Community token={token} user={user} />;
       case 'video':
         return <AIDialogue token={token} />;
-      case 'mentor':
-        return <HybridMentoring />;
       case 'profile':
         return <Profile token={token} user={user} onLogout={handleLogout} />;
       case 'gamification':

@@ -6,7 +6,7 @@ export function AICompanion() {
   const [messages, setMessages] = useState([
   {
     id: 1,
-    text: 'Chào Alex! Bạn còn 12 ngày nữa là thi môn Hệ CSDL. Hôm nay bạn muốn ôn tập phần nào?',
+    text: 'Chào Bạn! Sắp tới ngày thi. Hôm nay bạn muốn ôn tập phần nào?',
     isAi: true
   }]
   );
@@ -28,7 +28,7 @@ export function AICompanion() {
       ...prev,
       {
         id: Date.now(),
-        text: 'Tuyệt vời! Mình sẽ chuẩn bị một bài Quiz nhỏ về Chuẩn hóa dữ liệu cho bạn nhé.',
+        text: 'Tuyệt vời! Mình sẽ chuẩn bị một bài Quiz nhỏ cho bạn nhé.',
         isAi: true
       }]
       );
