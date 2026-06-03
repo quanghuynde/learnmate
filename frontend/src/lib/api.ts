@@ -153,17 +153,48 @@ export type ExamReadinessData = {
   }>;
 };
 
+export type StudyPlanTask = {
+  _id: string;
+  title: string;
+  duration: string;
+  type: 'Đọc tài liệu' | 'Thực hành' | 'Ôn tập' | 'Xem video' | 'Khác';
+  status: 'todo' | 'doing' | 'done';
+  time: string;
+};
+
+export type WeeklyGoal = {
+  _id?: string;
+  text: string;
+  completed: boolean;
+};
+
 export type StudyPlanItem = {
   _id: string;
   subject: string;
-  tasks: Array<{
-    _id: string;
-    title: string;
-    duration: string;
-    type: string;
-    status: string;
-    time?: string;
-  }>;
+  date: string;
+  examDate?: string;
+  intensity: 'light' | 'moderate' | 'intense';
+  weakTopics: string[];
+  weeklyGoals: WeeklyGoal[];
+  tasks: StudyPlanTask[];
+  createdAt: string;
+};
+
+export type KnowledgeMapNode = {
+  id: string;
+  label: string;
+  subjectId?: string;
+  color: string;
+  status?: 'done' | 'doing' | 'todo';
+  x?: number;
+  y?: number;
+};
+
+export type KnowledgeMapData = {
+  subjects: Array<{ id: string; label: string; color: string }>;
+  topics: Array<{ id: string; label: string; subjectId: string; status: 'done' | 'doing' | 'todo' }>;
+  connections: Array<{ from: string; to: string }>;
+  aiInsight: string;
 };
 
 export type NotificationItem = {
@@ -320,9 +351,16 @@ export const api = {
   getExamReadiness: (token: string, examId: string) =>
     cachedRequest<ExamReadinessData>(`readiness_${examId}`, `/exams/${examId}/readiness`, { token }),
 
-  getStudyPlans: (token: string) => request<{ studyPlans: StudyPlanItem[] }>('/study-plans', { token }),
+  getStudyPlans: (token: string, date?: string) =>
+    request<{ studyPlans: StudyPlanItem[] }>(`/study-plans${date ? `?date=${date}` : ''}`, { token }),
   createStudyPlan: (token: string, data: any) =>
-    request<any>('/study-plans', { method: 'POST', token, body: data }),
+    request<{ studyPlan: StudyPlanItem }>('/study-plans', { method: 'POST', token, body: data }),
+  updateStudyPlan: (token: string, id: string, data: any) =>
+    request<{ studyPlan: StudyPlanItem }>(`/study-plans/${id}`, { method: 'PUT', token, body: data }),
+  updateTaskStatus: (token: string, planId: string, taskId: string, status: 'todo' | 'doing' | 'done') =>
+    request<{ studyPlan: StudyPlanItem }>(`/study-plans/${planId}/tasks/${taskId}`, { method: 'PUT', token, body: { status } }),
+  deleteStudyPlan: (token: string, id: string) =>
+    request<{ message: string }>(`/study-plans/${id}`, { method: 'DELETE', token }),
 
   getProgressOverview: (token: string) =>
     cachedRequest<any>('progress_overview', '/progress/overview', { token }),
@@ -414,4 +452,13 @@ export const api = {
 
   generateDialogue: (token: string, data: { documentId: string; language: string; speakerFemaleName: string; speakerMaleName: string }) =>
     request<{ dialogue: string }>('/ai/generate-dialogue', { method: 'POST', token, body: data }),
+
+  generateKnowledgeMap: (token: string, documentIds: string[], title?: string) =>
+    request<{ mapData: KnowledgeMapData; mapId: string; title: string }>('/ai/generate-knowledge-map', { method: 'POST', token, body: { documentIds, title } }),
+  getKnowledgeMaps: (token: string) => 
+    request<{ maps: any[] }>('/ai/knowledge-maps', { token }),
+  getKnowledgeMapById: (token: string, id: string) => 
+    request<{ mapData: KnowledgeMapData; title: string }>(`/ai/knowledge-maps/${id}`, { token }),
+  deleteKnowledgeMap: (token: string, id: string) => 
+    request<{ message: string }>(`/ai/knowledge-maps/${id}`, { method: 'DELETE', token }),
 };

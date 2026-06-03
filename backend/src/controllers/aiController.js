@@ -1,4 +1,5 @@
 const Document = require('../models/Document');
+const KnowledgeMap = require('../models/KnowledgeMap');
 const { deductCredits, hasEnoughCredits } = require('../services/creditService');
 const UsageLog = require('../models/UsageLog');
 
@@ -310,4 +311,158 @@ Yêu cầu:
   }
 };
 
-module.exports = { summarizeDocument, generateQuiz, generateSummaryFromText, generateDialogue };
+// @desc  Tạo bản đồ kiến thức từ nhiều tài liệu
+// @route POST /api/ai/generate-knowledge-map
+// @access Private
+const generateKnowledgeMap = async (req, res) => {
+  try {
+    const { documentIds, title } = req.body;
+    if (!documentIds || !documentIds.length) {
+      return res.status(400).json({ message: 'Thiếu documentIds' });
+    }
+
+    // Check knowledge map limit based on subscription tier
+    let tier = req.user.subscriptionTier || 'Basic';
+    if (tier !== 'Basic' && req.user.subscriptionExpiresAt && new Date(req.user.subscriptionExpiresAt) < new Date()) {
+      tier = 'Basic';
+    }
+
+    const currentMapsCount = await KnowledgeMap.countDocuments({ user: req.user.id });
+    const limits = { 'Basic': 5, 'Pro': 20, 'Premium': Infinity };
+    const userLimit = limits[tier] || 5;
+
+    if (currentMapsCount >= userLimit) {
+      return res.status(403).json({ 
+        message: `Bạn đã đạt giới hạn tạo bản đồ tri thức tối đa (${userLimit} bản đồ) cho gói ${tier}. Vui lòng xóa bớt bản đồ cũ hoặc nâng cấp gói để tiếp tục.` 
+      });
+    }
+
+    // Check credits
+    const canProceed = await hasEnoughCredits(req.user.id, 'KNOWLEDGE_MAP');
+    if (!canProceed) {
+      return res.status(402).json({ message: 'Bạn không đủ Credit để tạo bản đồ kiến thức.' });
+    }
+
+    const docs = await Document.find({ _id: { $in: documentIds }, user: req.user.id });
+    if (!docs.length) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
+
+    const combinedContent = docs.map((d) => d.content || '').join('\n\n---\n\n').trim().slice(0, 15000);
+    if (!combinedContent || combinedContent.length < 50) {
+      return res.status(400).json({ message: 'Tài liệu chưa được xử lý xong hoặc không có đủ nội dung để phân tích kiến thức.' });
+    }
+
+    const prompt = `Bạn là một chuyên gia phân tích dữ liệu giáo dục. Dựa trên nội dung của các tài liệu sau, hãy trích xuất các chủ đề chính và các mối liên hệ giữa chúng để tạo thành một sơ đồ tri thức (Knowledge Map).
+
+TÀI LIỆU:
+---
+${combinedContent}
+---
+
+YÊU CẦU ĐỊNH DẠNG JSON (Không trả về gì khác ngoài JSON):
+{
+  "subjects": [
+    { "id": "s1", "label": "Tên ngành học/Lĩnh vực", "color": "bg-blue-500" }
+  ],
+  "topics": [
+    { "id": "t1", "label": "Tên chủ đề cụ thể", "subjectId": "s1", "status": "done|doing|todo" }
+  ],
+  "connections": [
+    { "from": "id_nguon", "to": "id_dich" }
+  ],
+  "aiInsight": "Mô tả ngắn (1-2 câu) về một liên hệ thú vị hoặc xu hướng kiến thức mà AI phát hiện được từ các tài liệu này."
+}
+
+LƯU Ý: 
+- Chỉ trích xuất từ 1-4 ngành học chính.
+- Mỗi ngành học có 3-5 chủ đề.
+- "status" đánh giá dựa trên mức độ phổ biến hoặc độ khó (phỏng đoán).
+- Màu sắc cho ngành học sử dụng các class Tailwind (bg-blue-500, bg-emerald-500, bg-purple-500, bg-orange-500, bg-pink-500, bg-cyan-500).`;
+
+    const result = await callAI(
+      prompt,
+      "Bạn là một trợ lý AI phân tích kiến thức chuyên nghiệp. Bạn chỉ trả về định dạng JSON Array/Object chính xác. Nếu không đủ nội dung, trả về cấu trúc rỗng với error message.",
+      { max_tokens: 4000, response_format: { type: "json_object" } }
+    );
+
+    // Parse result
+    let mapData;
+    try {
+      mapData = JSON.parse(result.content);
+    } catch (e) {
+      console.error('Failed to parse AI Knowledge Map response:', e);
+      return res.status(500).json({ message: 'Lỗi định dạng dữ liệu từ AI. Vui lòng thử lại.' });
+    }
+
+    // Deduct credits
+    await deductCredits(req.user.id, 'KNOWLEDGE_MAP', { 
+      documentIds, 
+      promptTokens: result.usage.promptTokens,
+      completionTokens: result.usage.completionTokens
+    });
+
+    // Save to DB
+    const newMap = await KnowledgeMap.create({
+      user: req.user.id,
+      title: title || docs.map(d => d.name).join(', ').substring(0, 50) || 'Bản đồ kiến thức không tên',
+      documentIds,
+      mapData
+    });
+
+    res.json({ mapData: newMap.mapData, mapId: newMap._id, title: newMap.title });
+  } catch (error) {
+    console.error('AI Knowledge Map error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc  Lấy danh sách bản đồ kiến thức đã lưu
+// @route GET /api/ai/knowledge-maps
+// @access Private
+const getKnowledgeMaps = async (req, res) => {
+  try {
+    const maps = await KnowledgeMap.find({ user: req.user.id })
+      .select('title createdAt documentIds')
+      .sort({ createdAt: -1 });
+    res.json({ maps });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc  Lấy chi tiết một bản đồ kiến thức
+// @route GET /api/ai/knowledge-maps/:id
+// @access Private
+const getKnowledgeMapById = async (req, res) => {
+  try {
+    const map = await KnowledgeMap.findOne({ _id: req.params.id, user: req.user.id });
+    if (!map) return res.status(404).json({ message: 'Không tìm thấy bản đồ' });
+    res.json({ mapData: map.mapData, title: map.title });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc  Xóa bản đồ kiến thức
+// @route DELETE /api/ai/knowledge-maps/:id
+// @access Private
+const deleteKnowledgeMap = async (req, res) => {
+  try {
+    const map = await KnowledgeMap.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    if (!map) return res.status(404).json({ message: 'Không tìm thấy bản đồ để xóa' });
+    res.json({ message: 'Đã xóa bản đồ kiến thức thành công' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { 
+  summarizeDocument, 
+  generateQuiz, 
+  generateSummaryFromText, 
+  generateDialogue, 
+  generateKnowledgeMap,
+  getKnowledgeMaps,
+  getKnowledgeMapById,
+  deleteKnowledgeMap
+};
+

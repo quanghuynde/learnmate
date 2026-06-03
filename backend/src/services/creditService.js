@@ -9,6 +9,7 @@ const FEATURE_COSTS = {
   GENERATE_EXAM: 15, // Added as a placeholder
   AI_CHAT: 1,
   AI_DIALOGUE: 5, // Matching current feature
+  KNOWLEDGE_MAP: 10,
 };
 
 /**
