@@ -137,6 +137,11 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    subscriptionTier: {
+      type: String,
+      enum: ['Basic', 'Pro', 'Premium'],
+      default: 'Basic',
+    },
     refreshToken: {
       type: String,
       select: false,
