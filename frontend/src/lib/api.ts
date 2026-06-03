@@ -153,17 +153,54 @@ export type ExamReadinessData = {
   }>;
 };
 
+export type StudyPlanGoal = {
+  text: string;
+  completed: boolean;
+};
+
+export type StudyPlanTask = {
+  _id: string;
+  title: string;
+  duration: string;
+  type: string;
+  status: string;
+  time?: string;
+};
+
 export type StudyPlanItem = {
   _id: string;
   subject: string;
-  tasks: Array<{
-    _id: string;
-    title: string;
-    duration: string;
-    type: string;
-    status: string;
-    time?: string;
-  }>;
+  examDate?: string;
+  intensity?: 'light' | 'moderate' | 'intense';
+  weakTopics?: string[];
+  weeklyGoals?: StudyPlanGoal[];
+  tasks: StudyPlanTask[];
+  date: string;
+};
+
+export type KnowledgeMapNode = {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  color?: string;
+  size?: string;
+};
+
+export type KnowledgeMapEdge = {
+  from: string;
+  to: string;
+};
+
+export type KnowledgeMapItem = {
+  _id: string;
+  documentIds: string[];
+  nodes: KnowledgeMapNode[];
+  connections: KnowledgeMapEdge[];
+  crossLinks: KnowledgeMapEdge[];
+  aiInsight?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type NotificationItem = {
@@ -182,6 +219,7 @@ export type DocumentItem = {
   fileUrl: string;
   fileSize: number;
   status: string;
+  topics?: string[]
   content?: string;
   createdAt: string;
 };
@@ -320,9 +358,25 @@ export const api = {
   getExamReadiness: (token: string, examId: string) =>
     cachedRequest<ExamReadinessData>(`readiness_${examId}`, `/exams/${examId}/readiness`, { token }),
 
-  getStudyPlans: (token: string) => request<{ studyPlans: StudyPlanItem[] }>('/study-plans', { token }),
+  getStudyPlans: (token: string, params?: { from?: string; to?: string; date?: string }) => {
+    const query = params
+      ? Object.entries(params)
+          .filter(([, value]) => value !== undefined && value !== null && value !== '')
+          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value as string)}`)
+          .join('&')
+      : '';
+    return request<{ studyPlans: StudyPlanItem[] }>(`/study-plans${query ? `?${query}` : ''}`, { token });
+  },
   createStudyPlan: (token: string, data: any) =>
     request<any>('/study-plans', { method: 'POST', token, body: data }),
+  updateStudyPlan: (token: string, id: string, data: any) =>
+    request<{ studyPlan: StudyPlanItem }>(`/study-plans/${id}`, { method: 'PUT', token, body: data }),
+  updateTaskStatus: (token: string, planId: string, taskId: string, status: string) =>
+    request<{ studyPlan: StudyPlanItem }>(`/study-plans/${planId}/tasks/${taskId}`, {
+      method: 'PUT',
+      token,
+      body: { status },
+    }),
 
   getProgressOverview: (token: string) =>
     cachedRequest<any>('progress_overview', '/progress/overview', { token }),
@@ -344,6 +398,14 @@ export const api = {
     formData.append('file', file);
     return request<any>('/documents', { method: 'POST', token, body: formData });
   },
+
+  getKnowledgeMaps: (token: string) => request<{ knowledgeMaps: KnowledgeMapItem[] }>('/knowledge-maps', { token }),
+  createKnowledgeMap: (token: string, documentIds: string[]) =>
+    request<{ knowledgeMap: KnowledgeMapItem }>('/knowledge-maps', { method: 'POST', token, body: { documentIds } }),
+  regenerateKnowledgeMap: (token: string, id: string) =>
+    request<{ knowledgeMap: KnowledgeMapItem }>(`/knowledge-maps/${id}/regenerate`, { method: 'POST', token }),
+  updateKnowledgeMap: (token: string, id: string, data: any) =>
+    request<{ knowledgeMap: KnowledgeMapItem }>(`/knowledge-maps/${id}`, { method: 'PUT', token, body: data }),
 
   deleteDocument: (token: string, id: string) =>
     request<any>(`/documents/${id}`, { method: 'DELETE', token }),

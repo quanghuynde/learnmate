@@ -7,6 +7,7 @@ const authRoutes = require('./src/routes/authRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const documentRoutes = require('./src/routes/documentRoutes');
 const studyPlanRoutes = require('./src/routes/studyPlanRoutes');
+const knowledgeMapRoutes = require('./src/routes/knowledgeMapRoutes');
 const quizRoutes = require('./src/routes/quizRoutes');
 const postRoutes = require('./src/routes/postRoutes');
 const examRoutes = require('./src/routes/examRoutes');
@@ -23,14 +24,6 @@ const { initCreditRenewalJob } = require('./src/services/creditRenewalService');
 const { startWeeklyRankingRewardJob } = require('./src/services/rankingRewardService');
 
 const { resumeProcessing } = require('./src/controllers/documentController');
-
-// Kết nối MongoDB
-connectDB().then(() => {
-  resumeProcessing();
-});
-startDailyReminderJob();
-initCreditRenewalJob();
-startWeeklyRankingRewardJob();
 
 const app = express();
 
@@ -58,6 +51,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/study-plans', studyPlanRoutes);
+app.use('/api/knowledge-maps', knowledgeMapRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/exams', examRoutes);
@@ -83,9 +77,22 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server đang chạy tại http://localhost:${PORT}`);
-  console.log(`📡 Môi trường: ${process.env.NODE_ENV}`);
-  console.log(`🔑 Google Client ID: ${process.env.GOOGLE_CLIENT_ID ? 'Đã nạp ✅' : 'Chưa có ❌'}`);
-  console.log(`📧 SMTP User: ${process.env.SMTP_USER ? 'Đã nạp ✅' : 'Chưa có ❌'}`);
-});
+
+connectDB()
+  .then(() => {
+    resumeProcessing();
+    startDailyReminderJob();
+    initCreditRenewalJob();
+    startWeeklyRankingRewardJob();
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Server đang chạy tại http://localhost:${PORT}`);
+      console.log(`📡 Môi trường: ${process.env.NODE_ENV}`);
+      console.log(`🔑 Google Client ID: ${process.env.GOOGLE_CLIENT_ID ? 'Đã nạp ✅' : 'Chưa có ❌'}`);
+      console.log(`📧 SMTP User: ${process.env.SMTP_USER ? 'Đã nạp ✅' : 'Chưa có ❌'}`);
+    });
+  })
+  .catch((error) => {
+    console.error('❌ Lỗi khi kết nối MongoDB hoặc khởi tạo service:', error);
+    process.exit(1);
+  });

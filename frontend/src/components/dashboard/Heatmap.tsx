@@ -1,15 +1,22 @@
 import React, { useMemo } from 'react';
 
 interface HeatmapProps {
-  data: Array<{ date: string; score: number }>;
+  data?: Array<{ date?: string; score?: number }>;
 }
 
-export const Heatmap: React.FC<HeatmapProps> = ({ data }) => {
+export const Heatmap: React.FC<HeatmapProps> = ({ data = [] }) => {
   const weeks = useMemo(() => {
-    if (!data.length) return [];
-    
+    if (!Array.isArray(data) || data.length === 0) return [];
+
+    const validData = data
+      .filter((item): item is { date: string; score: number } =>
+        item && typeof item.date === 'string' && item.date.length > 0 && typeof item.score === 'number' && !Number.isNaN(Date.parse(item.date))
+      );
+
+    if (!validData.length) return [];
+
     // Sort data by date just in case
-    const sortedData = [...data].sort((a, b) => a.date.localeCompare(b.date));
+    const sortedData = [...validData].sort((a, b) => a.date.localeCompare(b.date));
     
     // Map data to weeks
     // We want to group by 7 days. Today is the last day of the last week.

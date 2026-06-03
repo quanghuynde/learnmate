@@ -3,10 +3,23 @@ const { createUserNotification } = require('../services/notificationService');
 
 const getStudyPlans = async (req, res) => {
   try {
-    const { date } = req.query;
+    const { date, from, to } = req.query;
     const filter = { user: req.user.id };
 
-    if (date) {
+    if (from || to) {
+      const dateFilter = {};
+      if (from) {
+        const startDate = new Date(from);
+        if (!isNaN(startDate)) dateFilter.$gte = startDate;
+      }
+      if (to) {
+        const endDate = new Date(to);
+        if (!isNaN(endDate)) dateFilter.$lte = endDate;
+      }
+      if (Object.keys(dateFilter).length > 0) {
+        filter.date = dateFilter;
+      }
+    } else if (date) {
       const start = new Date(date);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date);
