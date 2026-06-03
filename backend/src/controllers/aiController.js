@@ -286,10 +286,22 @@ NỘI DUNG: ${(doc.content || doc.summary || 'Không có nội dung').substring(
 Yêu cầu:
 - Khoảng 10-15 lượt trao đổi
 - Tự nhiên, dễ hiểu, có tính giáo dục
-- Định dạng: "${female}: ..." và "${male}: ..."
-- KHÔNG sử dụng định dạng markdown như dấu sao (**) để in đậm tên người nói hay bất kỳ nội dung nào.`;
+- Trả về kết quả dưới định dạng JSON duy nhất, là một mảng các đối tượng lượt thoại.
+- Mỗi đối tượng lượt thoại có các thuộc tính: id (số nguyên tăng dần), speaker ('female' hoặc 'male'), speakerName (tên người nói), text (nội dung nói).
 
-    const result = await callAI(prompt, 'Bạn là AI tạo hội thoại giáo dục. Chỉ trả về văn bản thuần túy.', { max_tokens: 2000 });
+ĐỊNH DẠNG JSON MẪU:
+{
+  "dialogue": [
+    { "id": 1, "speaker": "female", "speakerName": "${female}", "text": "..." },
+    { "id": 2, "speaker": "male", "speakerName": "${male}", "text": "..." }
+  ]
+}`;
+
+    const result = await callAI(
+      prompt, 
+      'Bạn là AI tạo hội thoại giáo dục chuyên nghiệp. Bạn chỉ trả về nội dung dưới định dạng JSON object với khóa "dialogue".', 
+      { max_tokens: 2000, response_format: { type: "json_object" } }
+    );
 
     // Deduct credits and log usage on success
     try {
