@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronLeft,
@@ -9,36 +9,78 @@ import {
   BookOpen,
   PenTool,
   RefreshCw,
-  Video,
-  HelpCircle,
   X,
-  Trash2,
+  Video,
+  Loader2,
   CheckCircle2,
-  Circle,
-  CalendarDays,
-  AlertCircle,
 } from 'lucide-react'
-import { api, StudyPlanItem, StudyPlanTask, WeeklyGoal } from '../lib/api'
+import { api, StudyPlanItem, StudyPlanTask } from '../lib/api'
 
-interface StudyPlannerProps {
-  token: string
+const DAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+
+const SUBJECTS = [
+  'Hệ cơ sở dữ liệu',
+  'Thuật toán và Cấu trúc dữ liệu',
+  'Hệ điều hành',
+  'Mạng máy tính',
+]
+
+const WEAK_TOPICS = [
+  'Chuẩn hóa (1NF-BCNF)',
+  'SQL Joins & Subqueries',
+  'B-Tree Indexing',
+  'Transaction & ACID',
+  'ER Diagrams',
+]
+
+const DEFAULT_WEEKLY_GOALS = [
+  { text: 'Hoàn thành 5 bài quiz', completed: false },
+  { text: 'Nắm vững Chuẩn hóa', completed: false },
+  { text: 'Học tổng cộng 15 giờ', completed: false },
+]
+
+const TASK_STYLES: Record<string, { color: string; icon: typeof BookOpen }> = {
+  'Đọc tài liệu': {
+    color: 'bg-blue-100 text-blue-700 border-blue-200',
+    icon: BookOpen,
+  },
+  'Thực hành': {
+    color: 'bg-green-100 text-green-700 border-green-200',
+    icon: PenTool,
+  },
+  'Ôn tập': {
+    color: 'bg-purple-100 text-purple-700 border-purple-200',
+    icon: RefreshCw,
+  },
+  'Xem video': {
+    color: 'bg-orange-100 text-orange-700 border-orange-200',
+    icon: Video,
+  },
+  Khác: {
+    color: 'bg-slate-100 text-slate-700 border-slate-200',
+    icon: BookOpen,
+  },
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+const INTENSITY_CONFIG = {
+  light: { label: 'Nhẹ nhàng', hours: '1-2h/ngày', duration: '1h' },
+  moderate: { label: 'Vừa phải', hours: '2-4h/ngày', duration: '1.5h' },
+  intense: { label: 'Cao độ', hours: '>4h/ngày', duration: '2h' },
+}
 
-function getWeekStart(base: Date): Date {
-  const d = new Date(base)
-  const day = d.getDay() // 0 = Sun
-  const diff = day === 0 ? -6 : 1 - day // shift so Mon = 0
+function startOfWeek(date: Date) {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
   d.setDate(d.getDate() + diff)
   d.setHours(0, 0, 0, 0)
   return d
 }
 
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d)
-  r.setDate(r.getDate() + n)
-  return r
+function addDays(date: Date, days: number) {
+  const d = new Date(date)
+  d.setDate(d.getDate() + days)
+  return d
 }
 
 function isSameDay(a: Date, b: Date) {
@@ -49,318 +91,343 @@ function isSameDay(a: Date, b: Date) {
   )
 }
 
-function toInputDate(d: Date) {
-  return d.toISOString().split('T')[0]
-}
-
-function formatWeekLabel(weekStart: Date): string {
+function formatWeekLabel(weekStart: Date) {
   const weekEnd = addDays(weekStart, 6)
-  const month = weekEnd.getMonth() + 1
-  // find ISO week number
-  const startOfYear = new Date(weekStart.getFullYear(), 0, 1)
-  const weekNo = Math.ceil(
-    ((weekStart.getTime() - startOfYear.getTime()) / 86400000 +
-      startOfYear.getDay() +
-      1) /
-      7
-  )
-  return `Tuần ${weekNo} Tháng ${month}`
+  const fmt = (d: Date) =>
+    d.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })
+  return `Tuần ${fmt(weekStart)} – ${fmt(weekEnd)}`
 }
 
-const DAY_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
-
-const TASK_TYPE_STYLES: Record<
-  string,
-  { color: string; icon: React.ElementType }
-> = {
-  'Đọc tài liệu': { color: 'bg-blue-50 text-blue-700 border-blue-200', icon: BookOpen },
-  'Thực hành': { color: 'bg-green-50 text-green-700 border-green-200', icon: PenTool },
-  'Ôn tập': { color: 'bg-purple-50 text-purple-700 border-purple-200', icon: RefreshCw },
-  'Xem video': { color: 'bg-amber-50 text-amber-700 border-amber-200', icon: Video },
-  'Khác': { color: 'bg-slate-100 text-slate-700 border-slate-200', icon: HelpCircle },
+function parseTimeSort(time?: string) {
+  if (!time) return 0
+  const match = time.match(/(\d{1,2}):(\d{2})/)
+  if (!match) return 0
+  let hour = parseInt(match[1], 10)
+  if (time.includes('Chiều') && hour < 12) hour += 12
+  if (time.includes('Tối') && hour < 12) hour += 12
+  return hour * 60 + parseInt(match[2], 10)
 }
 
-const TASK_TYPES = ['Đọc tài liệu', 'Thực hành', 'Ôn tập', 'Xem video', 'Khác'] as const
+function generateTasks(
+  topics: string[],
+  intensity: 'light' | 'moderate' | 'intense'
+): Omit<StudyPlanTask, '_id'>[] {
+  const slots = [
+    { time: '09:00 Sáng', type: 'Đọc tài liệu' as const },
+    { time: '14:30 Chiều', type: 'Thực hành' as const },
+    { time: '20:00 Tối', type: 'Ôn tập' as const },
+  ]
+  const duration = INTENSITY_CONFIG[intensity].duration
+  const count =
+    intensity === 'light' ? 1 : intensity === 'moderate' ? 2 : Math.min(3, topics.length || 1)
 
-const INTENSITY_OPTIONS = [
-  { value: 'light', label: 'Nhẹ nhàng', sub: '1-2h/ngày' },
-  { value: 'moderate', label: 'Vừa phải', sub: '2-4h/ngày' },
-  { value: 'intense', label: 'Cao độ', sub: '>4h/ngày' },
-] as const
+  const source = topics.length > 0 ? topics : ['Ôn tập tổng hợp']
+  return source.slice(0, count).map((topic, i) => ({
+    title: topic.startsWith('Ôn') ? topic : `Ôn luyện: ${topic}`,
+    time: slots[i % slots.length].time,
+    duration,
+    type: slots[i % slots.length].type,
+    status: 'todo',
+  }))
+}
 
-// ─── empty task/goal templates ────────────────────────────────────────────────
-
-type NewTask = { title: string; time: string; duration: string; type: typeof TASK_TYPES[number] }
-type NewGoal = { text: string }
-
-const emptyTask = (): NewTask => ({ title: '', time: '09:00', duration: '60 phút', type: 'Đọc tài liệu' })
-const emptyGoal = (): NewGoal => ({ text: '' })
-
-// ─── component ────────────────────────────────────────────────────────────────
+interface StudyPlannerProps {
+  token: string
+}
 
 export function StudyPlanner({ token }: StudyPlannerProps) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const [weekStart, setWeekStart] = useState<Date>(getWeekStart(today))
-  const [selectedDayIdx, setSelectedDayIdx] = useState<number>(() => {
-    const dow = today.getDay()
-    return dow === 0 ? 6 : dow - 1 // 0=Mon
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const today = new Date()
+    const start = startOfWeek(today)
+    return Math.max(0, Math.min(6, Math.round((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))))
   })
-  const [allPlans, setAllPlans] = useState<StudyPlanItem[]>([])
+  const [plans, setPlans] = useState<StudyPlanItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [isCreating, setIsCreating] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // create-form state
-  const [formSubject, setFormSubject] = useState('')
-  const [formDate, setFormDate] = useState(toInputDate(today))
+  const [isCreatingPlan, setIsCreatingPlan] = useState(false)
+  const [formSubject, setFormSubject] = useState(SUBJECTS[0])
   const [formExamDate, setFormExamDate] = useState('')
   const [formIntensity, setFormIntensity] = useState<'light' | 'moderate' | 'intense'>('moderate')
-  const [formGoals, setFormGoals] = useState<NewGoal[]>([emptyGoal()])
-  const [formTasks, setFormTasks] = useState<NewTask[]>([emptyTask()])
-  const [creating, setCreating] = useState(false)
-  const [formError, setFormError] = useState('')
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([])
 
-  // ── data loading ──────────────────────────────────────────────────────────
+  const weekDates = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    [weekStart]
+  )
+
+  const selectedDate = weekDates[selectedDay]
 
   const loadPlans = useCallback(async () => {
+    setLoading(true)
+    setError(null)
     try {
-      setLoading(true)
-      const res = await api.getStudyPlans(token)
-      setAllPlans(res.studyPlans || [])
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Không tải được kế hoạch')
+      const from = weekStart.toISOString()
+      const to = addDays(weekStart, 6).toISOString()
+      const res = await api.getStudyPlans(token, { from, to })
+      setPlans(res.studyPlans || [])
+    } catch (err: any) {
+      setError(err?.message || 'Không thể tải kế hoạch học tập')
+      setPlans([])
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [token, weekStart])
 
   useEffect(() => {
     loadPlans()
   }, [loadPlans])
 
-  // ── derived data ──────────────────────────────────────────────────────────
+  const dayPlan = useMemo(
+    () => plans.find((p) => isSameDay(new Date(p.date), selectedDate)) ?? null,
+    [plans, selectedDate]
+  )
 
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const sortedTasks = useMemo(() => {
+    const tasks = dayPlan?.tasks || []
+    return [...tasks].sort((a, b) => parseTimeSort(a.time) - parseTimeSort(b.time))
+  }, [dayPlan])
 
-  /** Plans whose `date` falls within this week */
-  const weekPlans = allPlans.filter((p) => {
-    const pd = new Date(p.date)
-    pd.setHours(0, 0, 0, 0)
-    return pd >= weekStart && pd <= addDays(weekStart, 6)
-  })
+  const weeklyGoals = useMemo(() => {
+    const withGoals = plans.find((p) => p.weeklyGoals && p.weeklyGoals.length > 0)
+    return withGoals?.weeklyGoals || DEFAULT_WEEKLY_GOALS
+  }, [plans])
 
-  /** Plans for the currently selected day */
-  const selectedDate = weekDays[selectedDayIdx]
-  const dayPlans = weekPlans.filter((p) => isSameDay(new Date(p.date), selectedDate))
+  const goalsPlanId = useMemo(() => {
+    const withGoals = plans.find((p) => p.weeklyGoals && p.weeklyGoals.length > 0)
+    return withGoals?._id || dayPlan?._id || plans[0]?._id
+  }, [plans, dayPlan])
 
-  /** Flat list of tasks for the selected day, sorted by time */
-  const dayTasks: Array<{ plan: StudyPlanItem; task: StudyPlanTask }> = dayPlans
-    .flatMap((p) => p.tasks.map((t) => ({ plan: p, task: t })))
-    .sort((a, b) => a.task.time.localeCompare(b.task.time))
+  const completedGoals = useMemo(
+    () => weeklyGoals.filter((goal) => goal.completed).length,
+    [weeklyGoals]
+  )
 
-  /** Collect weekly goals from ALL plans this week */
-  const weeklyGoals: Array<{ planId: string; goal: WeeklyGoal; goalIdx: number }> = weekPlans
-    .flatMap((p) =>
-      p.weeklyGoals.map((g, idx) => {
-        // auto-complete if examDate has passed
-        const isExpired = p.examDate ? new Date(p.examDate) < today : false
-        return { planId: p._id, goal: { ...g, completed: g.completed || isExpired }, goalIdx: idx }
-      })
-    )
+  const goalProgress = useMemo(
+    () => Math.round((completedGoals / Math.max(weeklyGoals.length, 1)) * 100),
+    [completedGoals, weeklyGoals.length]
+  )
 
-  // ── actions ───────────────────────────────────────────────────────────────
+  const aiSuggestion = useMemo(() => {
+    const topics = dayPlan?.weakTopics?.length
+      ? dayPlan.weakTopics
+      : plans.flatMap((p) => p.weakTopics || [])
+    const focus = topics[0] || 'Chuẩn hóa (3NF)'
+    return `Dựa trên kết quả quiz gần đây, AI khuyên bạn nên tập trung vào ${focus} tuần này. Bạn đã phân bổ ${sortedTasks.length} nhiệm vụ cho hôm nay.`
+  }, [dayPlan, plans, sortedTasks.length])
 
-  const toggleTask = async (planId: string, taskId: string, current: StudyPlanTask['status']) => {
-    const next: StudyPlanTask['status'] = current === 'done' ? 'todo' : 'done'
-    try {
-      await api.updateTaskStatus(token, planId, taskId, next)
-      loadPlans()
-    } catch (_) {}
-  }
-
-  const toggleGoal = async (
-    planId: string,
-    goalIdx: number,
-    goals: WeeklyGoal[],
-    current: boolean
-  ) => {
-    const updated = goals.map((g, i) =>
-      i === goalIdx ? { ...g, completed: !current } : g
+  const handleToggleGoal = async (index: number) => {
+    if (!goalsPlanId) return
+    const updated = weeklyGoals.map((g, i) =>
+      i === index ? { ...g, completed: !g.completed } : g
     )
     try {
-      await api.updateStudyPlan(token, planId, { weeklyGoals: updated })
-      loadPlans()
-    } catch (_) {}
+      await api.updateStudyPlan(token, goalsPlanId, { weeklyGoals: updated })
+      setPlans((prev) =>
+        prev.map((p) => (p._id === goalsPlanId ? { ...p, weeklyGoals: updated } : p))
+      )
+    } catch (err: any) {
+      setError(err?.message || 'Không thể cập nhật mục tiêu')
+    }
   }
 
-  const handleDeletePlan = async (planId: string) => {
-    if (!confirm('Xoá kế hoạch này?')) return
+  const handleToggleTask = async (task: StudyPlanTask) => {
+    if (!dayPlan) return
+    const nextStatus = task.status === 'done' ? 'todo' : 'done'
     try {
-      await api.deleteStudyPlan(token, planId)
-      loadPlans()
-    } catch (_) {}
+      const res = await api.updateTaskStatus(token, dayPlan._id, task._id, nextStatus)
+      setPlans((prev) =>
+        prev.map((p) => (p._id === dayPlan._id ? res.studyPlan : p))
+      )
+    } catch (err: any) {
+      setError(err?.message || 'Không thể cập nhật nhiệm vụ')
+    }
   }
 
   const handleCreatePlan = async () => {
-    if (!formSubject.trim()) {
-      setFormError('Vui lòng nhập tên môn học')
-      return
-    }
-    if (!formDate) {
-      setFormError('Vui lòng chọn ngày học')
-      return
-    }
-    setFormError('')
-    setCreating(true)
+    setSaving(true)
+    setError(null)
     try {
-      await api.createStudyPlan(token, {
-        subject: formSubject.trim(),
-        date: new Date(formDate).toISOString(),
-        examDate: formExamDate ? new Date(formExamDate).toISOString() : undefined,
+      const tasks = generateTasks(selectedTopics, formIntensity)
+      const res = await api.createStudyPlan(token, {
+        subject: formSubject,
+        examDate: formExamDate || undefined,
         intensity: formIntensity,
-        weakTopics: [],
-        weeklyGoals: formGoals.filter((g) => g.text.trim()).map((g) => ({ text: g.text.trim(), completed: false })),
-        tasks: formTasks
-          .filter((t) => t.title.trim())
-          .map((t) => ({ title: t.title.trim(), time: t.time, duration: t.duration, type: t.type, status: 'todo' })),
+        weakTopics: selectedTopics,
+        weeklyGoals: DEFAULT_WEEKLY_GOALS,
+        tasks,
+        date: selectedDate.toISOString(),
       })
-      // jump to the week/day of the new plan
-      const planDate = new Date(formDate)
-      planDate.setHours(0, 0, 0, 0)
-      const newWeekStart = getWeekStart(planDate)
-      setWeekStart(newWeekStart)
-      const dow = planDate.getDay()
-      setSelectedDayIdx(dow === 0 ? 6 : dow - 1)
-      // reset form
-      setFormSubject('')
-      setFormDate(toInputDate(today))
+      setPlans((prev) => {
+        const filtered = prev.filter((p) => p._id !== res.studyPlan._id)
+        return [...filtered, res.studyPlan]
+      })
+      setIsCreatingPlan(false)
+      setSelectedTopics([])
       setFormExamDate('')
       setFormIntensity('moderate')
-      setFormGoals([emptyGoal()])
-      setFormTasks([emptyTask()])
-      setIsCreating(false)
-      loadPlans()
-    } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Tạo kế hoạch thất bại')
+    } catch (err: any) {
+      setError(err?.message || 'Không thể tạo kế hoạch')
     } finally {
-      setCreating(false)
+      setSaving(false)
     }
   }
 
-  // ── form helpers ──────────────────────────────────────────────────────────
+  const handleOptimizeSchedule = async () => {
+    if (!dayPlan) {
+      setError('Chưa có kế hoạch cho ngày này. Hãy tạo kế hoạch mới trước.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const topics =
+        dayPlan.weakTopics?.length ? dayPlan.weakTopics : WEAK_TOPICS.slice(0, 3)
+      const tasks = generateTasks(topics, dayPlan.intensity || 'moderate')
+      const res = await api.updateStudyPlan(token, dayPlan._id, { tasks })
+      setPlans((prev) => prev.map((p) => (p._id === dayPlan._id ? res.studyPlan : p)))
+    } catch (err: any) {
+      setError(err?.message || 'Không thể tối ưu lịch')
+    } finally {
+      setSaving(false)
+    }
+  }
 
-  const updateTask = (i: number, field: keyof NewTask, val: string) =>
-    setFormTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, [field]: val } : t)))
+  const toggleTopic = (topic: string) => {
+    setSelectedTopics((prev) =>
+      prev.includes(topic) ? prev.filter((t) => t !== topic) : [...prev, topic]
+    )
+  }
 
-  const updateGoal = (i: number, val: string) =>
-    setFormGoals((prev) => prev.map((g, idx) => (idx === i ? { text: val } : g)))
-
-  // ── render ────────────────────────────────────────────────────────────────
+  if (loading && plans.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
+          <p className="text-slate-500">Đang tải kế hoạch học tập...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Header */}
-      <div className="flex flex-wrap justify-between items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Kế hoạch học tập</h1>
-          <p className="text-slate-500">Tổ chức thời gian hiệu quả</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {/* Week navigator */}
-          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-text-primary">Kế hoạch học tập</h1>
+            <p className="text-slate-500 mt-2">Tổ chức thời gian hiệu quả — đồng bộ MongoDB Atlas</p>
+          </div>
+          <div className="flex gap-3 flex-wrap">
             <button
-              className="text-slate-400 hover:text-text-primary transition-colors"
+              type="button"
               onClick={() => setWeekStart((w) => addDays(w, -7))}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
             >
-              <ChevronLeft size={18} />
+              <ChevronLeft size={18} /> Tuần trước
             </button>
-            <span className="font-medium text-sm min-w-[130px] text-center">
-              {formatWeekLabel(weekStart)}
-            </span>
             <button
-              className="text-slate-400 hover:text-text-primary transition-colors"
+              type="button"
               onClick={() => setWeekStart((w) => addDays(w, 7))}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
             >
-              <ChevronRight size={18} />
+              Tuần sau <ChevronRight size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsCreatingPlan(true)}
+              className="bg-primary text-white px-5 py-2 rounded-2xl text-sm font-medium flex items-center gap-2 hover:bg-primary-light transition-colors shadow-sm"
+            >
+              <Plus size={18} /> Tạo kế hoạch mới
             </button>
           </div>
-          <button
-            onClick={() => setIsCreating(true)}
-            className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-primary-light transition-colors shadow-sm"
-          >
-            <Plus size={18} /> Tạo kế hoạch mới
-          </button>
         </div>
-      </div>
 
-      {/* AI banner */}
-      <div className="bg-gradient-to-r from-purple-600 to-primary rounded-2xl p-5 text-white flex flex-wrap justify-between items-center gap-4 shadow-md">
-        <div>
-          <h3 className="font-bold flex items-center gap-2">
-            <Sparkles size={18} /> Lộ trình thích ứng "Vết dầu loang"
-          </h3>
-          <p className="text-sm text-white/80 mt-1">
-            {weekPlans.length > 0
-              ? `Đang theo dõi ${weekPlans.length} kế hoạch học tuần này. Tiếp tục duy trì nhé!`
-              : 'Tạo kế hoạch đầu tiên để AI bắt đầu theo dõi lộ trình của bạn.'}
-          </p>
-        </div>
-        {weekPlans.length > 0 && (
-          <div className="flex items-center gap-3">
-            <div className="text-center">
-              <p className="text-2xl font-bold">{weekPlans.reduce((s, p) => s + p.tasks.filter(t => t.status === 'done').length, 0)}</p>
-              <p className="text-xs text-white/70">Nhiệm vụ xong</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Tuần hiện tại</p>
+            <p className="mt-3 text-lg font-semibold text-text-primary">{formatWeekLabel(weekStart)}</p>
+          </div>
+          <div className="bg-gradient-to-r from-primary to-primary-light text-white rounded-3xl p-5 shadow-lg overflow-hidden">
+            <p className="text-xs uppercase tracking-[0.2em] text-white/80">Nhiệm vụ hôm nay</p>
+            <p className="mt-3 text-3xl font-bold">{sortedTasks.length}</p>
+            <p className="mt-2 text-sm text-white/80">{dayPlan ? 'Dựa trên lịch học hiện tại' : 'Chưa có kế hoạch hôm nay'}</p>
+          </div>
+          <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Tiến độ mục tiêu</p>
+                <p className="mt-3 text-2xl font-semibold text-text-primary">{goalProgress}%</p>
+              </div>
+              <div className="h-16 w-16 rounded-full bg-slate-100 grid place-items-center text-sm font-bold text-primary">
+                {completedGoals}/{weeklyGoals.length}
+              </div>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold">{weekPlans.reduce((s, p) => s + p.tasks.length, 0)}</p>
-              <p className="text-xs text-white/70">Tổng nhiệm vụ</p>
+            <div className="mt-4 h-2 rounded-full bg-slate-200 overflow-hidden">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${goalProgress}%` }} />
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-xl px-4 py-3 border border-red-200 text-sm">
-          <AlertCircle size={16} /> {error}
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex justify-between items-center">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
+            <X size={16} />
+          </button>
         </div>
       )}
 
-      {/* Main card */}
+      <div className="bg-gradient-to-r from-purple-600 to-primary rounded-2xl p-6 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-md">
+        <div>
+          <h3 className="font-bold flex items-center gap-2">
+            <Sparkles size={18} /> Lộ trình thích ứng &quot;Vết dầu loang&quot;
+          </h3>
+          <p className="text-sm text-white/80 mt-1">
+            {dayPlan?.subject
+              ? `Đang theo dõi môn ${dayPlan.subject}${dayPlan.examDate ? ` — thi ${new Date(dayPlan.examDate).toLocaleDateString('vi-VN')}` : ''}.`
+              : 'AI sẽ tự động điều chỉnh lịch học dựa trên kết quả Quiz gần nhất của bạn.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleOptimizeSchedule}
+          disabled={saving}
+          className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm font-medium backdrop-blur-sm transition-colors disabled:opacity-50"
+        >
+          {saving ? 'Đang xử lý...' : 'Tối ưu lịch hôm nay'}
+        </button>
+      </div>
+
       <div className="bg-card rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        {/* Day tabs */}
-        <div className="flex border-b border-slate-200">
-          {weekDays.map((day, idx) => {
-            const isToday = isSameDay(day, today)
-            const hasPlan = weekPlans.some((p) => isSameDay(new Date(p.date), day))
+        <div className="flex border-b border-slate-200 overflow-x-auto">
+          {DAYS.map((day, index) => {
+            const date = weekDates[index]
+            const hasPlan = plans.some((p) => isSameDay(new Date(p.date), date))
+            const isToday = isSameDay(date, new Date())
             return (
               <button
-                key={idx}
-                onClick={() => setSelectedDayIdx(idx)}
-                className={`flex-1 py-4 flex flex-col items-center relative transition-colors ${
-                  selectedDayIdx === idx ? 'text-primary' : 'text-slate-500 hover:bg-slate-50'
-                }`}
+                key={index}
+                type="button"
+                onClick={() => setSelectedDay(index)}
+                className={`flex-1 min-w-[4rem] py-4 flex flex-col items-center relative transition-colors ${selectedDay === index ? 'text-primary' : 'text-slate-500 hover:bg-slate-50'}`}
               >
-                <span className="text-xs font-medium mb-1">{DAY_LABELS[idx]}</span>
+                <span className="text-xs font-medium mb-1">{day}</span>
                 <span
-                  className={`text-lg font-bold ${
-                    isToday
-                      ? 'bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center'
-                      : selectedDayIdx === idx
-                      ? 'text-primary'
-                      : 'text-text-primary'
-                  }`}
+                  className={`text-lg font-bold ${selectedDay === index ? 'text-primary' : 'text-text-primary'} ${isToday ? 'ring-2 ring-primary/30 rounded-full w-9 h-9 flex items-center justify-center' : ''}`}
                 >
-                  {day.getDate()}
+                  {date.getDate()}
                 </span>
-                {hasPlan && selectedDayIdx !== idx && (
-                  <span className="absolute bottom-2 w-1.5 h-1.5 bg-primary rounded-full" />
+                {hasPlan && (
+                  <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary" />
                 )}
-                {selectedDayIdx === idx && (
+                {selectedDay === index && (
                   <motion.div
                     layoutId="activeDay"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                    className="absolute bottom-0 left-0 right-0 h-1 bg-primary"
                   />
                 )}
               </button>
@@ -368,165 +435,138 @@ export function StudyPlanner({ token }: StudyPlannerProps) {
           })}
         </div>
 
-        {/* Content */}
         <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Timeline */}
           <div className="lg:col-span-2 relative">
+            <div className="absolute left-[8.5rem] top-12 bottom-0 w-px bg-slate-200" />
+
             {loading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-20 bg-slate-100 rounded-2xl animate-pulse" />
-                ))}
+              <div className="flex items-center justify-center py-16 text-slate-500 gap-2">
+                <Loader2 className="animate-spin" size={20} />
+                Đang tải...
               </div>
-            ) : dayTasks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <CalendarDays size={48} className="text-slate-300 mb-3" />
-                <p className="font-semibold text-slate-500">Không có nhiệm vụ nào hôm nay</p>
-                <p className="text-sm text-slate-400 mt-1">Nhấn "Tạo kế hoạch mới" để thêm</p>
+            ) : sortedTasks.length === 0 ? (
+              <div className="text-center py-16 text-slate-500">
+                <p className="mb-2">Chưa có nhiệm vụ cho ngày này.</p>
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingPlan(true)}
+                  className="text-primary font-medium hover:underline text-sm"
+                >
+                  Tạo kế hoạch mới
+                </button>
               </div>
             ) : (
-              <>
-                {/* Timeline vertical line */}
-                <div className="absolute left-[8.5rem] top-0 bottom-0 w-px bg-slate-200" />
-                <div className="space-y-5 relative">
-                  {dayTasks.map(({ plan, task }, i) => {
-                    const style = TASK_TYPE_STYLES[task.type] ?? TASK_TYPE_STYLES['Khác']
-                    const Icon = style.icon
-                    const isDone = task.status === 'done'
-                    return (
-                      <motion.div
-                        key={task._id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.08 }}
-                        className="flex gap-6 items-start group"
+              <div className="space-y-6 relative">
+                {sortedTasks.map((task, i) => {
+                  const style = TASK_STYLES[task.type] || TASK_STYLES['Khác']
+                  const Icon = style.icon
+                  const timeParts = (task.time || '00:00').split(' ')
+                  const isDone = task.status === 'done'
+
+                  return (
+                    <motion.div
+                      key={task._id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.08 }}
+                      className="relative flex gap-6 items-start group"
+                    >
+                      <div className="absolute left-0 top-4 h-full w-0.5 bg-slate-200" />
+                      <div className="relative z-10 w-24 text-right pt-3 flex-shrink-0">
+                        <span className="text-sm font-bold text-text-primary">
+                          {timeParts[0]}
+                        </span>
+                        {timeParts[1] && (
+                          <span className="text-xs text-slate-500 block">{timeParts[1]}</span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTask(task)}
+                        className={`relative z-20 mt-3.5 h-5 w-5 rounded-full border-2 transition-transform ${
+                          isDone
+                            ? 'bg-primary border-primary'
+                            : 'bg-white border-slate-300 shadow-sm'
+                        }`}
+                        title={isDone ? 'Đánh dấu chưa hoàn thành' : 'Đánh dấu hoàn thành'}
+                      />
+
+                      <div
+                        className={`relative z-10 flex-1 p-5 rounded-3xl border ${style.color} bg-opacity-60 hover:shadow-xl transition-all cursor-pointer ${isDone ? 'opacity-70' : ''}`}
+                        onClick={() => handleToggleTask(task)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleToggleTask(task)}
+                        role="button"
+                        tabIndex={0}
                       >
-                        {/* Time */}
-                        <div className="w-28 text-right pt-3 flex-shrink-0">
-                          <span className="text-sm font-bold text-text-primary">{task.time}</span>
-                          <span className="text-xs text-slate-400 block">{plan.subject}</span>
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
+                          <span className="text-xs font-bold uppercase tracking-[0.18em] flex items-center gap-2 text-slate-600">
+                            <Icon size={14} /> {task.type}
+                          </span>
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-slate-700">
+                            <Clock size={12} /> {task.duration}
+                          </span>
                         </div>
-                        {/* Dot */}
-                        <div
-                          className={`relative z-10 w-4 h-4 rounded-full border-2 mt-3.5 flex-shrink-0 transition-all ${
-                            isDone ? 'bg-primary border-primary' : 'bg-white border-primary'
-                          } group-hover:scale-125`}
-                        />
-                        {/* Card */}
-                        <div
-                          className={`flex-1 p-4 rounded-2xl border transition-all cursor-pointer hover:shadow-md ${style.color} ${isDone ? 'opacity-60' : ''}`}
-                          onClick={() => toggleTask(plan._id, task._id, task.status)}
-                        >
-                          <div className="flex justify-between items-start mb-1">
-                            <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
-                              <Icon size={12} /> {task.type}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <span className="flex items-center gap-1 text-xs font-medium opacity-80">
-                                <Clock size={12} /> {task.duration}
-                              </span>
-                              <button
-                                className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600"
-                                onClick={(e) => { e.stopPropagation(); handleDeletePlan(plan._id) }}
-                                title="Xoá kế hoạch"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </div>
-                          <h4 className={`font-bold text-base leading-snug ${isDone ? 'line-through' : ''}`}>
-                            {task.title}
-                          </h4>
-                          {isDone && (
-                            <span className="inline-flex items-center gap-1 text-xs mt-1 font-medium">
-                              <CheckCircle2 size={12} /> Hoàn thành
-                            </span>
-                          )}
-                        </div>
-                      </motion.div>
-                    )
-                  })}
-                </div>
-              </>
+                        <h4 className={`font-bold text-xl ${isDone ? 'line-through text-slate-500' : 'text-slate-900'}`}>
+                          {task.title}
+                        </h4>
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </div>
             )}
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-5">
-            {/* Subjects this week */}
-            {weekPlans.length > 0 && (
-              <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100">
-                <h3 className="font-bold text-blue-900 flex items-center gap-2 mb-3">
-                  <BookOpen size={16} className="text-blue-600" /> Môn học tuần này
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {[...new Set(weekPlans.map((p) => p.subject))].map((sub) => (
-                    <span key={sub} className="px-3 py-1 bg-white text-blue-700 rounded-full text-xs font-semibold border border-blue-200">
-                      {sub}
-                    </span>
-                  ))}
-                </div>
-                {weekPlans.some((p) => p.examDate) && (
-                  <div className="mt-3 pt-3 border-t border-blue-200 space-y-1">
-                    {weekPlans.filter((p) => p.examDate).map((p) => {
-                      const exam = new Date(p.examDate!)
-                      const diff = Math.ceil((exam.getTime() - today.getTime()) / 86400000)
-                      return (
-                        <p key={p._id} className="text-xs text-blue-800">
-                          📅 <strong>{p.subject}</strong>:{' '}
-                          {diff > 0 ? `còn ${diff} ngày tới khi thi` : 'Đã thi'}
-                        </p>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+          <div className="space-y-6">
+            <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100">
+              <h3 className="font-bold text-blue-900 flex items-center gap-2 mb-3">
+                <Sparkles size={18} className="text-blue-600" /> Gợi ý từ AI
+              </h3>
+              <p className="text-sm text-blue-800 leading-relaxed mb-4">{aiSuggestion}</p>
+              <button
+                type="button"
+                onClick={handleOptimizeSchedule}
+                disabled={saving || !dayPlan}
+                className="w-full bg-white text-blue-600 font-medium py-2 rounded-xl border border-blue-200 hover:bg-blue-50 transition-colors text-sm disabled:opacity-50"
+              >
+                Tự động tối ưu lịch
+              </button>
+            </div>
 
-            {/* Weekly goals */}
             <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200">
               <h3 className="font-bold text-text-primary mb-4">Mục tiêu tuần</h3>
-              {weeklyGoals.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-4">
-                  Chưa có mục tiêu nào. Thêm khi tạo kế hoạch.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {weeklyGoals.map(({ planId, goal, goalIdx }, i) => {
-                    const planGoals = weekPlans.find((p) => p._id === planId)?.weeklyGoals ?? []
-                    return (
-                      <label key={`${planId}-${goalIdx}`} className="flex items-start gap-3 cursor-pointer group">
-                        <button
-                          className="mt-0.5 flex-shrink-0 transition-transform group-hover:scale-110"
-                          onClick={() => toggleGoal(planId, goalIdx, planGoals, goal.completed)}
-                        >
-                          {goal.completed ? (
-                            <CheckCircle2 size={18} className="text-primary" />
-                          ) : (
-                            <Circle size={18} className="text-slate-300" />
-                          )}
-                        </button>
-                        <div>
-                          <span className={`text-sm text-slate-700 leading-snug ${goal.completed ? 'line-through text-slate-400' : 'font-medium'}`}>
-                            {goal.text}
-                          </span>
-                          <span className="block text-xs text-slate-400">
-                            {weekPlans.find((p) => p._id === planId)?.subject}
-                          </span>
-                        </div>
-                      </label>
-                    )
-                  })}
-                </div>
-              )}
+              <div className="space-y-3">
+                {weeklyGoals.map((goal, index) => (
+                  <label
+                    key={index}
+                    className="flex items-start gap-3 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={goal.completed}
+                      onChange={() => handleToggleGoal(index)}
+                      disabled={!goalsPlanId}
+                      className="mt-1 rounded text-primary focus:ring-primary"
+                    />
+                    <span
+                      className={`text-sm ${goal.completed ? 'text-slate-500 line-through' : 'text-slate-700 font-medium'}`}
+                    >
+                      {goal.text}
+                    </span>
+                  </label>
+                ))}
+                {!goalsPlanId && (
+                  <p className="text-xs text-slate-400">Tạo kế hoạch để lưu mục tiêu vào Atlas.</p>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Create Plan Modal ─────────────────────────────────────────────────── */}
       <AnimatePresence>
-        {isCreating && (
+        {isCreatingPlan && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -537,188 +577,125 @@ export function StudyPlanner({ token }: StudyPlannerProps) {
               <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                 <h3 className="font-bold text-lg text-slate-900">Tạo kế hoạch học tập mới</h3>
                 <button
-                  onClick={() => { setIsCreating(false); setFormError('') }}
+                  type="button"
+                  onClick={() => setIsCreatingPlan(false)}
                   className="text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   <X size={20} />
                 </button>
               </div>
+              <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <p className="text-xs text-slate-500">
+                  Ngày áp dụng:{' '}
+                  <strong>
+                    {selectedDate.toLocaleDateString('vi-VN', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                    })}
+                  </strong>
+                </p>
 
-              <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-                {formError && (
-                  <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2 border border-red-200">
-                    {formError}
-                  </p>
-                )}
-
-                {/* Subject */}
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Môn học <span className="text-red-500">*</span>
+                    Bạn muốn ôn thi môn nào?
                   </label>
-                  <input
+                  <select
                     value={formSubject}
                     onChange={(e) => setFormSubject(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-primary text-sm bg-white"
+                  >
+                    {SUBJECTS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Ngày thi dự kiến
+                  </label>
+                  <input
+                    type="date"
+                    value={formExamDate}
+                    onChange={(e) => setFormExamDate(e.target.value)}
                     className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-primary text-sm"
-                    placeholder="Ví dụ: Hệ cơ sở dữ liệu"
                   />
                 </div>
 
-                {/* Dates */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Ngày học <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={formDate}
-                      onChange={(e) => setFormDate(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-primary text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Ngày thi (nếu có)</label>
-                    <input
-                      type="date"
-                      value={formExamDate}
-                      onChange={(e) => setFormExamDate(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-primary text-sm"
-                    />
-                  </div>
-                </div>
-
-                {/* Intensity */}
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Cường độ tập trung</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Cường độ tập trung mong muốn
+                  </label>
                   <div className="grid grid-cols-3 gap-3">
-                    {INTENSITY_OPTIONS.map((opt) => (
+                    {(
+                      Object.entries(INTENSITY_CONFIG) as [
+                        keyof typeof INTENSITY_CONFIG,
+                        (typeof INTENSITY_CONFIG)['light'],
+                      ][]
+                    ).map(([key, cfg]) => (
                       <label
-                        key={opt.value}
-                        className={`border rounded-xl p-3 text-center cursor-pointer transition-colors ${
-                          formIntensity === opt.value
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-slate-200 hover:border-primary hover:bg-primary/5'
-                        }`}
-                        onClick={() => setFormIntensity(opt.value)}
+                        key={key}
+                        className="border border-slate-200 rounded-xl p-3 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:checked]:text-primary"
                       >
-                        <span className="text-sm font-medium block">{opt.label}</span>
-                        <span className="text-xs text-slate-500">{opt.sub}</span>
+                        <input
+                          type="radio"
+                          name="intensity"
+                          className="sr-only"
+                          checked={formIntensity === key}
+                          onChange={() => setFormIntensity(key)}
+                        />
+                        <span className="text-sm font-medium">{cfg.label}</span>
+                        <span className="block text-xs text-slate-500 mt-1">{cfg.hours}</span>
                       </label>
                     ))}
                   </div>
                 </div>
 
-                {/* Weekly goals */}
                 <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-sm font-bold text-slate-700">Mục tiêu tuần</label>
-                    <button
-                      onClick={() => setFormGoals((prev) => [...prev, emptyGoal()])}
-                      className="text-xs text-primary font-medium flex items-center gap-1 hover:underline"
-                    >
-                      <Plus size={12} /> Thêm
-                    </button>
-                  </div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Chọn các chủ đề còn yếu
+                  </label>
                   <div className="space-y-2">
-                    {formGoals.map((g, i) => (
-                      <div key={i} className="flex gap-2 items-center">
+                    {WEAK_TOPICS.map((topic) => (
+                      <label
+                        key={topic}
+                        className="flex items-center gap-3 p-3 border border-slate-100 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors"
+                      >
                         <input
-                          value={g.text}
-                          onChange={(e) => updateGoal(i, e.target.value)}
-                          className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-primary"
-                          placeholder={`Mục tiêu ${i + 1}...`}
+                          type="checkbox"
+                          checked={selectedTopics.includes(topic)}
+                          onChange={() => toggleTopic(topic)}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300"
                         />
-                        {formGoals.length > 1 && (
-                          <button
-                            onClick={() => setFormGoals((prev) => prev.filter((_, idx) => idx !== i))}
-                            className="text-slate-300 hover:text-red-400 transition-colors"
-                          >
-                            <X size={16} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Tasks */}
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-sm font-bold text-slate-700">Nhiệm vụ trong ngày</label>
-                    <button
-                      onClick={() => setFormTasks((prev) => [...prev, emptyTask()])}
-                      className="text-xs text-primary font-medium flex items-center gap-1 hover:underline"
-                    >
-                      <Plus size={12} /> Thêm
-                    </button>
-                  </div>
-                  <div className="space-y-3">
-                    {formTasks.map((t, i) => (
-                      <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                        <div className="flex gap-2 items-center">
-                          <input
-                            value={t.title}
-                            onChange={(e) => updateTask(i, 'title', e.target.value)}
-                            className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-primary bg-white"
-                            placeholder="Tên nhiệm vụ..."
-                          />
-                          {formTasks.length > 1 && (
-                            <button
-                              onClick={() => setFormTasks((prev) => prev.filter((_, idx) => idx !== i))}
-                              className="text-slate-300 hover:text-red-400 transition-colors"
-                            >
-                              <X size={16} />
-                            </button>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <input
-                            type="time"
-                            value={t.time}
-                            onChange={(e) => updateTask(i, 'time', e.target.value)}
-                            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-primary bg-white"
-                          />
-                          <input
-                            value={t.duration}
-                            onChange={(e) => updateTask(i, 'duration', e.target.value)}
-                            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-primary bg-white"
-                            placeholder="60 phút"
-                          />
-                          <select
-                            value={t.type}
-                            onChange={(e) => updateTask(i, 'type', e.target.value)}
-                            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-primary bg-white"
-                          >
-                            {TASK_TYPES.map((tp) => (
-                              <option key={tp} value={tp}>{tp}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
+                        <span className="text-sm font-medium text-slate-700">{topic}</span>
+                      </label>
                     ))}
                   </div>
                 </div>
               </div>
-
               <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
                 <button
-                  onClick={() => { setIsCreating(false); setFormError('') }}
+                  type="button"
+                  onClick={() => setIsCreatingPlan(false)}
                   className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
                 >
                   Hủy
                 </button>
                 <button
+                  type="button"
                   onClick={handleCreatePlan}
-                  disabled={creating}
-                  className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary-light transition-colors flex items-center gap-2 disabled:opacity-60"
+                  disabled={saving}
+                  className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary-light transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
-                  {creating ? (
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  {saving ? (
+                    <Loader2 size={16} className="animate-spin" />
                   ) : (
                     <Sparkles size={16} />
                   )}
-                  Tạo kế hoạch
+                  {saving ? 'Đang lưu...' : 'Tạo lộ trình AI'}
                 </button>
               </div>
             </motion.div>

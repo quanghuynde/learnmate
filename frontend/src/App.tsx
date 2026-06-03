@@ -124,7 +124,7 @@ export function App() {
       case 'documents':
         return <Documents token={token} />;
       case 'knowledge':
-        return <KnowledgeMap token={token} user={user} />;
+        return <KnowledgeMap token={token} setCurrentPage={setCurrentPage} />;
       case 'quiz':
         return <Quiz token={token} setCurrentPage={setCurrentPage} />;
       case 'readiness':

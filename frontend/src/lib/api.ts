@@ -153,6 +153,11 @@ export type ExamReadinessData = {
   }>;
 };
 
+export type StudyPlanGoal = {
+  text: string;
+  completed: boolean;
+};
+
 export type StudyPlanTask = {
   _id: string;
   title: string;
@@ -183,6 +188,26 @@ export type StudyPlanItem = {
 export type KnowledgeMapNode = {
   id: string;
   label: string;
+  x: number;
+  y: number;
+  color?: string;
+  size?: string;
+};
+
+export type KnowledgeMapEdge = {
+  from: string;
+  to: string;
+};
+
+export type KnowledgeMapItem = {
+  _id: string;
+  documentIds: string[];
+  nodes: KnowledgeMapNode[];
+  connections: KnowledgeMapEdge[];
+  crossLinks: KnowledgeMapEdge[];
+  aiInsight?: string;
+  createdAt?: string;
+  updatedAt?: string;
   subjectId?: string;
   color: string;
   status?: 'done' | 'doing' | 'todo';
@@ -213,6 +238,7 @@ export type DocumentItem = {
   fileUrl: string;
   fileSize: number;
   status: string;
+  topics?: string[]
   content?: string;
   createdAt: string;
 };
@@ -351,16 +377,25 @@ export const api = {
   getExamReadiness: (token: string, examId: string) =>
     cachedRequest<ExamReadinessData>(`readiness_${examId}`, `/exams/${examId}/readiness`, { token }),
 
-  getStudyPlans: (token: string, date?: string) =>
-    request<{ studyPlans: StudyPlanItem[] }>(`/study-plans${date ? `?date=${date}` : ''}`, { token }),
+  getStudyPlans: (token: string, params?: { from?: string; to?: string; date?: string }) => {
+    const query = params
+      ? Object.entries(params)
+          .filter(([, value]) => value !== undefined && value !== null && value !== '')
+          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value as string)}`)
+          .join('&')
+      : '';
+    return request<{ studyPlans: StudyPlanItem[] }>(`/study-plans${query ? `?${query}` : ''}`, { token });
+  },
   createStudyPlan: (token: string, data: any) =>
-    request<{ studyPlan: StudyPlanItem }>('/study-plans', { method: 'POST', token, body: data }),
+    request<any>('/study-plans', { method: 'POST', token, body: data }),
   updateStudyPlan: (token: string, id: string, data: any) =>
     request<{ studyPlan: StudyPlanItem }>(`/study-plans/${id}`, { method: 'PUT', token, body: data }),
-  updateTaskStatus: (token: string, planId: string, taskId: string, status: 'todo' | 'doing' | 'done') =>
-    request<{ studyPlan: StudyPlanItem }>(`/study-plans/${planId}/tasks/${taskId}`, { method: 'PUT', token, body: { status } }),
-  deleteStudyPlan: (token: string, id: string) =>
-    request<{ message: string }>(`/study-plans/${id}`, { method: 'DELETE', token }),
+  updateTaskStatus: (token: string, planId: string, taskId: string, status: string) =>
+    request<{ studyPlan: StudyPlanItem }>(`/study-plans/${planId}/tasks/${taskId}`, {
+      method: 'PUT',
+      token,
+      body: { status },
+    }),
 
   getProgressOverview: (token: string) =>
     cachedRequest<any>('progress_overview', '/progress/overview', { token }),
@@ -382,6 +417,14 @@ export const api = {
     formData.append('file', file);
     return request<any>('/documents', { method: 'POST', token, body: formData });
   },
+
+  getKnowledgeMaps: (token: string) => request<{ knowledgeMaps: KnowledgeMapItem[] }>('/knowledge-maps', { token }),
+  createKnowledgeMap: (token: string, documentIds: string[]) =>
+    request<{ knowledgeMap: KnowledgeMapItem }>('/knowledge-maps', { method: 'POST', token, body: { documentIds } }),
+  regenerateKnowledgeMap: (token: string, id: string) =>
+    request<{ knowledgeMap: KnowledgeMapItem }>(`/knowledge-maps/${id}/regenerate`, { method: 'POST', token }),
+  updateKnowledgeMap: (token: string, id: string, data: any) =>
+    request<{ knowledgeMap: KnowledgeMapItem }>(`/knowledge-maps/${id}`, { method: 'PUT', token, body: data }),
 
   deleteDocument: (token: string, id: string) =>
     request<any>(`/documents/${id}`, { method: 'DELETE', token }),
@@ -455,8 +498,8 @@ export const api = {
 
   generateKnowledgeMap: (token: string, documentIds: string[], title?: string) =>
     request<{ mapData: KnowledgeMapData; mapId: string; title: string }>('/ai/generate-knowledge-map', { method: 'POST', token, body: { documentIds, title } }),
-  getKnowledgeMaps: (token: string) => 
-    request<{ maps: any[] }>('/ai/knowledge-maps', { token }),
+  // getKnowledgeMaps: (token: string) => 
+  //   request<{ maps: any[] }>('/ai/knowledge-maps', { token }),
   getKnowledgeMapById: (token: string, id: string) => 
     request<{ mapData: KnowledgeMapData; title: string }>(`/ai/knowledge-maps/${id}`, { token }),
   deleteKnowledgeMap: (token: string, id: string) => 
