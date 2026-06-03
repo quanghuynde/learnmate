@@ -74,7 +74,7 @@
 - **Multer** (File uploads)
 
 ### AI & Integrations
-- **OpenAI API** (GPT-4o, compatible with custom endpoints)
+- **OpenAI API** (Compatible with custom endpoints)
 - **Google OAuth** (Social login)
 - **Google TTS** (Text-to-Speech for dialogue)
 - **Sepay** (Payment gateway)
@@ -112,7 +112,7 @@ PORT=5000
 MONGO_URI=mongodb+srv://...
 JWT_SECRET=your_jwt_secret
 OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o
+OPENAI_MODEL=...
 OPENAI_API_BASE=https://api.openai.com/v1
 
 GOOGLE_CLIENT_ID=...
