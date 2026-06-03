@@ -27,8 +27,8 @@ const TIERS = [
       '1.000 Credit mỗi 2 tuần (tự động hồi)',
       'Tải & tóm tắt tài liệu',
       'Tạo Quiz AI cơ bản',
-      'Lưu trữ tối đa 5 tài liệu',
-      'Tạo tối đa 5 bản đồ kiến thức'
+      'Lưu trữ tối đa 40 tài liệu',
+      'Tạo và lưu trữ tối đa 5 hội thoại AI',
     ],
   },
   {
@@ -45,9 +45,9 @@ const TIERS = [
     features: [
       '2.500 Credit sử dụng',
       'Sử dụng trong 30 ngày',
-      'Tải & tóm tắt không giới hạn',
+      'Lưu trữ tối đa 80 tài liệu',
       'Tạo Quiz AI nâng cao',
-      'Tạo hội thoại AI',
+      'Tạo và lưu trữ tối đa 20 hội thoại AI',
       'Lịch sử giao dịch',
       'Tạo tối đa 20 bản đồ kiến thức'
     ],
