@@ -28,6 +28,7 @@ const TIERS = [
       'Tải & tóm tắt tài liệu',
       'Tạo Quiz AI cơ bản',
       'Lưu trữ tối đa 5 tài liệu',
+      'Tạo tối đa 5 bản đồ kiến thức'
     ],
   },
   {
@@ -48,6 +49,7 @@ const TIERS = [
       'Tạo Quiz AI nâng cao',
       'Tạo hội thoại AI',
       'Lịch sử giao dịch',
+      'Tạo tối đa 20 bản đồ kiến thức'
     ],
   },
   {
@@ -68,6 +70,7 @@ const TIERS = [
       'Chat AI không giới hạn',
       'Tạo đề thi toàn diện',
       'AI Postcard & Podcast',
+      'Tạo không giới hạn bản đồ kiến thức'
     ],
   },
 ];
@@ -75,6 +78,7 @@ const TIERS = [
 const AI_COSTS = [
   { label: 'Tải tài liệu', cost: 10, unit: 'lần' },
   { label: 'Tóm tắt tài liệu', cost: 10, unit: 'lần' },
+  { label: 'Tạo bản đồ kiến thức', cost: 10, unit: 'lần' },
   { label: 'Tạo Quiz AI', cost: 5, unit: 'lần' },
   { label: 'Chat với AI', cost: 1, unit: 'tin nhắn' },
 ];
@@ -224,12 +228,12 @@ export function Pricing({ setCurrentPage }: PricingProps) {
         <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
           <Brain size={18} className="text-primary" /> Chi phí sử dụng AI (Credits)
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {AI_COSTS.map((item) => (
-            <div key={item.label} className="bg-white p-4 rounded-2xl border border-slate-100 text-center">
-              <p className="text-xs text-slate-500 mb-1">{item.label}</p>
+            <div key={item.label} className="bg-white p-3 rounded-2xl border border-slate-100 text-center shadow-sm">
+              <p className="text-[10px] text-slate-500 mb-1 font-bold whitespace-nowrap">{item.label}</p>
               <p className="text-xl font-black text-primary">{item.cost}</p>
-              <p className="text-[10px] text-slate-400 font-bold uppercase">cr/{item.unit}</p>
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">cr/{item.unit}</p>
             </div>
           ))}
         </div>
