@@ -461,4 +461,7 @@ export const api = {
     request<{ mapData: KnowledgeMapData; title: string }>(`/ai/knowledge-maps/${id}`, { token }),
   deleteKnowledgeMap: (token: string, id: string) => 
     request<{ message: string }>(`/ai/knowledge-maps/${id}`, { method: 'DELETE', token }),
+
+  summarizeDocument: (token: string, documentId: string) =>
+    request<{ summary: string }>('/ai/summarize', { method: 'POST', token, body: { documentId } }),
 };
