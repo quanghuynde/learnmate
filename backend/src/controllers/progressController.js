@@ -114,12 +114,28 @@ const getOverview = async (req, res) => {
       createdAt: { $gte: thirtyDaysAgo },
     });
 
+    const studyHoursData = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      
+      const daySessions = recentSessions.filter(s => s.date.toISOString().split('T')[0] === dateStr);
+      const dayMinutes = daySessions.reduce((sum, s) => sum + s.duration, 0);
+      
+      studyHoursData.push({
+        day: d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
+        hours: Math.round((dayMinutes / 60) * 10) / 10
+      });
+    }
+
     res.json({
       totalHours,
       avgDaily,
       totalQuizzes: quizCount,
       distribution,
-      chartData, // Mảng 365 ngày chứa activity score
+      chartData, // For Heatmap (365 days)
+      studyHoursData, // For Progress Chart (30 days)
     });
   } catch (error) {
     console.error('Error in getOverview:', error);
