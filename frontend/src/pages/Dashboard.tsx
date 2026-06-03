@@ -19,6 +19,7 @@ import {
   Coins,
 } from 'lucide-react';
 import { api, ExamItem, StudyPlanItem, UserItem } from '../lib/api';
+import { Heatmap } from '../components/dashboard/Heatmap';
 
 interface DashboardProps {
   setCurrentPage: (page: string) => void;
@@ -44,7 +45,7 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
     avgDaily: number;
     totalQuizzes: number;
     distribution: { morning: number; afternoon: number; evening: number };
-    chartData: Array<{ day: string; hours: number }>;
+    chartData: Array<{ date: string; score: number }>;
   }>(null);
 
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -164,11 +165,6 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
 
   const readiness = exam?.readinessScore || 0;
 
-  const heat = useMemo(() => {
-    const arr = overview?.chartData || [];
-    const days = arr.slice(-90); // Show last 90 days for consistency view
-    return days.map((d) => d.hours);
-  }, [overview]);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 pb-20">
@@ -342,24 +338,8 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
           </div>
 
           <div className="bg-card rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <h2 className="text-lg font-bold text-text-primary mb-4">Tính nhất quán học tập</h2>
-            <div className="flex gap-1 overflow-x-auto pb-2 hide-scrollbar">
-              {(heat.length ? heat : Array.from({ length: 52 }, () => 0)).map((hours, idx) => {
-                let colorClass = 'bg-slate-100';
-                if (hours >= 3) colorClass = 'bg-success';
-                else if (hours >= 2) colorClass = 'bg-success-light';
-                else if (hours >= 1) colorClass = 'bg-success/30';
-                return <div key={idx} className={`w-3 h-3 rounded-sm ${colorClass}`} title={`${hours} giờ`} />;
-              })}
-            </div>
-            <div className="flex justify-end items-center gap-2 mt-2 text-xs text-slate-500">
-              <span>Ít</span>
-              <div className="w-3 h-3 rounded-sm bg-slate-100" />
-              <div className="w-3 h-3 rounded-sm bg-success/30" />
-              <div className="w-3 h-3 rounded-sm bg-success-light" />
-              <div className="w-3 h-3 rounded-sm bg-success" />
-              <span>Nhiều</span>
-            </div>
+            <h2 className="text-lg font-bold text-text-primary mb-6">Tính nhất quán học tập</h2>
+            <Heatmap data={overview?.chartData || []} />
           </div>
         </div>
 
@@ -389,8 +369,10 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
               <span className="bg-accent text-sidebar text-xs font-bold px-2 py-1 rounded">PRO</span>
             </div>
             <div className="space-y-2 mb-6 relative z-10">
-              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Không giới hạn Quiz AI</div>
-              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Podcast bài giảng dài</div>
+              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> 2.500 Credit sử dụng</div>
+              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Lưu trữ tối đa 80 tài liệu</div>
+              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Tạo và lưu trữ tối đa 20 hội thoại AI</div>
+              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Tạo Quiz AI nâng cao</div>
             </div>
             <button onClick={() => setCurrentPage('pricing')} className="w-full bg-white text-sidebar font-bold py-2.5 rounded-xl hover:bg-slate-100 transition-colors relative z-10">Nâng cấp ngay - Chỉ từ 49k</button>
           </div>
