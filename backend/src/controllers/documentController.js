@@ -167,6 +167,25 @@ const createDocument = async (req, res) => {
       return res.status(400).json({ message: 'Vui lòng chọn file để tải lên' });
     }
 
+    // Check document limit based on subscription tier
+    let tier = req.user.subscriptionTier || 'Basic';
+    if (tier !== 'Basic' && req.user.subscriptionExpiresAt && new Date(req.user.subscriptionExpiresAt) < new Date()) {
+      tier = 'Basic';
+    }
+
+    const docCount = await Document.countDocuments({ user: req.user.id });
+    const limits = { 'Basic': 40, 'Pro': 80, 'Premium': Infinity };
+    const userLimit = limits[tier] || 40;
+
+    if (docCount >= userLimit) {
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(403).json({ 
+        message: `Bạn đã đạt giới hạn lưu trữ tối đa (${userLimit} tài liệu) cho gói ${tier}. Vui lòng nâng cấp gói hoặc xóa bớt tài liệu cũ.` 
+      });
+    }
+
     // Check and deduct credit (Cost: 10)
     try {
       await validateAndDeduct(req.user.id, 10, 'Upload Document');

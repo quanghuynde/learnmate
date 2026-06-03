@@ -120,12 +120,15 @@ const sepayWebhook = async (req, res) => {
 
     await addCredits(payment.userId, payment.packageId.credits, `Mua gói ${payment.packageId.name}`, payment._id);
 
-    // Set subscription expiry (30 days) for Pro and Premium
+    // Set subscription expiry (30 days) and tier for Pro and Premium
     if (['Pro', 'Premium'].includes(payment.packageId.name)) {
       const User = require('../models/User');
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + 30);
-      await User.findByIdAndUpdate(payment.userId, { subscriptionExpiresAt: expiryDate });
+      await User.findByIdAndUpdate(payment.userId, { 
+        subscriptionExpiresAt: expiryDate,
+        subscriptionTier: payment.packageId.name
+      });
     }
 
     console.log(`Successfully processed payment ${payment._id} via SePay`);

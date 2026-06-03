@@ -1,5 +1,6 @@
 const Document = require('../models/Document');
 const { deductCredits, hasEnoughCredits } = require('../services/creditService');
+const UsageLog = require('../models/UsageLog');
 
 /**
  * Helper: call OpenAI API
@@ -104,7 +105,7 @@ ${processedContent}`;
 
   return await callAI(
     prompt,
-    "Bạn là một trợ lý AI tóm tắt tài liệu. Bạn trả về văn bản thuần túy, súc tích.",
+    "Bạn là một trợ lý AI tóm tắt tài liệu. Bạn trả về văn bản thuần túy, súc tích. KHÔNG sử dụng định dạng markdown như dấu sao (**) để in đậm.",
     { max_tokens: 1500 }
   );
 };
@@ -238,9 +239,39 @@ const generateDialogue = async (req, res) => {
     const { documentId, language, speakerFemaleName, speakerMaleName } = req.body;
     if (!documentId) return res.status(400).json({ message: 'Thiếu documentId' });
 
-    const Document = require('../models/Document');
     const doc = await Document.findOne({ _id: documentId, user: req.user.id });
     if (!doc) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
+
+    // Check dialogue limit based on subscription tier
+    let tier = req.user.subscriptionTier || 'Basic';
+    if (tier !== 'Basic' && req.user.subscriptionExpiresAt && new Date(req.user.subscriptionExpiresAt) < new Date()) {
+      tier = 'Basic';
+    }
+
+    const dialogueCount = await UsageLog.countDocuments({ 
+      userId: req.user.id, 
+      feature: 'AI_DIALOGUE',
+      status: 'success'
+    });
+
+    const limits = { 'Basic': 5, 'Pro': 20, 'Premium': Infinity };
+    const userLimit = limits[tier] || 5;
+
+    if (dialogueCount >= userLimit) {
+      return res.status(403).json({ 
+        message: `Bạn đã đạt giới hạn tạo đối thoại tối đa (${userLimit} cuộc) cho gói ${tier}. Vui lòng nâng cấp gói để tiếp tục.` 
+      });
+    }
+
+    // Check credits (Cost: 5)
+    try {
+      const canProceed = await hasEnoughCredits(req.user.id, 'AI_DIALOGUE');
+      if (!canProceed) {
+        return res.status(402).json({ message: 'Bạn không đủ Credit để tạo đối thoại AI. Vui lòng nạp thêm.' });
+      }
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
 
     const langLabel = language === 'en' ? 'tiếng Anh' : language === 'zh' ? 'tiếng Trung' : 'tiếng Việt';
     const female = speakerFemaleName || 'Linh';
@@ -254,9 +285,23 @@ NỘI DUNG: ${(doc.content || doc.summary || 'Không có nội dung').substring(
 Yêu cầu:
 - Khoảng 10-15 lượt trao đổi
 - Tự nhiên, dễ hiểu, có tính giáo dục
-- Định dạng: "${female}: ..." và "${male}: ..."`;
+- Định dạng: "${female}: ..." và "${male}: ..."
+- KHÔNG sử dụng định dạng markdown như dấu sao (**) để in đậm tên người nói hay bất kỳ nội dung nào.`;
 
-    const result = await callAI(prompt, 'Bạn là AI tạo hội thoại giáo dục.', { max_tokens: 2000 });
+    const result = await callAI(prompt, 'Bạn là AI tạo hội thoại giáo dục. Chỉ trả về văn bản thuần túy.', { max_tokens: 2000 });
+
+    // Deduct credits and log usage on success
+    try {
+      await deductCredits(req.user.id, 'AI_DIALOGUE', { 
+        documentId,
+        language,
+        promptTokens: result.usage.promptTokens,
+        completionTokens: result.usage.completionTokens
+      });
+    } catch (err) {
+      console.error('Failed to deduct credits for dialogue:', err.message);
+      // We still return the dialogue since it was generated, but this shouldn't normally happen
+    }
 
     res.json({ dialogue: result.content });
   } catch (error) {

@@ -58,35 +58,54 @@ const getOverview = async (req, res) => {
       evening: totalDist > 0 ? Math.round((timeDistribution.evening / totalDist) * 100) : 0,
     };
 
-    // 3. Dữ liệu biểu đồ nhiệt (365 ngày) - Sử dụng Aggregation cho hiệu năng
-    const chartDataResult = await StudySession.aggregate([
-      {
-        $match: {
-          user: userId,
-          date: { $gte: oneYearAgo },
-        },
-      },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
-          totalMinutes: { $sum: '$duration' },
-        },
-      },
-      { $sort: { _id: 1 } },
+    // 3. Toàn diện dữ liệu biểu đồ nhiệt (365 ngày)
+    const [studyAgg, quizAgg, usageAgg, docAgg] = await Promise.all([
+      // Study Sessions
+      StudySession.aggregate([
+        { $match: { user: userId, date: { $gte: oneYearAgo } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } }, minutes: { $sum: '$duration' } } }
+      ]),
+      // Quiz Results
+      QuizResult.aggregate([
+        { $match: { user: userId, createdAt: { $gte: oneYearAgo } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } }
+      ]),
+      // AI Usage
+      require('../models/UsageLog').aggregate([
+        { $match: { userId, status: 'success', createdAt: { $gte: oneYearAgo } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } }
+      ]),
+      // Document Uploads
+      require('../models/Document').aggregate([
+        { $match: { user: userId, createdAt: { $gte: oneYearAgo } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } }
+      ])
     ]);
 
-    // Map kết quả aggregation vào mảng liên tục cho frontend
-    const chartData = [];
-    const resultMap = new Map(chartDataResult.map((item) => [item._id, item.totalMinutes]));
+    // Map kết quả aggregation vào mảng liên tục
+    const heatmapMap = new Map();
 
+    const process = (agg, weight, type = 'count') => {
+      agg.forEach(item => {
+        const current = heatmapMap.get(item._id) || 0;
+        const val = type === 'minutes' ? Math.min(10, Math.floor(item.minutes / 10)) : item.count * weight;
+        heatmapMap.set(item._id, current + val);
+      });
+    };
+
+    process(studyAgg, 1, 'minutes');
+    process(quizAgg, 3);
+    process(usageAgg, 2);
+    process(docAgg, 2);
+
+    const chartData = [];
     for (let i = 364; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-      const minutes = resultMap.get(dateStr) || 0;
       chartData.push({
         date: dateStr,
-        hours: Math.round((minutes / 60) * 10) / 10,
+        score: heatmapMap.get(dateStr) || 0,
       });
     }
 
@@ -100,7 +119,7 @@ const getOverview = async (req, res) => {
       avgDaily,
       totalQuizzes: quizCount,
       distribution,
-      chartData, // Mảng 365 ngày
+      chartData, // Mảng 365 ngày chứa activity score
     });
   } catch (error) {
     console.error('Error in getOverview:', error);
