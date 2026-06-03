@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight, Shield } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 import { api, UserItem } from '../lib/api';
-import lmLogo from '../assest/lmLogo.jpg';
+import lmLogo from '../assest/lmLogo.png';
 
 interface AuthProps {
   onLogin: (token: string, user?: UserItem) => void;

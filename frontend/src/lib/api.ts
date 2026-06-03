@@ -162,20 +162,27 @@ export type StudyPlanTask = {
   _id: string;
   title: string;
   duration: string;
-  type: string;
-  status: string;
-  time?: string;
+  type: 'Đọc tài liệu' | 'Thực hành' | 'Ôn tập' | 'Xem video' | 'Khác';
+  status: 'todo' | 'doing' | 'done';
+  time: string;
+};
+
+export type WeeklyGoal = {
+  _id?: string;
+  text: string;
+  completed: boolean;
 };
 
 export type StudyPlanItem = {
   _id: string;
   subject: string;
-  examDate?: string;
-  intensity?: 'light' | 'moderate' | 'intense';
-  weakTopics?: string[];
-  weeklyGoals?: StudyPlanGoal[];
-  tasks: StudyPlanTask[];
   date: string;
+  examDate?: string;
+  intensity: 'light' | 'moderate' | 'intense';
+  weakTopics: string[];
+  weeklyGoals: WeeklyGoal[];
+  tasks: StudyPlanTask[];
+  createdAt: string;
 };
 
 export type KnowledgeMapNode = {
@@ -201,6 +208,18 @@ export type KnowledgeMapItem = {
   aiInsight?: string;
   createdAt?: string;
   updatedAt?: string;
+  subjectId?: string;
+  color: string;
+  status?: 'done' | 'doing' | 'todo';
+  x?: number;
+  y?: number;
+};
+
+export type KnowledgeMapData = {
+  subjects: Array<{ id: string; label: string; color: string }>;
+  topics: Array<{ id: string; label: string; subjectId: string; status: 'done' | 'doing' | 'todo' }>;
+  connections: Array<{ from: string; to: string }>;
+  aiInsight: string;
 };
 
 export type NotificationItem = {
@@ -476,4 +495,13 @@ export const api = {
 
   generateDialogue: (token: string, data: { documentId: string; language: string; speakerFemaleName: string; speakerMaleName: string }) =>
     request<{ dialogue: string }>('/ai/generate-dialogue', { method: 'POST', token, body: data }),
+
+  generateKnowledgeMap: (token: string, documentIds: string[], title?: string) =>
+    request<{ mapData: KnowledgeMapData; mapId: string; title: string }>('/ai/generate-knowledge-map', { method: 'POST', token, body: { documentIds, title } }),
+  // getKnowledgeMaps: (token: string) => 
+  //   request<{ maps: any[] }>('/ai/knowledge-maps', { token }),
+  getKnowledgeMapById: (token: string, id: string) => 
+    request<{ mapData: KnowledgeMapData; title: string }>(`/ai/knowledge-maps/${id}`, { token }),
+  deleteKnowledgeMap: (token: string, id: string) => 
+    request<{ message: string }>(`/ai/knowledge-maps/${id}`, { method: 'DELETE', token }),
 };

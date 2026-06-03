@@ -60,7 +60,7 @@ export function Sidebar({ isOpen, setIsOpen, currentPage, setCurrentPage, user }
       {/* Logo */}
       <div className="p-4 flex items-center justify-between h-16 border-b border-slate-800">
         <div className={`flex items-center gap-3 overflow-hidden ${!isOpen && 'justify-center w-full'}`}>
-          <img src="/pasted-image.jpg" alt="LearnMate Logo" className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-primary-light" />
+          <img src="/lmLogo.png" alt="LearnMate Logo" className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-primary-light" />
           {isOpen && (
             <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-bold text-lg tracking-wide whitespace-nowrap">
               LEARNMATE
