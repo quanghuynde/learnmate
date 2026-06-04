@@ -179,22 +179,12 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
 
     setGenerating(true);
     try {
-      const response = await fetch('/api/ai/generate-quiz', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          documentIds: selectedDocIds,
-          format,
-          numQuestions,
-          difficulty,
-        }),
+      const data = await api.generateQuiz(token, {
+        documentIds: selectedDocIds,
+        format,
+        numQuestions,
+        difficulty,
       });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || `Lỗi server ${response.status}`);
 
       let textResponse: string = data.text || '';
 
