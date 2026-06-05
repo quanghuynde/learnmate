@@ -11,22 +11,23 @@ const initCreditRenewalJob = () => {
       const fourteenDaysAgo = new Date();
       fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
 
-      // Find users who haven't been reset in 14+ days 
-      // and whose credits are below 100
-      
+      // Find users who haven't been reset in 14+ days
       const usersToReset = await User.find({
-        lastCreditReset: { $lte: fourteenDaysAgo },
-        currentCredits: { $lt: 1000 }
+        lastCreditReset: { $lte: fourteenDaysAgo }
       });
 
       for (const user of usersToReset) {
-        const topUp = 1000 - user.currentCredits;
-        if (topUp > 0) {
-          user.currentCredits = 1000;
+        let tierMax = 800; // Basic
+        if (user.subscriptionTier === 'Pro') tierMax = 2500;
+        if (user.subscriptionTier === 'Premium') tierMax = 5000;
+
+        // Reset to tier max only if they have fewer credits
+        if (user.currentCredits < tierMax) {
+          user.currentCredits = tierMax;
           user.lastCreditReset = new Date();
           await user.save();
           
-          console.log(`Reset credits for user ${user.email}`);
+          console.log(`Reset credits for user ${user.email} (${user.subscriptionTier}) to ${tierMax}`);
         }
       }
     } catch (error) {

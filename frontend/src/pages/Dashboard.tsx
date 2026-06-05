@@ -369,10 +369,10 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
               <span className="bg-accent text-sidebar text-xs font-bold px-2 py-1 rounded">PRO</span>
             </div>
             <div className="space-y-2 mb-6 relative z-10">
-              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> 2.500 Credit sử dụng</div>
+              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> 2.500 Credit mỗi 2 tuần (tự hồi)</div>
               <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Lưu trữ tối đa 80 tài liệu</div>
-              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Tạo và lưu trữ tối đa 20 hội thoại AI</div>
-              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Tạo Quiz AI nâng cao</div>
+              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Tạo tối đa 30 đối thoại & 30 bản đồ</div>
+              <div className="flex items-center gap-2 text-sm text-slate-200"><CheckCircle2 size={14} className="text-success-light" /> Tạo tối đa 60 Quiz AI</div>
             </div>
             <button onClick={() => setCurrentPage('pricing')} className="w-full bg-white text-sidebar font-bold py-2.5 rounded-xl hover:bg-slate-100 transition-colors relative z-10">Nâng cấp ngay - Chỉ từ 49k</button>
           </div>

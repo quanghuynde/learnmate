@@ -14,7 +14,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from 'recharts'
-import { api, ExamReadinessData, ExamItem } from '../lib/api'
+import { api, ExamReadinessData } from '../lib/api'
 
 export function ExamReadiness({ token }: { token: string }) {
   const [loading, setLoading] = useState(true)

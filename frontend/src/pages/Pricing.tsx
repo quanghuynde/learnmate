@@ -16,7 +16,7 @@ const TIERS = [
     key: 'Basic',
     name: 'Miễn phí',
     price: 0,
-    credits: 1000,
+    credits: 800,
     icon: <Zap className="text-slate-500" size={22} />,
     badge: null,
     color: 'border-slate-200',
@@ -24,11 +24,12 @@ const TIERS = [
     btnClass: 'bg-slate-100 text-slate-700 hover:bg-slate-200',
     btnLabel: 'Dùng gói này',
     features: [
-      '1.000 Credit mỗi 2 tuần (tự động hồi)',
+      '800 Credit mỗi 2 tuần (tự động hồi)',
       'Tải & tóm tắt tài liệu',
-      'Tạo Quiz AI cơ bản',
+      'Tạo tối đa 30 Quiz AI',
       'Lưu trữ tối đa 40 tài liệu',
-      'Tạo và lưu trữ tối đa 5 hội thoại AI',
+      'Tạo tối đa 10 đối thoại AI',
+      'Tạo tối đa 10 bản đồ kiến thức'
     ],
   },
   {
@@ -43,13 +44,13 @@ const TIERS = [
     btnClass: 'bg-primary text-white hover:bg-primary-dark shadow-lg shadow-primary/30',
     btnLabel: 'Nâng cấp ngay',
     features: [
-      '2.500 Credit sử dụng',
+      '2.500 Credit mỗi 2 tuần (tự động hồi)',
       'Sử dụng trong 30 ngày',
       'Lưu trữ tối đa 80 tài liệu',
-      'Tạo Quiz AI nâng cao',
-      'Tạo và lưu trữ tối đa 20 hội thoại AI',
-      'Lịch sử giao dịch',
-      'Tạo tối đa 20 bản đồ kiến thức'
+      'Tạo tối đa 60 Quiz AI',
+      'Tạo tối đa 30 đối thoại AI',
+      'Tạo tối đa 30 bản đồ kiến thức',
+      'Lịch sử giao dịch'
     ],
   },
   {
@@ -64,13 +65,13 @@ const TIERS = [
     btnClass: 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 shadow-lg shadow-amber-400/30',
     btnLabel: 'Nâng cấp ngay',
     features: [
-      '5.000 Credit sử dụng',
+      '5.000 Credit mỗi 2 tuần (tự động hồi)',
       'Sử dụng trong 30 ngày',
       'Tất cả tính năng Pro',
-      'Chat AI không giới hạn',
+      'Chat & Quiz AI không giới hạn',
+      'Bản đồ kiến thức không giới hạn',
       'Tạo đề thi toàn diện',
       'AI Postcard & Podcast',
-      'Tạo không giới hạn bản đồ kiến thức'
     ],
   },
 ];

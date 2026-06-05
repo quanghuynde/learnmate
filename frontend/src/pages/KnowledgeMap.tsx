@@ -43,6 +43,8 @@ export function KnowledgeMap({ token, user }: KnowledgeMapProps) {
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [title, setTitle] = useState('')
 
+  const [deletingMapId, setDeletingMapId] = useState<string | null>(null)
+
   // ── data loading ──────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -113,12 +115,16 @@ export function KnowledgeMap({ token, user }: KnowledgeMapProps) {
     }
   }
 
-  const deleteMap = async (e: React.MouseEvent, id: string) => {
+  const prepareDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
-    if (!window.confirm('Bạn có chắc muốn xóa bản đồ này?')) return
+    setDeletingMapId(id)
+  }
+
+  const confirmDelete = async (id: string) => {
     try {
       await api.deleteKnowledgeMap(token, id)
       setHistory(prev => prev.filter(m => m._id !== id))
+      setDeletingMapId(null)
     } catch (e) {
       alert('Xóa thất bại')
     }
@@ -249,8 +255,8 @@ export function KnowledgeMap({ token, user }: KnowledgeMapProps) {
 
   if (step === 'select') {
     const tier = user?.role === 'admin' ? 'Premium' : (user as any)?.subscriptionTier || 'Basic'
-    const limits = { 'Basic': 5, 'Pro': 20, 'Premium': Infinity }
-    const userLimit = limits[tier as keyof typeof limits] || 5
+    const limits = { 'Basic': 10, 'Pro': 30, 'Premium': Infinity }
+    const userLimit = limits[tier as keyof typeof limits] || 10
     const used = history.length
     const isOverLimit = used >= userLimit
 
@@ -310,12 +316,44 @@ export function KnowledgeMap({ token, user }: KnowledgeMapProps) {
                       <p className="text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-primary transition-colors">
                         {map.title}
                       </p>
-                      <button 
-                        onClick={(e) => deleteMap(e, map._id)}
-                        className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="relative">
+                        <button 
+                          onClick={(e) => prepareDelete(e, map._id)}
+                          className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+
+                        <AnimatePresence>
+                          {deletingMapId === map._id && (
+                            <motion.div 
+                              initial={{ opacity: 0, scale: 0.9, x: 10 }}
+                              animate={{ opacity: 1, scale: 1, x: 0 }}
+                              exit={{ opacity: 0, scale: 0.9, x: 10 }}
+                              className="absolute right-full top-0 mr-3 z-[60] bg-slate-900 text-white p-3 rounded-2xl shadow-2xl min-w-[180px]"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <p className="text-[11px] font-bold mb-3 leading-tight">Xóa bản đồ kiến thức đã tạo?</p>
+                              <div className="flex gap-2">
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); setDeletingMapId(null); }}
+                                  className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-xl text-[10px] font-bold transition-colors"
+                                >
+                                  Hủy
+                                </button>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); confirmDelete(map._id); }}
+                                  className="flex-1 py-1.5 bg-red-500 hover:bg-red-600 rounded-xl text-[10px] font-bold transition-colors"
+                                >
+                                  Xóa
+                                </button>
+                              </div>
+                              {/* Triangle Arrow */}
+                              <div className="absolute top-3 -right-1.5 w-3 h-3 bg-slate-900 rotate-45" />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </div>
                     <div className="flex items-center gap-3 text-[10px] text-slate-400 font-medium">
                       <span className="flex items-center gap-1">

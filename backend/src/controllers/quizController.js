@@ -17,6 +17,23 @@ const getQuizzes = async (req, res) => {
 const createQuiz = async (req, res) => {
   try {
     const { title, subject, document, format, totalQuestions, questions } = req.body;
+
+    // Check quiz limit based on subscription tier
+    let tier = req.user.subscriptionTier || 'Basic';
+    if (tier !== 'Basic' && req.user.subscriptionExpiresAt && new Date(req.user.subscriptionExpiresAt) < new Date()) {
+      tier = 'Basic';
+    }
+
+    const currentQuizCount = await Quiz.countDocuments({ user: req.user.id });
+    const limits = { 'Basic': 30, 'Pro': 60, 'Premium': Infinity };
+    const userLimit = limits[tier] || 30;
+
+    if (currentQuizCount >= userLimit) {
+      return res.status(403).json({ 
+        message: `Bạn đã đạt giới hạn tạo Quiz tối đa (${userLimit} bài) cho gói ${tier}. Vui lòng nâng cấp gói để tiếp tục.` 
+      });
+    }
+
     const quiz = await Quiz.create({ user: req.user.id, title, subject, document, format, totalQuestions, questions });
 
     await createUserNotification(req.user.id, {
