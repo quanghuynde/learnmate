@@ -36,7 +36,8 @@ const createQuiz = async (req, res) => {
 
     const quiz = await Quiz.create({ user: req.user.id, title, subject, document, format, totalQuestions, questions });
 
-    await createUserNotification(req.user.id, {
+    // Fire-and-forget notification
+    createUserNotification(req.user.id, {
       title: 'Quiz mới đã được tạo',
       message: `Quiz "${title}" (${format}) đã sẵn sàng.`,
       type: 'quiz',
@@ -108,7 +109,8 @@ const submitQuiz = async (req, res) => {
     await user.save();
     await updateStreak(user);
 
-    await createUserNotification(req.user.id, {
+    // Fire-and-forget notification
+    createUserNotification(req.user.id, {
       title: 'Kết quả quiz mới',
       message: `Bạn đạt ${percentage}% cho quiz "${quiz.title}".`,
       type: 'quiz',

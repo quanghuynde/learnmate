@@ -83,16 +83,7 @@ export function Documents({ token }: DocumentsProps) {
     setSummaryLoading(true);
     setSummaryContent('');
     try {
-      const response = await fetch('/api/ai/summarize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ documentId: doc._id }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || `Lỗi server ${response.status}`);
+      const data = await api.summarizeDocument(token, doc._id);
       setSummaryContent(data.summary || 'Mô hình AI trả về nội dung rỗng.');
     } catch (err) {
       setSummaryContent(`Không thể tạo tóm tắt: ${err instanceof Error ? err.message : 'Unknown error'}`);

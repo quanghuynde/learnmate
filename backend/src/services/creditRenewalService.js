@@ -16,6 +16,12 @@ const initCreditRenewalJob = () => {
         lastCreditReset: { $lte: fourteenDaysAgo }
       });
 
+      const TIER_BASES = {
+        'Basic': 800,
+        'Pro': 2500,
+        'Premium': 5000
+      };
+
       for (const user of usersToReset) {
         let tierMax = 800; // Basic
         if (user.subscriptionTier === 'Pro') tierMax = 2500;

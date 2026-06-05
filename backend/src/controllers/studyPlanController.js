@@ -1,4 +1,4 @@
-﻿const StudyPlan = require('../models/StudyPlan');
+const StudyPlan = require('../models/StudyPlan');
 const { createUserNotification } = require('../services/notificationService');
 
 const getStudyPlans = async (req, res) => {
@@ -35,7 +35,8 @@ const createStudyPlan = async (req, res) => {
       date,
     });
 
-    await createUserNotification(req.user.id, {
+    // Fire-and-forget notification to avoid blocking the response
+    createUserNotification(req.user.id, {
       title: 'Tạo kế hoạch học thành công',
       message: `Kế hoạch môn ${subject || 'chưa đặt tên'} đã được tạo.`,
       type: 'study_plan',

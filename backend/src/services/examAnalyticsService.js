@@ -182,15 +182,15 @@ const getTopicsAnalysis = async (quizResults, sessions) => {
       const avgScore = data.quizCount > 0 ? Math.round(data.totalPercentage / data.quizCount) : 0;
       const hours = Math.round((data.studyTime / 60) * 10) / 10;
 
-      let status = 'Nguy hiểm';
-      let color = 'bg-danger text-danger';
-      
       if (avgScore >= 80) {
         status = 'Tốt';
-        color = 'bg-success text-success';
+        color = 'bg-success/10 text-success';
       } else if (avgScore >= 60) {
         status = 'Cần ôn';
-        color = 'bg-warning text-warning';
+        color = 'bg-accent/10 text-accent';
+      } else {
+        status = 'Nguy hiểm';
+        color = 'bg-danger/10 text-danger';
       }
 
       return { name, score: avgScore, time: `${hours}h`, status, color };

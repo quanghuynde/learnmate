@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNotification } from '../components/ui/Notification';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Check, Zap, Crown, Shield, CreditCard, Coins, ArrowRight, 
@@ -33,7 +34,7 @@ const TIERS = [
     ],
   },
   {
-    key: 'Pro',
+    key: 'Pro', 
     name: 'Pro',
     price: 49000,
     credits: 2500,
@@ -85,6 +86,7 @@ const AI_COSTS = [
 ];
 
 export function Pricing({ setCurrentPage }: PricingProps) {
+  const { showNotification } = useNotification();
   const [packages, setPackages] = useState<PackageItem[]>([]);
   const [buying, setBuying] = useState<string | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -112,7 +114,7 @@ export function Pricing({ setCurrentPage }: PricingProps) {
     }
 
     if (!pkg) {
-      alert(`Không tìm thấy cấu hình cho gói ${tierKey}. Vui lòng tải lại trang.`);
+      showNotification(`Không tìm thấy cấu hình cho gói ${tierKey}. Vui lòng tải lại trang.`, 'warning');
       return;
     }
 
@@ -122,7 +124,7 @@ export function Pricing({ setCurrentPage }: PricingProps) {
       setPaymentData(res);
       setShowQRModal(true);
     } catch (error: any) {
-      alert(error.message || 'Không thể tạo thanh toán. Vui lòng thử lại.');
+      showNotification(error.message || 'Không thể tạo thanh toán. Vui lòng thử lại.', 'error');
     } finally {
       setBuying(null);
     }
@@ -188,8 +190,7 @@ export function Pricing({ setCurrentPage }: PricingProps) {
             <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 rounded-xl mb-6">
               <Coins size={16} className="text-primary flex-shrink-0" />
               <span className="text-sm font-bold text-primary">
-                {tier.credits.toLocaleString()} Credits
-                {tier.key === 'Basic' ? ' / 2 tuần (tự hồi)' : ''}
+                {tier.credits.toLocaleString()} Credits / 2 tuần (tự hồi)
               </span>
             </div>
 
