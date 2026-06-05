@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNotification } from '../components/ui/Notification';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Check, Zap, Crown, Shield, CreditCard, Coins, ArrowRight, 
@@ -16,7 +17,7 @@ const TIERS = [
     key: 'Basic',
     name: 'Miễn phí',
     price: 0,
-    credits: 1000,
+    credits: 800,
     icon: <Zap className="text-slate-500" size={22} />,
     badge: null,
     color: 'border-slate-200',
@@ -24,15 +25,15 @@ const TIERS = [
     btnClass: 'bg-slate-100 text-slate-700 hover:bg-slate-200',
     btnLabel: 'Dùng gói này',
     features: [
-      '1.000 Credit mỗi 2 tuần (tự động hồi)',
-      'Tải & tóm tắt tài liệu',
-      'Tạo Quiz AI cơ bản',
+      '800 Credit mỗi 2 tuần (tự hồi)',
       'Lưu trữ tối đa 40 tài liệu',
-      'Tạo và lưu trữ tối đa 5 hội thoại AI',
+      'Tạo tối đa 30 Quiz AI',
+      'Lưu trữ 10 bản đồ kiến thức',
+      '10 hội thoại AI',
     ],
   },
   {
-    key: 'Pro',
+    key: 'Pro', 
     name: 'Pro',
     price: 49000,
     credits: 2500,
@@ -43,13 +44,12 @@ const TIERS = [
     btnClass: 'bg-primary text-white hover:bg-primary-dark shadow-lg shadow-primary/30',
     btnLabel: 'Nâng cấp ngay',
     features: [
-      '2.500 Credit sử dụng',
-      'Sử dụng trong 30 ngày',
+      '2.500 Credit mỗi 2 tuần (tự hồi)',
       'Lưu trữ tối đa 80 tài liệu',
-      'Tạo Quiz AI nâng cao',
-      'Tạo và lưu trữ tối đa 20 hội thoại AI',
+      'Tạo tối đa 60 Quiz AI',
+      'Lưu trữ 30 bản đồ kiến thức',
+      '30 hội thoại AI',
       'Lịch sử giao dịch',
-      'Tạo tối đa 20 bản đồ kiến thức'
     ],
   },
   {
@@ -64,13 +64,12 @@ const TIERS = [
     btnClass: 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 shadow-lg shadow-amber-400/30',
     btnLabel: 'Nâng cấp ngay',
     features: [
-      '5.000 Credit sử dụng',
-      'Sử dụng trong 30 ngày',
-      'Tất cả tính năng Pro',
-      'Chat AI không giới hạn',
-      'Tạo đề thi toàn diện',
+      '5.000 Credit mỗi 2 tuần (tự hồi)',
+      'Lưu trữ tài liệu không giới hạn',
+      'Tạo Quiz không giới hạn',
+      'Lưu trữ bản đồ không giới hạn',
+      'Đối thoại AI không giới hạn',
       'AI Postcard & Podcast',
-      'Tạo không giới hạn bản đồ kiến thức'
     ],
   },
 ];
@@ -84,6 +83,7 @@ const AI_COSTS = [
 ];
 
 export function Pricing({ setCurrentPage }: PricingProps) {
+  const { showNotification } = useNotification();
   const [packages, setPackages] = useState<PackageItem[]>([]);
   const [buying, setBuying] = useState<string | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -111,7 +111,7 @@ export function Pricing({ setCurrentPage }: PricingProps) {
     }
 
     if (!pkg) {
-      alert(`Không tìm thấy cấu hình cho gói ${tierKey}. Vui lòng tải lại trang.`);
+      showNotification(`Không tìm thấy cấu hình cho gói ${tierKey}. Vui lòng tải lại trang.`, 'warning');
       return;
     }
 
@@ -121,7 +121,7 @@ export function Pricing({ setCurrentPage }: PricingProps) {
       setPaymentData(res);
       setShowQRModal(true);
     } catch (error: any) {
-      alert(error.message || 'Không thể tạo thanh toán. Vui lòng thử lại.');
+      showNotification(error.message || 'Không thể tạo thanh toán. Vui lòng thử lại.', 'error');
     } finally {
       setBuying(null);
     }
@@ -187,8 +187,7 @@ export function Pricing({ setCurrentPage }: PricingProps) {
             <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 rounded-xl mb-6">
               <Coins size={16} className="text-primary flex-shrink-0" />
               <span className="text-sm font-bold text-primary">
-                {tier.credits.toLocaleString()} Credits
-                {tier.key === 'Basic' ? ' / 2 tuần (tự hồi)' : ''}
+                {tier.credits.toLocaleString()} Credits / 2 tuần (tự hồi)
               </span>
             </div>
 

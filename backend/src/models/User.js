@@ -127,7 +127,7 @@ const userSchema = new mongoose.Schema(
     },
     currentCredits: {
       type: Number,
-      default: 1000,
+      default: 800,
     },
     lastCreditReset: {
       type: Date,
