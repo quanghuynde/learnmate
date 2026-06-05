@@ -67,10 +67,10 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
 
   useEffect(() => {
     const load = async () => {
+      const todayDate = new Date().toISOString().split('T')[0];
       const [examRes, planRes, progressRes] = await Promise.all([
-
         api.getExams(token),
-        api.getStudyPlans(token),
+        api.getStudyPlans(token, todayDate),
         api.getProgressOverview(token),
       ]);
 
