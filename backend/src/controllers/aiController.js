@@ -255,8 +255,8 @@ const generateDialogue = async (req, res) => {
       status: 'success'
     });
 
-    const limits = { 'Basic': 5, 'Pro': 20, 'Premium': Infinity };
-    const userLimit = limits[tier] || 5;
+    const limits = { 'Basic': 10, 'Pro': 30, 'Premium': Infinity };
+    const userLimit = limits[tier] || 10;
 
     if (dialogueCount >= userLimit) {
       return res.status(403).json({ 
@@ -340,8 +340,8 @@ const generateKnowledgeMap = async (req, res) => {
     }
 
     const currentMapsCount = await KnowledgeMap.countDocuments({ user: req.user.id });
-    const limits = { 'Basic': 5, 'Pro': 20, 'Premium': Infinity };
-    const userLimit = limits[tier] || 5;
+    const limits = { 'Basic': 10, 'Pro': 30, 'Premium': Infinity };
+    const userLimit = limits[tier] || 10;
 
     if (currentMapsCount >= userLimit) {
       return res.status(403).json({ 

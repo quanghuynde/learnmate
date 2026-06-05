@@ -25,11 +25,12 @@ const TIERS = [
     btnClass: 'bg-slate-100 text-slate-700 hover:bg-slate-200',
     btnLabel: 'Dùng gói này',
     features: [
-      '800 Credit mỗi 2 tuần (tự hồi)',
-      'Lưu trữ tối đa 40 tài liệu',
+      '800 Credit mỗi 2 tuần (tự động hồi)',
+      'Tải & tóm tắt tài liệu',
       'Tạo tối đa 30 Quiz AI',
-      'Lưu trữ 10 bản đồ kiến thức',
-      '10 hội thoại AI',
+      'Lưu trữ tối đa 40 tài liệu',
+      'Tạo tối đa 10 đối thoại AI',
+      'Tạo tối đa 10 bản đồ kiến thức'
     ],
   },
   {
@@ -44,12 +45,13 @@ const TIERS = [
     btnClass: 'bg-primary text-white hover:bg-primary-dark shadow-lg shadow-primary/30',
     btnLabel: 'Nâng cấp ngay',
     features: [
-      '2.500 Credit mỗi 2 tuần (tự hồi)',
+      '2.500 Credit mỗi 2 tuần (tự động hồi)',
+      'Sử dụng trong 30 ngày',
       'Lưu trữ tối đa 80 tài liệu',
       'Tạo tối đa 60 Quiz AI',
-      'Lưu trữ 30 bản đồ kiến thức',
-      '30 hội thoại AI',
-      'Lịch sử giao dịch',
+      'Tạo tối đa 30 đối thoại AI',
+      'Tạo tối đa 30 bản đồ kiến thức',
+      'Lịch sử giao dịch'
     ],
   },
   {
@@ -64,11 +66,12 @@ const TIERS = [
     btnClass: 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 shadow-lg shadow-amber-400/30',
     btnLabel: 'Nâng cấp ngay',
     features: [
-      '5.000 Credit mỗi 2 tuần (tự hồi)',
-      'Lưu trữ tài liệu không giới hạn',
-      'Tạo Quiz không giới hạn',
-      'Lưu trữ bản đồ không giới hạn',
-      'Đối thoại AI không giới hạn',
+      '5.000 Credit mỗi 2 tuần (tự động hồi)',
+      'Sử dụng trong 30 ngày',
+      'Tất cả tính năng Pro',
+      'Chat & Quiz AI không giới hạn',
+      'Bản đồ kiến thức không giới hạn',
+      'Tạo đề thi toàn diện',
       'AI Postcard & Podcast',
     ],
   },

@@ -492,7 +492,7 @@ export function StudyPlanner({ token }: StudyPlannerProps) {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {weeklyGoals.map(({ planId, goal, goalIdx }, i) => {
+                  {weeklyGoals.map(({ planId, goal, goalIdx }) => {
                     const planGoals = weekPlans.find((p) => p._id === planId)?.weeklyGoals ?? []
                     return (
                       <label key={`${planId}-${goalIdx}`} className="flex items-start gap-3 cursor-pointer group">
