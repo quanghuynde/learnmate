@@ -357,6 +357,33 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
     setStep('result');
   };
 
+  const unifiedHistory = useMemo(() => {
+    // Map backend results to the same format as LocalQuizHistory
+    const backendMapped = history.map(h => ({
+      id: (h as any)._id,
+      title: (h as any).quiz?.title || (h as any).quiz?.subject || 'Quiz',
+      date: (h as any).createdAt,
+      score: (h as any).score,
+      total: (h as any).totalQuestions,
+      format: (h as any).quiz?.format || 'Trắc nghiệm',
+      questions: (h as any).quiz?.questions || [],
+      pickedAnswers: (h as any).answers?.map((a: any) => a.selectedAnswer) || [],
+      essayAnswers: (h as any).answers?.map((a: any) => a.essayAnswer) || [],
+    }));
+
+    // Combine and deduplicate if necessary, but here we just merge and sort
+    const combined = [...localHistory];
+    
+    // Add backend items that aren't already in local (prevent duplicates if possible)
+    backendMapped.forEach(b => {
+      if (!combined.some(l => l.id === b.id)) {
+        combined.push(b);
+      }
+    });
+
+    return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [localHistory, history]);
+
   const resetQuiz = () => {
     sessionStorage.removeItem('learnmate_quiz_state');
     setStep('setup');
@@ -392,7 +419,7 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
                 <div className="flex border-b border-slate-100 mb-8 -mx-8 px-8">
                   {[
                     { id: 'setup', label: 'Thiết lập Quiz', icon: <Settings size={16} /> },
-                    { id: 'history', label: `Lịch sử (${localHistory.length})`, icon: <RotateCcw size={16} /> }
+                    { id: 'history', label: `Lịch sử (${unifiedHistory.length})`, icon: <RotateCcw size={16} /> }
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -584,7 +611,7 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
               </div>
             ) : (
               <div className="space-y-4 pt-2">
-                {localHistory.length === 0 ? (
+                {unifiedHistory.length === 0 ? (
                   <div className="text-center py-16 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
                     <div className="w-16 h-16 bg-white text-slate-300 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
                       <RotateCcw size={32} />
@@ -594,7 +621,7 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
                   </div>
                 ) : (
                   <div className="grid gap-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                    {localHistory.map((item) => (
+                    {unifiedHistory.map((item) => (
                       <div 
                         key={item.id}
                         className="bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 p-5 rounded-2xl border border-slate-100 transition-all group cursor-pointer relative overflow-hidden"

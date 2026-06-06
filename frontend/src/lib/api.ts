@@ -183,18 +183,22 @@ export type StudyPlanItem = {
 export type KnowledgeMapNode = {
   id: string;
   label: string;
+  children?: KnowledgeMapNode[];
+  // Legacy fields (old maps)
   subjectId?: string;
-  color: string;
+  color?: string;
   status?: 'done' | 'doing' | 'todo';
-  x?: number;
-  y?: number;
 };
 
 export type KnowledgeMapData = {
-  subjects: Array<{ id: string; label: string; color: string }>;
-  topics: Array<{ id: string; label: string; subjectId: string; status: 'done' | 'doing' | 'todo' }>;
-  connections: Array<{ from: string; to: string }>;
-  aiInsight: string;
+  // New tree format
+  tree?: KnowledgeMapNode;
+  documentSources?: string[];
+  aiInsight?: string;
+  // Legacy format (for backward compatibility)
+  subjects?: Array<{ id: string; label: string; color: string }>;
+  topics?: Array<{ id: string; label: string; subjectId: string; status: 'done' | 'doing' | 'todo' }>;
+  connections?: Array<{ from: string; to: string }>;
 };
 
 export type NotificationItem = {
