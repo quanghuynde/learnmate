@@ -129,7 +129,7 @@ const submitQuiz = async (req, res) => {
 
 const getQuizHistory = async (req, res) => {
   try {
-    const results = await QuizResult.find({ user: req.user.id }).populate('quiz', 'title subject').sort({ createdAt: -1 }).limit(20);
+    const results = await QuizResult.find({ user: req.user.id }).populate('quiz', 'title subject questions format').sort({ createdAt: -1 }).limit(20);
     res.json({ count: results.length, results });
   } catch (error) {
     res.status(500).json({ message: error.message });
