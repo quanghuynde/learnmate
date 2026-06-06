@@ -56,7 +56,7 @@ export function Sidebar({ isOpen, setIsOpen, currentPage, setCurrentPage, user }
   const initials = user?.name ? getInitials(user.name) : '?';
 
   return (
-    <motion.aside animate={{ width: isOpen ? 256 : 80 }} className="h-full bg-sidebar text-white flex flex-col relative z-20 flex-shrink-0 transition-all duration-300">
+    <motion.aside animate={{ width: isOpen ? 256 : 80 }} className="h-full bg-sidebar text-white hidden md:flex flex-col relative z-20 flex-shrink-0 transition-all duration-300">
       {/* Logo */}
       <div className="p-4 flex items-center justify-between h-16 border-b border-slate-800">
         <div className={`flex items-center gap-3 overflow-hidden ${!isOpen && 'justify-center w-full'}`}>

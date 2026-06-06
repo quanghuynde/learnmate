@@ -341,59 +341,61 @@ export function Documents({ token }: DocumentsProps) {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.04 }}
-                  className="bg-white p-4 rounded-2xl border border-slate-200 flex items-center justify-between hover:shadow-md hover:border-slate-300 transition-all"
+                  className="bg-white p-3 md:p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between hover:shadow-md hover:border-slate-300 transition-all gap-3"
                 >
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${bg} ${color}`}>
-                      <Icon size={22} />
+                  <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                    <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${bg} ${color}`}>
+                      <Icon size={20} className="md:size-[22px]" />
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="font-semibold text-text-primary truncate max-w-xs">{doc.name}</h4>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-semibold text-text-primary truncate text-sm md:text-base">{doc.name}</h4>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] md:text-xs text-slate-500 flex-wrap">
                         <span className={`uppercase font-bold ${color}`}>{doc.type}</span>
-                        {doc.fileSize ? (
+                        {doc.fileSize && (
                           <>
                             <span>•</span>
                             <span>{formatFileSize(doc.fileSize)}</span>
                           </>
-                        ) : null}
-                        {doc.pages ? (
+                        )}
+                        {doc.pages && (
                           <>
                             <span>•</span>
                             <span>{doc.pages} trang</span>
                           </>
-                        ) : null}
-                        <span>•</span>
-                        <span>{new Date(doc.createdAt).toLocaleString('vi-VN')}</span>
+                        )}
+                        <span className="hidden xs:inline">•</span>
+                        <span className="hidden xs:inline">{new Date(doc.createdAt).toLocaleDateString('vi-VN')}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <button
-                      onClick={() => handleShowSummary(doc)}
-                      className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap"
-                    >
-                      <MessageSquare size={14} /> Xem tóm tắt
-                    </button>
-                    {doc.status === 'processed' ? (
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
-                        <CheckCircle2 size={13} /> Đã xử lý
-                      </div>
-                    ) : doc.status === 'error' ? (
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-full">
-                        <AlertCircle size={13} /> Lỗi xử lý
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full">
-                        <Loader2 size={13} className="animate-spin" /> Đang xử lý
-                      </div>
-                    )}
+                  <div className="flex items-center justify-between sm:justify-start gap-2 md:gap-3 flex-shrink-0 mt-1 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-none border-slate-50">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleShowSummary(doc)}
+                        className="px-2.5 py-1.5 md:px-3 md:py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-[10px] md:text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                      >
+                        <MessageSquare size={13} /> <span className="hidden xs:inline">Tóm tắt</span><span className="xs:hidden">Tóm tắt</span>
+                      </button>
+                      {doc.status === 'processed' ? (
+                        <div className="flex items-center gap-1 text-[10px] md:text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1.5 rounded-full">
+                          <CheckCircle2 size={12} /> <span className="hidden xs:inline">Đã xử lý</span>
+                        </div>
+                      ) : doc.status === 'error' ? (
+                        <div className="flex items-center gap-1 text-[10px] md:text-xs font-semibold text-red-600 bg-red-50 px-2.5 py-1.5 rounded-full">
+                          <AlertCircle size={12} /> <span className="hidden xs:inline">Lỗi</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-[10px] md:text-xs font-semibold text-amber-600 bg-amber-50 px-2.5 py-1.5 rounded-full">
+                          <Loader2 size={12} className="animate-spin" /> <span className="hidden xs:inline">Đang xử lý</span>
+                        </div>
+                      )}
+                    </div>
                     <button
                       onClick={() => handleDelete(doc._id)}
-                      className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                      className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
                     >
-                      <Trash2 size={17} />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </motion.div>

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { api, LeaderboardItem, UserItem, PostItem } from '../lib/api'
 import { Search, Loader2, X, PlusCircle } from 'lucide-react'
+import { CustomSelect } from '../components/ui/CustomSelect'
 
 interface CommunityProps {
   token: string
@@ -86,8 +87,8 @@ export function Community({ token, user }: CommunityProps) {
 
   // Generate week options
   const weekOptions = React.useMemo(() => [
-    { id: 'weekly', label: 'Tuần này' },
-    { id: 'weekly-last', label: 'Tuần trước' }
+    { value: 'weekly', label: 'Tuần này' },
+    { value: 'weekly-last', label: 'Tuần trước' }
   ], []);
 
   // Generate month options
@@ -100,7 +101,7 @@ export function Community({ token, user }: CommunityProps) {
       const m = d.getMonth();
       const y = d.getFullYear();
       const label = i === 0 ? `Tháng này` : `Tháng ${String(m + 1).padStart(2, '0')}/${y}`;
-      options.push({ id: `monthly-${m}-${y}`, label });
+      options.push({ value: `monthly-${m}-${y}`, label });
     }
     return options;
   }, []);
@@ -247,44 +248,24 @@ export function Community({ token, user }: CommunityProps) {
           {/* Custom Selects for Leaderboard Period */}
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             {/* Week Filter */}
-            <div className="relative w-full max-w-[200px]">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block px-2">Lọc theo tuần</label>
-              <select
-                value={leaderboardPeriod.startsWith('weekly') ? leaderboardPeriod : ''}
-                onChange={(e) => {
-                  if (e.target.value) setLeaderboardPeriod(e.target.value);
-                }}
-                className="w-full h-11 pl-4 pr-10 bg-white border border-slate-200 rounded-2xl text-sm font-bold appearance-none outline-none focus:border-primary shadow-sm cursor-pointer transition-all hover:bg-slate-50"
-              >
-                <option value="" disabled>Chọn tuần...</option>
-                {weekOptions.map(opt => (
-                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                ))}
-              </select>
-              <div className="absolute right-4 top-[34px] pointer-events-none text-slate-400">
-                <PlusCircle size={18} className="rotate-45" />
-              </div>
-            </div>
+            <CustomSelect
+              label="Lọc theo tuần"
+              options={weekOptions}
+              value={leaderboardPeriod.startsWith('weekly') ? leaderboardPeriod : ''}
+              onChange={(val) => setLeaderboardPeriod(val)}
+              placeholder="Chọn tuần..."
+              className="w-full max-w-[200px]"
+            />
 
             {/* Month Filter */}
-            <div className="relative w-full max-w-[200px]">
-               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block px-2">Lọc theo tháng</label>
-              <select
-                value={leaderboardPeriod.startsWith('monthly') ? leaderboardPeriod : ''}
-                onChange={(e) => {
-                  if (e.target.value) setLeaderboardPeriod(e.target.value);
-                }}
-                className="w-full h-11 pl-4 pr-10 bg-white border border-slate-200 rounded-2xl text-sm font-bold appearance-none outline-none focus:border-primary shadow-sm cursor-pointer transition-all hover:bg-slate-50"
-              >
-                <option value="" disabled>Chọn tháng...</option>
-                {monthOptions.map(opt => (
-                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                ))}
-              </select>
-              <div className="absolute right-4 top-[34px] pointer-events-none text-slate-400">
-                <PlusCircle size={18} className="rotate-45" />
-              </div>
-            </div>
+            <CustomSelect
+              label="Lọc theo tháng"
+              options={monthOptions}
+              value={leaderboardPeriod.startsWith('monthly') ? leaderboardPeriod : ''}
+              onChange={(val) => setLeaderboardPeriod(val)}
+              placeholder="Chọn tháng..."
+              className="w-full max-w-[200px]"
+            />
           </div>
 
           {leaderboard.length > 0 && (
@@ -350,7 +331,8 @@ export function Community({ token, user }: CommunityProps) {
           )}
 
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-            <table className="w-full text-left">
+            {/* Desktop Table - Hidden on small screens */}
+            <table className="w-full text-left hidden sm:table">
               <thead>
                 <tr className="bg-slate-50 text-xs font-bold text-slate-500 uppercase">
                   <th className="p-4 pl-6 w-16">Hạng</th>
@@ -430,6 +412,50 @@ export function Community({ token, user }: CommunityProps) {
                 )}
               </tbody>
             </table>
+
+            {/* Mobile Card List - Show on small screens */}
+            <div className="sm:hidden divide-y divide-slate-100">
+              {loadingLeaderboard ? (
+                <div className="p-8 text-center text-slate-500">Đang tải bảng xếp hạng...</div>
+              ) : leaderboard.length === 0 ? (
+                <div className="p-8 text-center text-slate-500">Chưa có dữ liệu bảng xếp hạng.</div>
+              ) : (
+                leaderboard.map((u: LeaderboardItem, idx: number) => {
+                  const reward = getRewardInfo(idx + 1);
+                  return (
+                    <div
+                      key={u.userId}
+                      className={`p-4 flex items-center gap-3 ${u.userId === user?.id ? 'bg-primary/5' : ''}`}
+                    >
+                      <div className="w-8 font-bold text-slate-400 text-sm flex-shrink-0">
+                        {idx === 0 ? <Medal className="text-accent" size={20} /> : idx === 1 ? <Medal className="text-slate-400" size={20} /> : idx === 2 ? <Medal className="text-orange-400" size={20} /> : `#${idx + 1}`}
+                      </div>
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden bg-slate-100 flex-shrink-0">
+                        {u.avatar ? (
+                          <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
+                        ) : (
+                          u.name.substring(0, 2).toUpperCase()
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-bold text-sm truncate ${u.userId === user?.id ? 'text-primary' : 'text-slate-900'}`}>
+                          {u.name}
+                        </p>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <span className="text-xs font-bold text-primary">{u.xp.toLocaleString()} XP</span>
+                          <span className="text-xs text-orange-500 flex items-center gap-0.5"><Flame size={12} /> {u.streak}</span>
+                        </div>
+                      </div>
+                      {reward && (
+                        <div className="bg-primary/10 text-primary px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap">
+                          +{reward.amount} CR
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </motion.div>
       )}
