@@ -34,11 +34,15 @@ Dưới đây là chi tiết luồng hoạt động và tính năng của các m
 ### 5. Độ sẵn sàng thi
 
 - **Mục đích:** Đánh giá mức độ chuẩn bị của người dùng cho bài thi dựa vào khoảng thời gian mốc (đã cài đặt ở trang chủ).
-- **Thu thập dữ liệu:** Lấy dữ liệu hoàn thành từ các mục **Kế hoạch học** và **Tiến độ**.
-- **Phân tích chủ đề (trong 30 ngày):** Phân tích kết quả thực hiện từ **Kiểm tra** và **Kế hoạch học** để thống kê chi tiết cho từng chủ đề:
+- **Cơ chế Reset:** Điểm sẵn sàng sẽ tự động reset về **0%** chính xác khi đến ngày/giờ thi đã cài đặt.
+- **Phạm vi dữ liệu:** 
+  - Hệ thống chỉ tính toán dữ liệu (Quiz, Giờ học) được tạo **sau thời điểm cài đặt kỳ thi**.
+  - Chỉ tính toán cho các **chủ đề (subjects)** thuộc kỳ thi đó (được đồng bộ từ danh sách môn học của người dùng lúc cài đặt).
+- **Phân tích chủ đề:** Phân tích kết quả thực hiện để thống kê chi tiết:
+  - Hiển thị tối đa **12 chủ đề** mỗi nhóm (phân trang) trong biểu đồ và bảng thống kê.
   - Mức độ nắm vững của mỗi chủ đề.
   - Tổng thời gian đã học cho chủ đề đó.
-  - Đánh giá trạng thái với 3 cấp độ: "Tốt", "Cần ôn", "Nguy hiểm" (giao diện thể hiện giống như frontend đã thiết kế).
+  - Đánh giá trạng thái với 3 cấp độ: "Tốt", "Cần ôn", "Nguy hiểm".
 
 ### 6. Gamification (Trò chơi hóa)
 
