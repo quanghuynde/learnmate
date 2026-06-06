@@ -37,6 +37,10 @@ const examSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    targetSubjects: {
+      type: [String],
+      default: [],
+    },
   },
   { timestamps: true }
 );

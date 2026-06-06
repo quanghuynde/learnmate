@@ -408,6 +408,7 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
                           name: editExamName,
                           subject: editExamName,
                           examDate: new Date(editExamDate).toISOString(),
+                          targetSubjects: userProp?.subjects || [],
                         });
                         setExam(res.exam);
                         setExamName(res.exam.name);
@@ -418,7 +419,8 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
                           name: editExamName,
                           subject: editExamName,
                           examDate: new Date(editExamDate).toISOString(),
-                          totalTopics: 35,
+                          totalTopics: userProp?.subjects?.length || 35,
+                          targetSubjects: userProp?.subjects || [],
                         });
                         setExamName(created.exam.name);
                         setExam(created.exam);

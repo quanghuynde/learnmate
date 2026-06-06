@@ -82,28 +82,45 @@ const getExamReadiness = async (req, res) => {
     const today = new Date();
     const examDate = new Date(exam.examDate);
     const daysRemaining = Math.ceil((examDate - today) / (1000 * 60 * 60 * 24));
+    const isExamPassed = today >= examDate;
 
-    // Pre-fetch raw data for the last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Use exam creation date as the start date for this journey
+    const startDate = exam.createdAt;
 
     const [quizResults, sessions] = await Promise.all([
       QuizResult.find({
         user: req.user.id,
-        createdAt: { $gte: thirtyDaysAgo }
+        createdAt: { $gte: startDate }
       }).populate('quiz', 'subject title'),
       StudySession.find({
         user: req.user.id,
-        date: { $gte: thirtyDaysAgo }
+        date: { $gte: startDate }
       })
     ]);
 
-    // Use pre-fetched data for analytics
-    const readinessScore = await calculateReadinessScore(req.user.id, exam._id, quizResults, sessions);
-    const metrics = await getOverallMetrics(exam._id, quizResults, sessions);
-    const radarData = await getRadarChartData(quizResults, sessions);
-    const trendData = await getTrendData(req.user.id, exam._id, quizResults, sessions, 30);
-    const topics = await getTopicsAnalysis(quizResults, sessions);
+    // Subject filtering by targetSubjects
+    const targetSubjects = exam.targetSubjects || [];
+    const filteredQuizzes = targetSubjects.length > 0 
+      ? quizResults.filter(r => r.quiz && targetSubjects.includes(r.quiz.subject))
+      : quizResults;
+    const filteredSessions = targetSubjects.length > 0
+      ? sessions.filter(s => targetSubjects.includes(s.subject))
+      : sessions;
+
+    // Use pre-fetched data for analytics (Reset to 0 if passed)
+    let readinessScore = 0;
+    let metrics = { quizAccuracy: 0, totalHours: 0, topicsMastered: 0, totalTopics: exam.totalTopics || 0 };
+    let radarData = [];
+    let trendData = [];
+    let topics = [];
+
+    if (!isExamPassed) {
+      readinessScore = await calculateReadinessScore(req.user.id, exam._id, filteredQuizzes, filteredSessions);
+      metrics = await getOverallMetrics(exam._id, filteredQuizzes, filteredSessions);
+      radarData = await getRadarChartData(filteredQuizzes, filteredSessions);
+      trendData = await getTrendData(req.user.id, exam._id, filteredQuizzes, filteredSessions, 30);
+      topics = await getTopicsAnalysis(filteredQuizzes, filteredSessions);
+    }
 
     // Update exam readiness score
     exam.readinessScore = readinessScore;

@@ -363,37 +363,49 @@ const generateKnowledgeMap = async (req, res) => {
       return res.status(400).json({ message: 'Tài liệu chưa được xử lý xong hoặc không có đủ nội dung để phân tích kiến thức.' });
     }
 
-    const prompt = `Bạn là một chuyên gia phân tích dữ liệu giáo dục. Dựa trên nội dung của các tài liệu sau, hãy trích xuất các chủ đề chính và các mối liên hệ giữa chúng để tạo thành một sơ đồ tri thức (Knowledge Map).
+    const docNames = docs.map(d => d.name);
+
+    const prompt = `Bạn là một chuyên gia phân tích giáo dục. Dựa trên nội dung tài liệu sau, hãy tạo một SƠ ĐỒ TRI THỨC dạng CÂY PHÂN CẤP (TREE) 3 tầng.
 
 TÀI LIỆU:
 ---
 ${combinedContent}
 ---
 
-YÊU CẦU ĐỊNH DẠNG JSON (Không trả về gì khác ngoài JSON):
-{
-  "subjects": [
-    { "id": "s1", "label": "Tên ngành học/Lĩnh vực", "color": "bg-blue-500" }
-  ],
-  "topics": [
-    { "id": "t1", "label": "Tên chủ đề cụ thể", "subjectId": "s1", "status": "done|doing|todo" }
-  ],
-  "connections": [
-    { "from": "id_nguon", "to": "id_dich" }
-  ],
-  "aiInsight": "Mô tả ngắn (1-2 câu) về một liên hệ thú vị hoặc xu hướng kiến thức mà AI phát hiện được từ các tài liệu này."
-}
+YÊU CẦU CẤU TRÚC:
+- Tầng 1 (Root): 1 nút gốc tổng hợp toàn bộ nội dung
+- Tầng 2 (Chương/chủ đề lớn): 3-6 chương hoặc chủ đề chính
+- Tầng 3 (Mục/khái niệm): Mỗi chương có 2-5 mục con
+- Tầng 4 (Kiến thức trọng tâm): Mỗi mục có 1-3 kiến thức trọng tâm cụ thể (câu ngắn, súc tích)
 
-LƯU Ý: 
-- Chỉ trích xuất từ 1-4 ngành học chính.
-- Mỗi ngành học có 3-5 chủ đề.
-- "status" đánh giá dựa trên mức độ phổ biến hoặc độ khó (phỏng đoán).
-- Màu sắc cho ngành học sử dụng các class Tailwind (bg-blue-500, bg-emerald-500, bg-purple-500, bg-orange-500, bg-pink-500, bg-cyan-500).`;
+YÊU CẦU ĐỊNH DẠNG JSON (Chỉ trả về JSON, không thêm bất kỳ văn bản nào khác):
+{
+  "tree": {
+    "id": "root",
+    "label": "Tên tổng hợp",
+    "children": [
+      {
+        "id": "c1",
+        "label": "Chương/Chủ đề 1",
+        "children": [
+          {
+            "id": "c1-1",
+            "label": "Mục con 1.1",
+            "children": [
+              { "id": "c1-1-1", "label": "Kiến thức: nội dung cụ thể, súc tích" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "aiInsight": "Nhận xét ngắn (1-2 câu) về điểm thú vị hoặc liên hệ kiến thức trong tài liệu."
+}`;
 
     const result = await callAI(
       prompt,
-      "Bạn là một trợ lý AI phân tích kiến thức chuyên nghiệp. Bạn chỉ trả về định dạng JSON Array/Object chính xác. Nếu không đủ nội dung, trả về cấu trúc rỗng với error message.",
-      { max_tokens: 4000, response_format: { type: "json_object" } }
+      'Bạn là chuyên gia phân tích kiến thức. CHỈ trả về dữ liệu JSON hợp lệ theo cấu trúc yêu cầu. Không thêm giải thích hay markdown.',
+      { max_tokens: 4000, response_format: { type: 'json_object' } }
     );
 
     // Parse result
@@ -404,6 +416,9 @@ LƯU Ý:
       console.error('Failed to parse AI Knowledge Map response:', e);
       return res.status(500).json({ message: 'Lỗi định dạng dữ liệu từ AI. Vui lòng thử lại.' });
     }
+
+    // Attach document sources info
+    mapData.documentSources = docNames;
 
     // Deduct credits
     await deductCredits(req.user.id, 'KNOWLEDGE_MAP', { 
