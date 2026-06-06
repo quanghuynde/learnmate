@@ -14,6 +14,8 @@ import {
   Headphones,
   Loader2,
   Trash2,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import { api, DocumentItem } from '../lib/api';
 
@@ -112,6 +114,8 @@ export function AIDialogue({ token }: AIDialogueProps) {
   const [activeTurnIdx, setActiveTurnIdx] = useState(-1);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const playbackSpeedRef = useRef(1.0);
 
   // Audio elements for Google Translate TTS
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -305,7 +309,7 @@ export function AIDialogue({ token }: AIDialogueProps) {
     }
 
     // Multiply the base tuning by the user selected speed to ensure gender separation isn't overridden!
-    const finalPlaybackRate = playbackRate * playbackSpeed;
+    const finalPlaybackRate = playbackRate * playbackSpeedRef.current;
 
     const onEnded = () => {
       if (fallbackIntervalRef.current) {
@@ -443,11 +447,11 @@ export function AIDialogue({ token }: AIDialogueProps) {
           }
 
           // Apply distinct pitch/rate (tuning * speed) for ultimate voice separation and dynamic speed adjustments!
-          utterance.rate = (turn.speaker === 'female' ? 1.05 : 0.88) * playbackSpeed;
+          utterance.rate = (turn.speaker === 'female' ? 1.05 : 0.88) * playbackSpeedRef.current;
           utterance.pitch = turn.speaker === 'female' ? 1.15 : 0.85;
 
           // Simulate continuous progress update for native SpeechSynthesis fallback
-          const dur = Math.max(3, turn.text.length * 0.075) / playbackSpeed;
+          const dur = Math.max(3, turn.text.length * 0.075) / playbackSpeedRef.current;
           
           let elapsed = 0;
           if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
@@ -560,6 +564,7 @@ export function AIDialogue({ token }: AIDialogueProps) {
   // Adjust playback speed on the fly without breaking gender-pitch ratio
   const handleSpeedChange = (speed: number) => {
     setPlaybackSpeed(speed);
+    playbackSpeedRef.current = speed;
     
     // Dynamically adjust playback rate for current active turn if playing
     if (activeTurnIdx !== -1 && currentAudioRef.current) {
@@ -979,20 +984,51 @@ export function AIDialogue({ token }: AIDialogueProps) {
                     {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                   </button>
 
-                  <div className="relative flex items-center bg-slate-800 px-2 py-1 rounded-lg border border-slate-700 shadow-sm" title="Tốc độ giọng đọc">
-                    <span className="text-[10px] font-extrabold text-slate-400 mr-1 uppercase select-none">1x</span>
-                    <select
-                      value={playbackSpeed}
-                      onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
-                      className="bg-transparent text-xs font-bold text-white outline-none cursor-pointer pr-0.5"
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                      className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm transition-all group"
+                      title="Tốc độ giọng đọc"
                     >
-                      <option value="0.5" className="bg-slate-900 text-white font-semibold">0.5x</option>
-                      <option value="0.75" className="bg-slate-900 text-white font-semibold">0.75x</option>
-                      <option value="1.0" className="bg-slate-900 text-white font-semibold">1.0x</option>
-                      <option value="1.25" className="bg-slate-900 text-white font-semibold">1.25x</option>
-                      <option value="1.5" className="bg-slate-900 text-white font-semibold">1.5x</option>
-                      <option value="2.0" className="bg-slate-900 text-white font-semibold">2.0x</option>
-                    </select>
+                      <span className="text-[10px] font-black text-slate-400 uppercase select-none group-hover:text-primary-light transition-colors">Speed</span>
+                      <span className="text-xs font-bold text-white min-w-[32px] text-center">{playbackSpeed}x</span>
+                      <ChevronDown size={14} className={`text-slate-400 transition-transform ${showSpeedMenu ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    <AnimatePresence>
+                      {showSpeedMenu && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setShowSpeedMenu(false)} 
+                          />
+                          <motion.div
+                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                            className="absolute bottom-full mb-2 right-0 w-24 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 py-1"
+                          >
+                            {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((speed) => (
+                              <button
+                                key={speed}
+                                onClick={() => {
+                                  handleSpeedChange(speed);
+                                  setShowSpeedMenu(false);
+                                }}
+                                className={`w-full px-3 py-2 text-xs font-bold text-left transition-colors flex items-center justify-between ${
+                                  playbackSpeed === speed 
+                                    ? 'bg-primary/20 text-primary-light' 
+                                    : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                                }`}
+                              >
+                                {speed}x
+                                {playbackSpeed === speed && <Check size={12} className="text-primary-light" />}
+                              </button>
+                            ))}
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
               </div>

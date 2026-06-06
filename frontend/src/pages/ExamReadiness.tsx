@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Target, TrendingUp, AlertCircle, CheckCircle2, Calendar } from 'lucide-react'
+import { Target, TrendingUp, AlertCircle, CheckCircle2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   Radar,
   RadarChart,
@@ -20,6 +20,7 @@ export function ExamReadiness({ token }: { token: string }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [readinessData, setReadinessData] = useState<ExamReadinessData | null>(null)
+  const [currentPage, setCurrentPage] = useState(0)
 
   useEffect(() => {
     fetchReadinessData()
@@ -86,6 +87,11 @@ export function ExamReadiness({ token }: { token: string }) {
   const metrics = readinessData?.metrics || { quizAccuracy: 0, totalHours: 0, topicsMastered: 0, totalTopics: 0 }
   const readinessScore = readinessData?.readinessScore || 0
 
+  const itemsPerPage = 12
+  const totalPages = Math.ceil(topics.length / itemsPerPage)
+  const paginatedTopics = topics.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage)
+  const paginatedRadarData = radarData.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage)
+
   return (
     <div className="space-y-6 pb-20">
       <div>
@@ -116,6 +122,28 @@ export function ExamReadiness({ token }: { token: string }) {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
           {error}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 bg-white border border-slate-200 px-4 py-2 rounded-2xl w-fit mx-auto shadow-sm">
+          <button 
+            disabled={currentPage === 0}
+            onClick={() => setCurrentPage(p => p - 1)}
+            className="p-1.5 hover:bg-slate-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <span className="text-sm font-bold text-slate-600">
+            Nhóm {currentPage + 1} / {totalPages}
+          </span>
+          <button 
+            disabled={currentPage >= totalPages - 1}
+            onClick={() => setCurrentPage(p => p + 1)}
+            className="p-1.5 hover:bg-slate-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          >
+            <ChevronRight size={20} />
+          </button>
         </div>
       )}
 
@@ -190,18 +218,18 @@ export function ExamReadiness({ token }: { token: string }) {
             {/* Radar Chart */}
             <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
               <h3 className="font-bold text-text-primary mb-4">
-                Cân bằng kiến thức
+                Cân bằng kiến thức {totalPages > 1 && `(Nhóm ${currentPage + 1})`}
               </h3>
               <div className="h-64 flex flex-col items-center justify-center">
-                {radarData.length > 0 ? (
+                {paginatedRadarData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+                    <RadarChart cx="50%" cy="50%" outerRadius="80%" data={paginatedRadarData}>
                       <PolarGrid stroke="#e2e8f0" />
                       <PolarAngleAxis
                         dataKey="subject"
                         tick={{
                           fill: '#64748b',
-                          fontSize: 12,
+                          fontSize: 10,
                         }}
                       />
                       <PolarRadiusAxis
@@ -310,8 +338,28 @@ export function ExamReadiness({ token }: { token: string }) {
 
           {/* Topic Analysis Table */}
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-            <div className="p-6 border-b border-slate-100">
-              <h3 className="font-bold text-text-primary">Phân tích chủ đề</h3>
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-text-primary">
+                Phân tích chủ đề {totalPages > 1 && <span className="text-sm font-normal text-slate-400 ml-2">(Nhóm {currentPage + 1} / {totalPages})</span>}
+              </h3>
+              {totalPages > 1 && (
+                <div className="flex gap-2">
+                  <button 
+                    disabled={currentPage === 0}
+                    onClick={() => setCurrentPage(p => p - 1)}
+                    className="p-1 hover:bg-slate-100 rounded-lg disabled:opacity-30 transition-all"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button 
+                    disabled={currentPage >= totalPages - 1}
+                    onClick={() => setCurrentPage(p => p + 1)}
+                    className="p-1 hover:bg-slate-100 rounded-lg disabled:opacity-30 transition-all"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -324,8 +372,8 @@ export function ExamReadiness({ token }: { token: string }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {topics.length > 0 ? (
-                    topics.map((topic, i) => (
+                  {paginatedTopics.length > 0 ? (
+                    paginatedTopics.map((topic, i) => (
                       <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                         <td className="p-4 pl-6 font-medium text-text-primary">
                           {topic.name}
