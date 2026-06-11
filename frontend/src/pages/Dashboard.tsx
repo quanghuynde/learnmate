@@ -93,8 +93,8 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
             topicsMastered: readiness.metrics?.topicsMastered ?? prev.topicsMastered,
             totalTopics: readiness.metrics?.totalTopics ?? prev.totalTopics,
           } : null);
-        } catch {
-          // noop
+        } catch (err) {
+          console.error("Failed to load exam readiness:", err);
         }
       } else {
         const localName = localStorage.getItem('learnmate_exam_name') || 'Kỳ thi';
@@ -425,8 +425,9 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
                         setExamName(created.exam.name);
                         setExam(created.exam);
                       }
-                    } catch {
-                      // noop
+                    } catch (err) {
+                      console.error("Failed to save exam changes:", err);
+                      alert("Không thể lưu thay đổi. Vui lòng kiểm tra lại kết nối!");
                     }
                     setIsEditingExam(false);
                   }}

@@ -33,3 +33,53 @@ body {
   color: #0f172a;
   overflow: hidden;
 }
+
+/* Markdown Formatting */
+.format-markdown {
+  word-break: break-word;
+}
+
+.format-markdown p {
+  margin-bottom: 0.75rem;
+}
+
+.format-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.format-markdown strong {
+  font-weight: 700;
+  color: inherit;
+}
+
+.format-markdown ul, .format-markdown ol {
+  margin-bottom: 0.75rem;
+  padding-left: 1.5rem;
+}
+
+.format-markdown ul {
+  list-style-type: disc;
+}
+
+.format-markdown ol {
+  list-style-type: decimal;
+}
+
+.format-markdown li {
+  margin-bottom: 0.25rem;
+}
+
+.format-markdown h1, .format-markdown h2, .format-markdown h3 {
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #1e293b;
+}
+
+.format-markdown code {
+  background-color: #f1f5f9;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.875em;
+}

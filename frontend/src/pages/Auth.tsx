@@ -165,7 +165,7 @@ export function Auth({ onLogin }: AuthProps) {
         </motion.div>
 
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-white/40 text-[10px] font-bold tracking-[0.4em] uppercase font-outfit">
-          WWW.LEARNMATE.COM
+          WWW.LEARNMATE.IO.VN
         </div>
       </div>
 
