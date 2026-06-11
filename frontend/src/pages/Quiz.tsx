@@ -225,24 +225,38 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
       }
       if (cleanedText.endsWith('```')) cleanedText = cleanedText.slice(0, -3).trim();
 
-      const repairedText = repairIncompleteJson(cleanedText);
       let parsedQuestions;
       try {
-        const parsedObject = JSON.parse(repairedText);
-        if (Array.isArray(parsedObject)) {
-          parsedQuestions = parsedObject;
-        } else if (parsedObject.questions && Array.isArray(parsedObject.questions)) {
-          parsedQuestions = parsedObject.questions;
-        } else {
-          const firstKey = Object.keys(parsedObject)[0];
-          if (firstKey && Array.isArray(parsedObject[firstKey])) {
-            parsedQuestions = parsedObject[firstKey];
-          } else {
-            throw new Error('Không thể phân tích mảng câu hỏi từ JSON.');
-          }
+        // Try direct parse first
+        let parsed = JSON.parse(cleanedText);
+        parsedQuestions = extractQuestions(parsed);
+      } catch (directErr) {
+        // If fail, try repair
+        try {
+          const repairedText = repairIncompleteJson(cleanedText);
+          let parsedRepaired = JSON.parse(repairedText);
+          parsedQuestions = extractQuestions(parsedRepaired);
+        } catch (repairErr) {
+          throw new Error('Lỗi cú pháp JSON từ OpenAI: ' + cleanedText);
         }
-      } catch (parseErr) {
-        throw new Error('Lỗi cú pháp JSON từ OpenAI: ' + textResponse);
+      }
+
+      function extractQuestions(obj: any) {
+        if (Array.isArray(obj)) return obj;
+        if (obj.questions && Array.isArray(obj.questions)) return obj.questions;
+        
+        // Handle single object (like in user report)
+        if (obj.question && obj.options) {
+          return [obj];
+        }
+
+        // Try to find any array property
+        const firstKey = Object.keys(obj)[0];
+        if (firstKey && Array.isArray(obj[firstKey])) {
+          return obj[firstKey];
+        }
+        
+        throw new Error('Cấu trúc JSON không chứa mảng câu hỏi.');
       }
 
       setActiveQuestions(parsedQuestions);
