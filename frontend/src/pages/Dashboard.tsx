@@ -17,6 +17,7 @@ import {
   Mail,
   Bell,
   Coins,
+  ClipboardList,
 } from 'lucide-react';
 import { api, ExamItem, StudyPlanItem, UserItem } from '../lib/api';
 import { Heatmap } from '../components/dashboard/Heatmap';
@@ -356,6 +357,25 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
                 <div className="w-10 h-10 rounded-lg bg-green-50 text-green-600 flex items-center justify-center group-hover:bg-green-100 transition-colors"><Brain size={20} /></div>
                 <div><h4 className="font-semibold text-text-primary text-sm">Bắt đầu Quiz</h4><p className="text-xs text-slate-500">Kiểm tra kiến thức</p></div>
               </button>
+
+              <a 
+                href="https://forms.gle/sVFQ5MxZW4j2kKi57" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary transition-all text-left group relative overflow-hidden shadow-sm"
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 bg-primary/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+                <div className="w-10 h-10 rounded-lg bg-primary text-white flex items-center justify-center group-hover:scale-110 transition-transform relative z-10">
+                  <ClipboardList size={20} />
+                </div>
+                <div className="relative z-10">
+                  <h4 className="font-bold text-primary text-sm flex items-center gap-1.5">
+                    Đóng góp ý kiến
+                    <span className="bg-primary/20 text-primary text-[10px] px-1.5 py-0.5 rounded-full animate-pulse">Hot</span>
+                  </h4>
+                  <p className="text-xs text-primary/70 font-medium">Link Google Form giúp cải thiện app</p>
+                </div>
+              </a>
             </div>
           </div>
 
