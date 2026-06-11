@@ -467,7 +467,13 @@ export const api = {
     request<{ message: string }>(`/ai/knowledge-maps/${id}`, { method: 'DELETE', token }),
 
   summarizeDocument: (token: string, documentId: string) =>
-    request<{ summary: string }>('/ai/summarize', { method: 'POST', token, body: { documentId } }),
+    request<{ summary: string; history: any[] }>('/ai/summarize', { method: 'POST', token, body: { documentId } }),
+
+  chatWithDocument: (token: string, documentId: string, message: string, history: any[]) =>
+    request<{ content: string }>('/ai/chat-document', { method: 'POST', token, body: { documentId, message, history } }),
+
+  askAssistantGuide: (token: string, message: string, uiContext: any, history: any[]) =>
+    request<{ message: string; actions: any[] }>('/ai-assistant/guide', { method: 'POST', token, body: { message, uiContext, history } }),
 
   generateQuiz: (token: string, data: any) =>
     request<{ text: string; hintNames: string }>('/ai/generate-quiz', { method: 'POST', token, body: data }),
