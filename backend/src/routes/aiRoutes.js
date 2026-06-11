@@ -3,6 +3,7 @@ const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const { 
   summarizeDocument, 
+  chatWithDocument,
   generateQuiz, 
   generateDialogue, 
   generateKnowledgeMap,
@@ -14,6 +15,7 @@ const {
 router.use(protect);
 
 router.post('/summarize', summarizeDocument);
+router.post('/chat-document', chatWithDocument);
 router.post('/generate-quiz', generateQuiz);
 router.post('/generate-dialogue', generateDialogue);
 

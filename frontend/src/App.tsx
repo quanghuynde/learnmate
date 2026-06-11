@@ -92,7 +92,6 @@ if (typeof window !== 'undefined') {
   }, true);
 }
 
-import { BottomNav } from './components/layout/BottomNav';
 
 export function App() {
   const [token, setToken] = useState<string>(() => localStorage.getItem('learnmate_token') || '');
@@ -274,6 +273,7 @@ case 'community':
                       currentPage={currentPage}
                       setCurrentPage={setCurrentPage}
                       user={user}
+                      mobileMode={true}
                     />
                   </div>
                 </div>
@@ -291,7 +291,7 @@ case 'community':
               onMenuClick={() => setIsMobileMenuOpen(true)} 
             />
           </div>
-          <main className={`flex-1 overflow-y-auto custom-scrollbar p-3 md:p-6 lg:p-8 relative z-0 ${isMobile ? 'pb-20' : ''}`}>
+          <main className="flex-1 overflow-y-auto custom-scrollbar p-3 md:p-6 lg:p-8 relative z-0">
             <AnimatePresence mode="wait">
               <motion.div key={currentPage} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.2 }} className="h-full max-w-7xl mx-auto">
                 <ErrorBoundary>
@@ -302,9 +302,8 @@ case 'community':
               </motion.div>
             </AnimatePresence>
           </main>
-          {isMobile && <BottomNav currentPage={currentPage} setCurrentPage={setCurrentPage} />}
         </div>
-        {!isMobile && <AICompanion />}
+        {!isMobile && <AICompanion token={token} currentPage={currentPage} />}
       </div>
     </NotificationProvider>
   );

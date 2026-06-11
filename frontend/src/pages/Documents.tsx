@@ -15,8 +15,17 @@ import {
   Youtube,
   ClipboardPaste,
   MessageSquare,
+  Send,
+  Bot,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  Music,
+  Video,
+  Code,
 } from 'lucide-react';
 import { api, DocumentItem } from '../lib/api';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface DocumentsProps {
   token: string;
@@ -27,6 +36,12 @@ function getFileStyle(type: string) {
   if (type === 'pdf') return { color: 'text-red-500', bg: 'bg-red-50', Icon: FileText };
   if (type === 'docx') return { color: 'text-blue-500', bg: 'bg-blue-50', Icon: FileIcon };
   if (type === 'pptx') return { color: 'text-orange-500', bg: 'bg-orange-50', Icon: Presentation };
+  if (type === 'xlsx') return { color: 'text-green-600', bg: 'bg-green-50', Icon: FileSpreadsheet };
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(type)) return { color: 'text-purple-500', bg: 'bg-purple-50', Icon: ImageIcon };
+  if (['mp3', 'wav', 'ogg', 'm4a'].includes(type)) return { color: 'text-amber-500', bg: 'bg-amber-50', Icon: Music };
+  if (['mp4', 'mov', 'avi', 'webm'].includes(type)) return { color: 'text-indigo-500', bg: 'bg-indigo-50', Icon: Video };
+  if (type === 'txt') return { color: 'text-slate-500', bg: 'bg-slate-50', Icon: FileText };
+  if (type === 'json') return { color: 'text-yellow-600', bg: 'bg-yellow-50', Icon: Code };
   return { color: 'text-slate-500', bg: 'bg-slate-50', Icon: FileText };
 }
 
@@ -58,7 +73,10 @@ export function Documents({ token }: DocumentsProps) {
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [summaryDoc, setSummaryDoc] = useState<DocumentItem | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
-  const [summaryContent, setSummaryContent] = useState('');
+  const [summaryHistory, setSummaryHistory] = useState<any[]>([]);
+  const [followUpInput, setFollowUpInput] = useState('');
+  const [followUpLoading, setFollowUpLoading] = useState(false);
+  const scrollChatRef = useRef<HTMLDivElement>(null);
   const [displayLimit, setDisplayLimit] = useState(10);
 
   const handleUploadFromText = async (content: string, type: 'web' | 'text' | 'youtube') => {
@@ -81,16 +99,50 @@ export function Documents({ token }: DocumentsProps) {
     setSummaryDoc(doc);
     setShowSummaryModal(true);
     setSummaryLoading(true);
-    setSummaryContent('');
+    setSummaryHistory([]);
     try {
       const data = await api.summarizeDocument(token, doc._id);
-      setSummaryContent(data.summary || 'Mô hình AI trả về nội dung rỗng.');
-    } catch (err) {
-      setSummaryContent(`Không thể tạo tóm tắt: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setSummaryHistory(data.history || [{ role: 'assistant', content: data.summary }]);
+    } catch (err: any) {
+      console.error('Chat error:', err);
+      const isOutOfCredits = err.response?.status === 402 || err.message?.includes('402') || err.message?.includes('Credit');
+      const errorMsg = isOutOfCredits 
+        ? 'Bạn đã hết Credit để chat với tài liệu này. Vui lòng nạp thêm Credit để tiếp tục!'
+        : (err instanceof Error ? err.message : 'Lỗi không xác định');
+      
+      setSummaryHistory(prev => [...prev, {
+        role: 'assistant',
+        content: `⚠️ ${errorMsg}${!isOutOfCredits ? '\n\nBạn vẫn có thể hỏi thêm về tài liệu này nếu dịch vụ AI khôi phục.' : ''}`
+      }]);
     } finally {
       setSummaryLoading(false);
     }
   };
+
+  const handleSendFollowUp = async () => {
+    if (!followUpInput.trim() || followUpLoading || !summaryDoc) return;
+    
+    const userMsg = { role: 'user', content: followUpInput };
+    setSummaryHistory(prev => [...prev, userMsg]);
+    const currentMsg = followUpInput;
+    setFollowUpInput('');
+    setFollowUpLoading(true);
+    
+    try {
+      const data = await api.chatWithDocument(token, summaryDoc._id, currentMsg, summaryHistory);
+      setSummaryHistory(prev => [...prev, { role: 'assistant', content: data.content }]);
+    } catch (err) {
+      setSummaryHistory(prev => [...prev, { role: 'assistant', content: 'Lỗi: ' + (err instanceof Error ? err.message : 'Lỗi không xác định') }]);
+    } finally {
+      setFollowUpLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (scrollChatRef.current) {
+      scrollChatRef.current.scrollTop = scrollChatRef.current.scrollHeight;
+    }
+  }, [summaryHistory, followUpLoading]);
 
   const loadDocuments = async (showLoading = false) => {
     if (showLoading) setDocsLoading(true);
@@ -489,18 +541,78 @@ export function Documents({ token }: DocumentsProps) {
                 </div>
                 <button onClick={() => setShowSummaryModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
               </div>
-              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 relative min-h-[200px]">
+              <div ref={scrollChatRef} className="p-6 overflow-y-auto custom-scrollbar flex-1 relative min-h-[300px] bg-slate-50/30">
                  {summaryLoading ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-slate-500 h-full absolute inset-0">
+                    <div className="flex flex-col items-center justify-center py-10 text-slate-500 h-full absolute inset-0 bg-white z-10">
                         <Loader2 size={32} className="animate-spin text-primary mb-4"/>
                         <p className="font-medium">AI đang phân tích và tạo tóm tắt...</p>
                     </div>
                  ) : (
-                    <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap format-markdown">
-                        {summaryContent}
+                    <div className="space-y-4 pb-4">
+                        {summaryHistory.map((msg, i) => (
+                           <div key={i} className={`flex ${msg.role === 'assistant' ? 'justify-start' : 'justify-end'}`}>
+                              <div className={`flex gap-3 max-w-[85%] ${msg.role === 'assistant' ? 'flex-row' : 'flex-row-reverse'}`}>
+                                 {msg.role === 'assistant' && (
+                                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                       <Bot size={16} className="text-primary" />
+                                    </div>
+                                 )}
+                                 <div className={`rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+                                    msg.role === 'assistant' 
+                                       ? 'bg-white border border-slate-100 text-slate-700 rounded-tl-sm' 
+                                       : 'bg-primary text-white rounded-tr-sm'
+                                 }`}>
+                                    <div className="format-markdown leading-relaxed">
+                                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                          {msg.content}
+                                       </ReactMarkdown>
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+                        ))}
+                        {followUpLoading && (
+                           <div className="flex justify-start">
+                              <div className="flex gap-3 max-w-[85%]">
+                                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                    <Bot size={16} className="text-primary" />
+                                 </div>
+                                 <div className="bg-white border border-slate-100 px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-2">
+                                    <Loader2 size={14} className="animate-spin text-primary" />
+                                    <span className="text-xs text-slate-400 font-medium italic">AI đang trả lời...</span>
+                                 </div>
+                              </div>
+                           </div>
+                        )}
                     </div>
                  )}
               </div>
+              {!summaryLoading && (
+                 <div className="p-4 bg-white border-t border-slate-100 shrink-0">
+                    <div className="flex items-center gap-2 bg-slate-50 rounded-2xl px-4 py-2 border border-slate-200 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all shrink-0">
+                       <input
+                          type="text"
+                          placeholder="Hỏi thêm về tài liệu này..."
+                          value={followUpInput}
+                          onChange={(e) => setFollowUpInput(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleSendFollowUp()}
+                          className="w-full bg-transparent border-none outline-none text-sm py-1.5"
+                          disabled={followUpLoading}
+                       />
+                       <button
+                          onClick={handleSendFollowUp}
+                          disabled={!followUpInput.trim() || followUpLoading}
+                          className={`p-2 rounded-xl transition-all ${
+                             followUpInput.trim() && !followUpLoading
+                                ? 'bg-primary text-white shadow-md shadow-primary/20 scale-100'
+                                : 'bg-slate-200 text-slate-400 scale-95 opacity-50'
+                          }`}
+                       >
+                          <Send size={18} />
+                       </button>
+                    </div>
+                 </div>
+              )}
             </motion.div>
           </div>
         )}

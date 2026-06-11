@@ -2,6 +2,27 @@ const Document = require('../models/Document');
 const KnowledgeMap = require('../models/KnowledgeMap');
 const { deductCredits, hasEnoughCredits } = require('../services/creditService');
 const UsageLog = require('../models/UsageLog');
+const sendEmail = require('../services/emailService');
+
+// Rate limit email throttle (1 hour)
+let lastRateLimitEmailSent = 0;
+const EMAIL_THROTTLE_MS = 3600000;
+
+async function notifyAdminRateLimit(provider, errorMsg) {
+  const now = Date.now();
+  if (now - lastRateLimitEmailSent < EMAIL_THROTTLE_MS) return;
+
+  lastRateLimitEmailSent = now;
+  try {
+    await sendEmail({
+      email: 'learnmate196@gmail.com',
+      subject: `[LearnMate Alert] AI API Rate Limit Reached (${provider})`,
+      message: `Cảnh báo: API của ${provider} đã đạt giới hạn (HTTP 429).\nThời gian: ${new Date().toLocaleString('vi-VN')}\nLỗi chi tiết: ${errorMsg}\n\nVui lòng kiểm tra lại tài khoản hoặc nạp thêm tiền cho API Key.`,
+    });
+  } catch (err) {
+    console.error('Failed to send rate limit alert email:', err.message);
+  }
+}
 
 /**
  * Helper: call OpenAI API
@@ -75,6 +96,11 @@ async function callAI(prompt, systemPrompt = null, options = {}) {
     } catch (_) {
       errJson = {};
     }
+
+    if (response.status === 429) {
+      await notifyAdminRateLimit('OpenAI', errJson?.error?.message || errText);
+      throw new Error('Bạn đã dùng hết lượt hỏi trong hôm nay. Vui lòng quay lại sau.');
+    }
     throw new Error(
       errJson?.error?.message || errText || `AI API lỗi HTTP ${response.status}`
     );
@@ -91,24 +117,68 @@ async function callAI(prompt, systemPrompt = null, options = {}) {
   };
 }
 
+/**
+ * Helper: call XAI API (Grok)
+ */
+async function callXAI(messages, options = {}) {
+  const apiKey = process.env.XAI_API_KEY;
+  const apiBase = 'https://api.x.ai/v1';
+  const model = 'grok-4.3-latest';
+
+  if (!apiKey) {
+    throw new Error('XAI_API_KEY chưa được cấu hình trong backend .env');
+  }
+
+  const response = await fetch(`${apiBase}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: model,
+      messages: messages,
+      temperature: options.temperature ?? 0,
+      max_tokens: options.max_tokens || 2000,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    let parsed = {};
+    try { parsed = JSON.parse(errText || '{}'); } catch (_) {}
+    if (response.status === 429) {
+      await notifyAdminRateLimit('XAI', parsed?.error?.message || parsed?.error || errText);
+      throw new Error('Bạn đã dùng hết lượt hỏi trong hôm nay. Vui lòng quay lại sau.');
+    }
+    throw new Error(parsed?.error?.message || parsed?.error || `XAI API lỗi HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  return {
+    content: data?.choices?.[0]?.message?.content || "",
+    usage: {
+      promptTokens: data?.usage?.prompt_tokens || 0,
+      completionTokens: data?.usage?.completion_tokens || 0,
+      totalTokens: data?.usage?.total_tokens || 0
+    }
+  };
+}
+
 // Helper logic tóm tắt
+// Helper logic tóm tắt dùng XAI
 const generateSummaryFromText = async (docName, content) => {
   const hasEnoughContent = content && content.trim().length > 20;
   const processedContent = hasEnoughContent
     ? content.substring(0, 10000)
     : `(Không trích xuất được đủ văn bản trực tiếp. Hãy tóm tắt dựa trên tên tài liệu: "${docName}")`;
 
-  const prompt = `Bạn là một trợ lý phân tích tài liệu chuyên nghiệp. Hãy tóm tắt nội dung của tài liệu sau đây bằng Tiếng Việt.
-  
-TÊN TÀI LIỆU: "${docName}"
-NỘI DUNG TRÍCH XUẤT:
-${processedContent}`;
+  const messages = [
+    { role: "system", content: "Bạn là một trợ lý AI tóm tắt tài liệu chuyên nghiệp. Hãy trả về văn bản có định dạng Markdown: sử dụng danh sách gạch đầu dòng (bullet points) cho các ý chính, in đậm (bold) các thuật ngữ quan trọng. Trình bày rõ ràng, dễ đọc. Trả lời bằng Tiếng Việt." },
+    { role: "user", content: `Hãy phân tích và tóm tắt nội dung của tài liệu sau đây một cách súc tích nhưng đầy đủ ý.\n\nTÊN TÀI LIỆU: "${docName}"\nNỘI DUNG TRÍCH XUẤT:\n${processedContent}` }
+  ];
 
-  return await callAI(
-    prompt,
-    "Bạn là một trợ lý AI tóm tắt tài liệu. Bạn trả về văn bản thuần túy, súc tích. KHÔNG sử dụng định dạng markdown như dấu sao (**) để in đậm.",
-    { max_tokens: 1500 }
-  );
+  return await callXAI(messages, { max_tokens: 1500 });
 };
 
 // @desc  Tóm tắt tài liệu
@@ -119,40 +189,120 @@ const summarizeDocument = async (req, res) => {
     const { documentId } = req.body;
     if (!documentId) return res.status(400).json({ message: 'Thiếu documentId' });
 
-    // Check credits
+    const doc = await Document.findOne({ _id: documentId, user: req.user.id });
+    if (!doc) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
+
+    // If doc already has a cached summary, return it immediately
+    if (doc.summary && doc.summary.trim().length > 20) {
+      return res.json({
+        summary: doc.summary,
+        history: [{ role: 'assistant', content: doc.summary }],
+        cached: true
+      });
+    }
+
+    // No cached summary → need to generate via XAI
     const canProceed = await hasEnoughCredits(req.user.id, 'SUMMARIZE_DOCUMENT');
     if (!canProceed) {
       return res.status(402).json({ message: 'Bạn không đủ Credit để thực hiện tóm tắt. Vui lòng nạp thêm.' });
     }
 
-    const doc = await Document.findOne({ _id: documentId, user: req.user.id });
-    if (!doc) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
-
-    // If summary already exists and is not too short, return it (to save credits)
-    // Optional: Only return if less than X days old or allow forced refresh
-    if (doc.summary && doc.summary.length > 50) {
-      // return res.json({ summary: doc.summary }); 
-      // User requirement says "Only deduct when success", but if we reuse, we should probably not deduct.
-      // However, usually users want a FRESH summary if they click it again. 
-      // For now, let's always generate a new one unless we want to cache.
+    let result;
+    try {
+      result = await generateSummaryFromText(doc.name, doc.content);
+    } catch (aiError) {
+      console.error('AI Summarize XAI call failed, trying OpenAI fallback:', aiError.message);
+      
+      try {
+        // Fallback to OpenAI if xAI fails
+        const prompt = `Bạn là một trợ lý phân tích tài liệu chuyên nghiệp. Hãy tóm tắt nội dung của tài liệu sau đây.\n\nTÊN TÀI LIỆU: "${doc.name}"\nNỘI DUNG TRÍCH XUẤT:\n${doc.content?.substring(0, 10000)}`;
+        const systemPrompt = "Bạn là một trợ lý AI tóm tắt tài liệu. Bạn trả về văn bản thuần túy, súc tích. KHÔNG sử dụng định dạng markdown như dấu sao (**) để in đậm. Trả lời bằng Tiếng Việt.";
+        
+        result = await callAI(prompt, systemPrompt, { max_tokens: 1500 });
+      } catch (fallbackError) {
+        console.error('AI Summarize OpenAI fallback also failed:', fallbackError.message);
+        return res.status(503).json({ 
+          message: 'Dịch vụ AI hiện đang quá tải hoặc gặp sự cố kỹ thuật. Vui lòng thử lại sau.' 
+        });
+      }
     }
-
-    const result = await generateSummaryFromText(doc.name, doc.content);
     
-    // Save to doc
     doc.summary = result.content;
     await doc.save();
 
-    // Deduct credits on success
     await deductCredits(req.user.id, 'SUMMARIZE_DOCUMENT', { 
       documentId, 
       promptTokens: result.usage.promptTokens,
       completionTokens: result.usage.completionTokens
     });
 
-    res.json({ summary: result.content });
+    res.json({ 
+      summary: result.content,
+      history: [
+        { role: 'assistant', content: result.content }
+      ]
+    });
   } catch (error) {
     console.error('AI Summarize error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc  Chat với tài liệu (hỏi thêm sau khi tóm tắt)
+// @route POST /api/ai/chat-document
+// @access Private
+const chatWithDocument = async (req, res) => {
+  try {
+    const { documentId, message, history = [] } = req.body;
+    if (!documentId || !message) {
+      return res.status(400).json({ message: 'Thiếu documentId hoặc message' });
+    }
+
+    const doc = await Document.findOne({ _id: documentId, user: req.user.id });
+    if (!doc) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
+
+    const systemPrompt = `Bạn là một trợ lý AI phân tích tài liệu. Bạn đang trò chuyện với người dùng về tài liệu "${doc.name}".
+Dưới đây là nội dung của tài liệu:
+---
+${(doc.content || "").substring(0, 15000)}
+---
+Hãy trả lời các câu hỏi của người dùng dựa trên nội dung tài liệu. Nếu thông tin không có trong tài liệu, hãy nói rằng bạn không biết dựa trên tài liệu này. Trả lời bằng Tiếng Việt.`;
+
+    const messages = [
+      { role: "system", content: systemPrompt },
+      ...history.map(h => ({ role: h.role, content: h.content })),
+      { role: "user", content: message }
+    ];
+
+    // Check credits (Cost: 1)
+    const canProceed = await hasEnoughCredits(req.user.id, 'AI_CHAT');
+    if (!canProceed) {
+      return res.status(402).json({ message: 'Bạn không đủ Credit để chat với tài liệu. Vui lòng nạp thêm.' });
+    }
+
+    let result;
+    try {
+      result = await callXAI(messages, { max_tokens: 1000 });
+    } catch (aiError) {
+      console.error('AI Chat Document XAI call failed, trying OpenAI fallback:', aiError.message);
+      try {
+        result = await callAI(message, systemPrompt, { max_tokens: 1000 });
+      } catch (fallbackError) {
+        console.error('AI Chat Document OpenAI fallback also failed:', fallbackError.message);
+        return res.status(503).json({ message: 'Dịch vụ AI hiện tại không khả dụng. Vui lòng thử lại sau.' });
+      }
+    }
+
+    // Deduct credits
+    await deductCredits(req.user.id, 'AI_CHAT', { 
+      documentId,
+      promptTokens: result.usage.promptTokens,
+      completionTokens: result.usage.completionTokens
+    });
+
+    res.json({ content: result.content });
+  } catch (error) {
+    console.error('AI Chat Document error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -201,7 +351,7 @@ Dựa trên tài liệu được cung cấp dưới đây, hãy ${formatInstruct
 
 CHÚ Ý QUAN TRỌNG:
 1. NỘI DUNG TÀI LIỆU CẢNH BÁO: Chỉ sử dụng thông tin có trong phần "TÀI LIỆU" bên dưới. Tuyệt đối không tự bịa ra thông tin không có trong tài liệu.
-2. Nếu tài liệu chứa các ký tự vô nghĩa, mã binary hoặc không đủ thông tin để tạo câu hỏi hay, hãy trả về một JSON Array rỗng [] và không trả thêm bất kỳ văn bản nào khác.
+2. Nếu tài liệu chứa các ký tự vô nghĩa, mã binary hoặc không đủ thông tin để tạo câu hỏi hay, hãy trả về {"questions": []} và không trả thêm bất kỳ văn bản nào khác.
 3. Giải thích (explanation) phải chi tiết và trích dẫn logic từ tài liệu.
 
 TÀI LIỆU:
@@ -209,12 +359,16 @@ TÀI LIỆU:
 ${combinedContent}
 ---
 
-Yêu cầu định dạng JSON Array:
-[{ "question": "...", ${jsonFormat} "explanation": "...", "level": "Nhận biết/Thông hiểu/Vận dụng" }]`;
+Yêu cầu định dạng JSON (Chỉ trả về 1 Object duy nhất):
+{
+  "questions": [
+    { "question": "...", ${jsonFormat} "explanation": "...", "level": "Nhận biết/Thông hiểu/Vận dụng" }
+  ]
+}`;
 
     const result = await callAI(
       prompt,
-      "Bạn là một trợ lý AI giáo dục chuyên tạo câu hỏi kiểm tra. Bạn chỉ làm việc dựa trên nội dung được cung cấp và trả về định dạng JSON Array chính xác. Nếu không có đủ nội dung hợp lệ, bạn trả về [].",
+      "Bạn là một trợ lý AI giáo dục chuyên tạo câu hỏi kiểm tra. Bạn trả về một JSON Object chứa khóa 'questions' là một mảng các câu hỏi. Nếu không có mã hợp lệ, trả về {'questions': []}.",
       { max_tokens: 4000, response_format: { type: "json_object" } }
     );
 
@@ -484,12 +638,14 @@ const deleteKnowledgeMap = async (req, res) => {
 
 module.exports = { 
   summarizeDocument, 
+  chatWithDocument,
   generateQuiz, 
   generateSummaryFromText, 
   generateDialogue, 
   generateKnowledgeMap,
   getKnowledgeMaps,
   getKnowledgeMapById,
-  deleteKnowledgeMap
+  deleteKnowledgeMap,
+  callXAI
 };
 

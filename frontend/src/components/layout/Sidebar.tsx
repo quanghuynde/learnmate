@@ -26,6 +26,7 @@ interface SidebarProps {
   currentPage: string;
   setCurrentPage: (page: string) => void;
   user: UserItem | null;
+  mobileMode?: boolean;
 }
 
 const navItems = [
@@ -52,27 +53,31 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-export function Sidebar({ isOpen, setIsOpen, currentPage, setCurrentPage, user }: SidebarProps) {
+export function Sidebar({ isOpen, setIsOpen, currentPage, setCurrentPage, user, mobileMode }: SidebarProps) {
   const initials = user?.name ? getInitials(user.name) : '?';
 
   return (
-    <motion.aside animate={{ width: isOpen ? 256 : 80 }} className="h-full bg-sidebar text-white hidden md:flex flex-col relative z-20 flex-shrink-0 transition-all duration-300">
-      {/* Logo */}
-      <div className="p-4 flex items-center justify-between h-16 border-b border-slate-800">
-        <div className={`flex items-center gap-3 overflow-hidden ${!isOpen && 'justify-center w-full'}`}>
-          <img src="/lmLogo.png" alt="LearnMate Logo" className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-primary-light" />
-          {isOpen && (
-            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-bold text-lg tracking-wide whitespace-nowrap">
-              LEARNMATE
-            </motion.span>
-          )}
+    <motion.aside animate={{ width: mobileMode ? '100%' : isOpen ? 256 : 80 }} className={`h-full bg-sidebar text-white flex flex-col relative z-20 flex-shrink-0 transition-all duration-300 ${mobileMode ? '' : 'hidden md:flex'}`}>
+      {/* Logo - hidden in mobile drawer mode since drawer has its own header */}
+      {!mobileMode && (
+        <div className="p-4 flex items-center justify-between h-16 border-b border-slate-800">
+          <div className={`flex items-center gap-3 overflow-hidden ${!isOpen && 'justify-center w-full'}`}>
+            <img src="/lmLogo.png" alt="LearnMate Logo" className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-primary-light" />
+            {isOpen && (
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-bold text-lg tracking-wide whitespace-nowrap">
+                LEARNMATE
+              </motion.span>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Toggle button */}
-      <button onClick={() => setIsOpen(!isOpen)} className="absolute -right-3 top-6 bg-slate-800 text-white rounded-full p-1 border border-slate-700 hover:bg-slate-700 z-30">
-        {isOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-      </button>
+      {/* Toggle button - desktop only */}
+      {!mobileMode && (
+        <button onClick={() => setIsOpen(!isOpen)} className="absolute -right-3 top-6 bg-slate-800 text-white rounded-full p-1 border border-slate-700 hover:bg-slate-700 z-30">
+          {isOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+        </button>
+      )}
 
       {/* Nav items */}
       <div className="flex-1 overflow-y-auto custom-scrollbar py-4 px-3 space-y-1">

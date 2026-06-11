@@ -177,7 +177,9 @@ export function StudyPlanner({ token }: StudyPlannerProps) {
     try {
       await api.updateTaskStatus(token, planId, taskId, next)
       loadPlans()
-    } catch (_) {}
+    } catch (error) {
+      console.error('Error updating task status:', error)
+    }
   }
 
   const toggleGoal = async (
@@ -192,7 +194,9 @@ export function StudyPlanner({ token }: StudyPlannerProps) {
     try {
       await api.updateStudyPlan(token, planId, { weeklyGoals: updated })
       loadPlans()
-    } catch (_) {}
+    } catch (error) {
+      console.error('Error occurred:', error);
+    }
   }
 
   const handleDeletePlan = async (planId: string) => {
@@ -200,7 +204,9 @@ export function StudyPlanner({ token }: StudyPlannerProps) {
     try {
       await api.deleteStudyPlan(token, planId)
       loadPlans()
-    } catch (_) {}
+    } catch (error) {
+      console.error('Error occurred:', error);
+    }
   }
 
   const handleCreatePlan = async () => {
