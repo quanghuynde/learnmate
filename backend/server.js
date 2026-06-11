@@ -17,6 +17,7 @@ const gamificationRoutes = require('./src/routes/gamificationRoutes');
 const aiRoutes = require('./src/routes/aiRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
+const aiAssistantRoutes = require('./src/routes/aiAssistantRoutes');
 const errorHandler = require('./src/middleware/errorHandler');
 const { startDailyReminderJob } = require('./src/services/dailyReminderService');
 const { initCreditRenewalJob } = require('./src/services/creditRenewalService');
@@ -66,6 +67,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/tts', ttsRoutes);
 app.use('/api/gamification', gamificationRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/ai-assistant', aiAssistantRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 
