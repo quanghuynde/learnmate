@@ -19,6 +19,9 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
   }
+  .custom-scrollbar {
+    -webkit-overflow-scrolling: touch;
+  }
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -27,11 +30,15 @@
     scrollbar-width: none;
   }
 }
+html,
+body {
+  height: 100%;
+}
+
 body {
   font-family: 'Inter', sans-serif;
   background-color: #f1f5f9;
   color: #0f172a;
-  overflow: hidden;
 }
 
 /* Markdown Formatting */
