@@ -87,7 +87,10 @@ export function Sidebar({ isOpen, setIsOpen, currentPage, setCurrentPage, user, 
           return (
             <button
               key={item.id}
-              onClick={() => setCurrentPage(item.id)}
+              onClick={() => {
+                setCurrentPage(item.id);
+                if (mobileMode) setIsOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl relative group transition-colors ${
                 isActive ? 'text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
               }`}

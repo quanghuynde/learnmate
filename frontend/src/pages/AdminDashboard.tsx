@@ -3,10 +3,14 @@ import { motion } from 'framer-motion';
 import { Users, CreditCard, Activity, DollarSign, Loader2, TrendingUp, Calendar, ArrowRight, Brain } from 'lucide-react';
 import { api } from '../lib/api';
 
-export function AdminDashboard() {
+interface AdminDashboardProps {
+  token?: string;
+}
+
+export function AdminDashboard({ token: propToken }: AdminDashboardProps) {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const token = localStorage.getItem('learnmate_token') || '';
+  const token = propToken || localStorage.getItem('learnmate_token') || '';
 
   useEffect(() => {
     const fetchStats = async () => {

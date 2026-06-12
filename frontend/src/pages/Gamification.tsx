@@ -120,23 +120,23 @@ export function Gamification({ token }: { token: string }) {
         {/* Achievements Section */}
         <div className="lg:col-span-2 space-y-6">
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white rounded-2xl p-6 border border-slate-200">
-              <Trophy className="text-yellow-500 mb-2" size={32} />
-              <p className="text-3xl font-bold text-slate-900">{data.achievements.unlocked}</p>
-              <p className="text-sm text-slate-500">Huy hiệu đã mở</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+            <div className="bg-white rounded-2xl p-4 md:p-6 border border-slate-200 flex flex-col items-center text-center">
+              <Trophy className="text-yellow-500 mb-2" size={24} />
+              <p className="text-xl md:text-3xl font-bold text-slate-900">{data.achievements.unlocked}</p>
+              <p className="text-[10px] md:text-sm text-slate-500">Huy hiệu đã mở</p>
             </div>
-            <div className="bg-white rounded-2xl p-6 border border-slate-200">
-              <Award className="text-primary mb-2" size={32} />
-              <p className="text-3xl font-bold text-slate-900">{data.achievements.total}</p>
-              <p className="text-sm text-slate-500">Tổng huy hiệu</p>
+            <div className="bg-white rounded-2xl p-4 md:p-6 border border-slate-200 flex flex-col items-center text-center">
+              <Award className="text-primary mb-2" size={24} />
+              <p className="text-xl md:text-3xl font-bold text-slate-900">{data.achievements.total}</p>
+              <p className="text-[10px] md:text-sm text-slate-500">Tổng huy hiệu</p>
             </div>
-            <div className="bg-white rounded-2xl p-6 border border-slate-200">
-              <TrendingUp className="text-green-500 mb-2" size={32} />
-              <p className="text-3xl font-bold text-slate-900">
+            <div className="bg-white rounded-2xl p-4 md:p-6 border border-slate-200 flex flex-col items-center text-center col-span-2 md:col-span-1">
+              <TrendingUp className="text-green-500 mb-2" size={24} />
+              <p className="text-xl md:text-3xl font-bold text-slate-900">
                 {Math.round((data.achievements.unlocked / data.achievements.total) * 100)}%
               </p>
-              <p className="text-sm text-slate-500">Hoàn thành</p>
+              <p className="text-[10px] md:text-sm text-slate-500">Hoàn thành</p>
             </div>
           </div>
 

@@ -490,11 +490,13 @@ export function KnowledgeMap({ token, user }: KnowledgeMapProps) {
           </div>
         )}
 
-        <div className="flex-1 flex gap-6 min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 overflow-hidden">
           {/* History Sidebar */}
-          <div className="w-80 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2 text-slate-900 font-bold">
-              <History size={18} className="text-primary" /> Bản đồ đã lưu
+          <div className="w-full lg:w-80 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden lg:h-full max-h-[300px] lg:max-h-none">
+            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between text-slate-900 font-bold">
+              <div className="flex items-center gap-2">
+                <History size={18} className="text-primary" /> Bản đồ đã lưu
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
               {loadingHistory ? (
@@ -506,10 +508,13 @@ export function KnowledgeMap({ token, user }: KnowledgeMapProps) {
                 </div>
               ) : (
                 history.map(map => (
-                  <button
+                  <div
                     key={map._id}
                     onClick={() => loadFromHistory(map._id)}
-                    className="w-full group p-3 rounded-2xl border border-slate-100 hover:border-primary/30 hover:bg-primary/5 transition-all text-left"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') loadFromHistory(map._id) }}
+                    className="w-full group p-3 rounded-2xl border border-slate-100 hover:border-primary/30 hover:bg-primary/5 transition-all text-left cursor-pointer relative"
                   >
                     <div className="flex justify-between items-start mb-1">
                       <p className="text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-primary transition-colors">
@@ -552,7 +557,7 @@ export function KnowledgeMap({ token, user }: KnowledgeMapProps) {
                       <span className="flex items-center gap-1"><BookOpen size={10} /> {map.documentIds?.length || 0} tài liệu</span>
                       <span>{new Date(map.createdAt).toLocaleDateString('vi-VN')}</span>
                     </div>
-                  </button>
+                  </div>
                 ))
               )}
             </div>
@@ -770,7 +775,7 @@ export function KnowledgeMap({ token, user }: KnowledgeMapProps) {
 
       {/* Canvas */}
       <div
-        className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-inner relative overflow-hidden select-none"
+        className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-inner relative overflow-hidden select-none touch-none"
         style={{
           backgroundImage: 'radial-gradient(#e5e7eb 1px, transparent 1px)',
           backgroundSize: '20px 20px',
@@ -781,6 +786,18 @@ export function KnowledgeMap({ token, user }: KnowledgeMapProps) {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
+        // Add touch events for mobile panning
+        onTouchStart={(e) => {
+          const touch = e.touches[0];
+          setIsPanning(true);
+          panStart.current = { x: touch.clientX - pan.x, y: touch.clientY - pan.y };
+        }}
+        onTouchMove={(e) => {
+          if (!isPanning) return;
+          const touch = e.touches[0];
+          setPan({ x: touch.clientX - panStart.current.x, y: touch.clientY - panStart.current.y });
+        }}
+        onTouchEnd={() => setIsPanning(false)}
       >
         <div
           style={{

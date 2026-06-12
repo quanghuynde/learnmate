@@ -9,6 +9,8 @@ import { api, PackageItem } from '../lib/api';
 
 interface PricingProps {
   setCurrentPage: (page: string) => void;
+  token: string;
+  user: any;
 }
 
 // Static tier definitions - always show these 3
@@ -85,7 +87,7 @@ const AI_COSTS = [
   { label: 'Chat với AI', cost: 1, unit: 'tin nhắn' },
 ];
 
-export function Pricing({ setCurrentPage }: PricingProps) {
+export function Pricing({ setCurrentPage, token: propToken }: PricingProps) {
   const { showNotification } = useNotification();
   const [packages, setPackages] = useState<PackageItem[]>([]);
   const [buying, setBuying] = useState<string | null>(null);
@@ -93,7 +95,7 @@ export function Pricing({ setCurrentPage }: PricingProps) {
   const [paymentData, setPaymentData] = useState<any>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const token = localStorage.getItem('learnmate_token') || '';
+  const token = propToken || localStorage.getItem('learnmate_token') || '';
 
   useEffect(() => {
     api.getPackages(token)
@@ -108,13 +110,15 @@ export function Pricing({ setCurrentPage }: PricingProps) {
     }
 
     const currentTier = TIERS.find(t => t.key === tierKey);
+    console.log('Searching for package:', tierKey, 'Available packages:', packages);
     let pkg = packages.find(p => p.name === tierKey);
     if (!pkg && currentTier) {
       pkg = packages.find(p => p.price === currentTier.price);
     }
+    console.log('Found package:', pkg);
 
     if (!pkg) {
-      showNotification(`Không tìm thấy cấu hình cho gói ${tierKey}. Vui lòng tải lại trang.`, 'warning');
+      showNotification(`Không tìm thấy cấu hình cho gói ${tierKey}. Vui lòng tải lại trang. (Count: ${packages.length})`, 'warning');
       return;
     }
 

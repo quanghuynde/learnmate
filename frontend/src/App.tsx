@@ -212,13 +212,13 @@ case 'community':
       case 'gamification':
         return <Gamification token={token} />;
       case 'pricing':
-        return <Pricing setCurrentPage={setCurrentPage} />;
+        return <Pricing setCurrentPage={setCurrentPage} token={token} user={user} />;
       case 'payment-result':
         return <PaymentResult setCurrentPage={setCurrentPage} />;
       case 'history':
-        return <TransactionHistory />;
+        return <TransactionHistory token={token} />;
       case 'admin':
-        return <AdminDashboard />;
+        return <AdminDashboard token={token} />;
       default:
         return <Dashboard setCurrentPage={setCurrentPage} token={token} user={user} />;
     }
@@ -269,7 +269,7 @@ case 'community':
                   <div className="flex-1 overflow-y-auto py-4">
                     <Sidebar
                       isOpen={true}
-                      setIsOpen={() => {}}
+                      setIsOpen={setIsMobileMenuOpen}
                       currentPage={currentPage}
                       setCurrentPage={setCurrentPage}
                       user={user}
