@@ -3,11 +3,15 @@ import { motion } from 'framer-motion';
 import { Clock, Download, TrendingUp, TrendingDown, Info, Loader2, Coins } from 'lucide-react';
 import { api, CreditTransactionItem, UsageLogItem } from '../lib/api';
 
-export function TransactionHistory() {
+interface TransactionHistoryProps {
+  token?: string;
+}
+
+export function TransactionHistory({ token: propToken }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<CreditTransactionItem[]>([]);
   const [usageLogs, setUsageLogs] = useState<UsageLogItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const token = localStorage.getItem('learnmate_token') || '';
+  const token = propToken || localStorage.getItem('learnmate_token') || '';
 
   useEffect(() => {
     const fetchData = async () => {

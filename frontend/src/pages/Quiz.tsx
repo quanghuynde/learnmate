@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain,
   FileText,
-  Settings,
   CheckCircle2,
   XCircle,
   ArrowRight,
@@ -15,7 +14,6 @@ import {
   File,
   Presentation,
   Loader2,
-  Upload,
 } from 'lucide-react';
 import {
   LineChart,
@@ -104,7 +102,6 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
   });
   const [isAnswered, setIsAnswered] = useState(selectedAnswer !== null);
   const [generating, setGenerating] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<'setup' | 'history'>('setup');
   const [localHistory, setLocalHistory] = useState<LocalQuizHistory[]>(() => {
     const saved = localStorage.getItem('learnmate_local_quiz_history');
     return saved ? JSON.parse(saved) : [];
@@ -411,7 +408,7 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto pb-20">
+    <div className="max-w-6xl mx-auto pb-20">
       <AnimatePresence mode="wait">
         {step === 'setup' && (
           <motion.div
@@ -419,270 +416,182 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
+            className="flex flex-col lg:flex-row gap-6"
           >
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Brain size={32} />
+            {/* History Sidebar */}
+            <div className="w-full lg:w-80 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden lg:h-[600px]">
+              <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2 text-slate-900 font-bold">
+                <RotateCcw size={18} className="text-primary" /> Lịch sử Quiz
               </div>
-              <h1 className="text-3xl font-bold text-text-primary mb-2">Kiểm tra thích ứng AI</h1>
-              <p className="text-slate-500">Tạo bài kiểm tra tùy chỉnh từ tài liệu bạn đã tải lên</p>
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                {unifiedHistory.length === 0 ? (
+                  <div className="text-center py-10 text-slate-400">
+                    <p className="text-xs">Chưa có lịch sử</p>
+                  </div>
+                ) : (
+                  unifiedHistory.map((item) => (
+                    <div 
+                      key={item.id}
+                      className="bg-slate-50 hover:bg-white p-3 rounded-xl border border-slate-100 transition-all cursor-pointer group"
+                      onClick={() => {
+                        setActiveQuestions(item.questions);
+                        setScore(item.score);
+                        setPickedAnswers(item.pickedAnswers);
+                        setEssayAnswers(item.essayAnswers);
+                        setFormat(item.format as any);
+                        setStep('result');
+                      }}
+                    >
+                      <h4 className="font-bold text-slate-900 text-xs truncate group-hover:text-primary">{item.title}</h4>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-[9px] text-slate-400">{new Date(item.date).toLocaleDateString('vi-VN')}</span>
+                        <span className="text-[10px] font-black text-primary">{Math.round((item.score / item.total) * 100)}%</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8">
-                {/* Custom Tabs */}
-                <div className="flex border-b border-slate-100 mb-8 -mx-8 px-8">
-                  {[
-                    { id: 'setup', label: 'Thiết lập Quiz', icon: <Settings size={16} /> },
-                    { id: 'history', label: `Lịch sử (${unifiedHistory.length})`, icon: <RotateCcw size={16} /> }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setSidebarTab(tab.id as any)}
-                      className={`pb-4 px-6 font-bold text-sm flex items-center gap-2 transition-all relative ${sidebarTab === tab.id ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}`}
-                    >
-                      {tab.icon} {tab.label}
-                      {sidebarTab === tab.id && (
-                        <motion.div layoutId="active-tab" className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-full" />
-                      )}
-                    </button>
-                  ))}
+            {/* Setup Panel */}
+            <div className="flex-1 space-y-6">
+              <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-6 md:p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
+                    <Brain size={24} />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold text-text-primary">Tạo bản mới</h1>
+                    <p className="text-sm text-slate-500">Tạo bài kiểm tra từ tài liệu của bạn</p>
+                  </div>
                 </div>
 
-                {sidebarTab === 'setup' ? (
-                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                {/* Document picker */}
-                <div>
-                  <label className="block text-sm font-bold text-text-primary mb-3 flex items-center gap-2">
-                    <FileText size={18} className="text-primary" /> Chọn tài liệu nguồn
-                  </label>
-
-                  {docsLoading ? (
-                    <div className="space-y-3">
-                      {[1, 2].map((i) => (
-                        <div key={i} className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl animate-pulse">
-                          <div className="w-4 h-4 bg-slate-200 rounded shrink-0" />
-                          <div className="w-4 h-4 bg-slate-200 rounded shrink-0" />
-                          <div className="h-4 bg-slate-200 rounded w-2/3" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : documents.length === 0 ? (
-                    <div className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                      <div className="flex items-center gap-3 text-amber-700 text-sm">
-                        <Upload size={18} />
-                        <div>
-                          <p className="font-semibold">Chưa có tài liệu nào</p>
-                          <p className="text-xs mt-0.5">Hãy tải lên tài liệu trước để tạo quiz</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setCurrentPage?.('documents')}
-                        className="text-xs font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-2 rounded-lg transition-colors"
-                      >
-                        Tải tài liệu →
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <input
-                        type="text"
-                        placeholder="🔍 Tìm kiếm tên tài liệu..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full p-3 mb-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-primary text-sm shadow-sm"
-                      />
-                      {/* Documents Multi Select */}
-                      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm max-h-60 overflow-y-auto custom-scrollbar">
-                        {documents
-                          .filter((doc) => doc.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                          .map((doc) => (
-                          <label key={doc._id} className="flex items-center gap-3 p-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors">
-                            <input 
-                              type="checkbox" 
-                              checked={selectedDocIds.includes(doc._id)}
-                              disabled={doc.status !== 'processed'}
-                              onChange={(e) => {
-                                if (e.target.checked) setSelectedDocIds([...selectedDocIds, doc._id]);
-                                else setSelectedDocIds(selectedDocIds.filter(id => id !== doc._id));
-                              }}
-                              className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/20 aspect-square disabled:opacity-30 disabled:cursor-not-allowed"
-                            />
-                            <div className={`flex items-center gap-2 flex-1 min-w-0 ${doc.status !== 'processed' ? 'opacity-50' : ''}`}>
-                               {getFileIcon(doc.type)}
-                               <span className="text-sm text-slate-700 truncate">{doc.name}</span>
-                            </div>
-                            {doc.status === 'processing' && <Loader2 size={12} className="animate-spin text-amber-500" />}
-                            {doc.status === 'error' && <XCircle size={14} className="text-red-500" />}
-                            {doc.status === 'uploading' && <Loader2 size={12} className="animate-spin text-blue-500" />}
-                          </label>
-                        ))}
-                      </div>
-
-                      {/* Selected docs info */}
-                      <AnimatePresence>
-                        {selectedDocs.length > 0 && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
-                            className="mt-3"
-                          >
-                             <div className="flex flex-wrap gap-2">
-                               {selectedDocs.map(doc => (
-                                 <div key={doc._id} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-semibold border border-primary/20">
-                                    <span className="truncate max-w-[150px]">{doc.name}</span>
-                                    <button onClick={() => setSelectedDocIds(selectedDocIds.filter(id => id !== doc._id))} className="hover:text-primary-light transition-colors"><XCircle size={14}/></button>
-                                 </div>
-                               ))}
-                             </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </>
-                  )}
-                </div>
-
-                {/* Settings row */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Số lượng */}
+                <div className="space-y-6">
+                  {/* Document picker */}
                   <div>
                     <label className="block text-sm font-bold text-text-primary mb-3 flex items-center gap-2">
-                      <Settings size={18} className="text-primary" /> Số câu hỏi
+                      <FileText size={18} className="text-primary" /> Chọn tài liệu nguồn
                     </label>
-                    <div className="flex items-center gap-4">
+ 
+                    {docsLoading ? (
+                      <div className="space-y-3">
+                        {[1, 2].map((i) => (
+                          <div key={i} className="h-12 bg-slate-50 rounded-xl animate-pulse" />
+                        ))}
+                      </div>
+                    ) : documents.length === 0 ? (
+                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+                        <p className="text-xs text-amber-700">Chưa có tài liệu. Hãy tải lên trước.</p>
+                        <button onClick={() => setCurrentPage?.('documents')} className="text-[10px] font-bold text-amber-700 underline">Tải ngay</button>
+                      </div>
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          placeholder="🔍 Tìm kiếm tài liệu..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full p-3 mb-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-primary text-sm transition-all"
+                        />
+                        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm max-h-48 overflow-y-auto custom-scrollbar">
+                          {documents
+                            .filter((doc) => doc.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                            .map((doc) => (
+                            <label key={doc._id} className="flex items-center gap-3 p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-all">
+                              <input 
+                                type="checkbox" 
+                                checked={selectedDocIds.includes(doc._id)}
+                                disabled={doc.status !== 'processed'}
+                                onChange={(e) => {
+                                  if (e.target.checked) setSelectedDocIds([...selectedDocIds, doc._id]);
+                                  else setSelectedDocIds(selectedDocIds.filter(id => id !== doc._id));
+                                }}
+                                className="w-4 h-4 rounded border-slate-300 text-primary"
+                              />
+                              <div className={`flex items-center gap-2 flex-1 min-w-0 ${doc.status !== 'processed' ? 'opacity-50' : ''}`}>
+                                 {getFileIcon(doc.type)}
+                                 <span className="text-xs text-slate-700 truncate">{doc.name}</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+ 
+                  {/* Settings grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold text-slate-500 uppercase">Số câu hỏi</label>
                       <input
                         type="number"
                         min="1"
                         value={numQuestions}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          if (val < 1 && e.target.value !== "") setNumQuestions(1);
-                          else setNumQuestions(val);
-                        }}
-                        className="w-full font-semibold text-base bg-white border border-slate-200 outline-none focus:border-primary p-3 rounded-xl shadow-sm transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        placeholder="Số lượng..."
+                        onChange={(e) => setNumQuestions(Number(e.target.value))}
+                        className="w-full font-bold bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-primary transition-all"
                       />
                     </div>
-                  </div>
-
-                  {/* Định dạng */}
-                  <div>
-                     <label className="block text-sm font-bold text-text-primary mb-3">Định dạng</label>
-                     <div className="flex gap-2">
-                      {(['Trắc nghiệm', 'Đ/Sai', 'Tự luận'] as const).map((f) => (
-                        <button
-                          key={f}
-                          onClick={() => setFormat(f === 'Đ/Sai' ? 'Đúng/Sai' : f as any)}
-                          className={`flex-1 py-2 text-sm font-medium rounded-xl border transition-colors whitespace-nowrap ${
-                            format === (f === 'Đ/Sai' ? 'Đúng/Sai' : f)
-                              ? 'bg-primary text-white border-primary'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          {f}
-                        </button>
-                      ))}
+                    <div className="space-y-2">
+                       <label className="text-[11px] font-bold text-slate-500 uppercase">Định dạng</label>
+                       <select 
+                         value={format} 
+                         onChange={(e) => setFormat(e.target.value as any)}
+                         className="w-full font-bold bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-primary transition-all"
+                       >
+                         <option value="Trắc nghiệm">Trắc nghiệm</option>
+                         <option value="Đúng/Sai">Đúng/Sai</option>
+                         <option value="Tự luận">Tự luận</option>
+                       </select>
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[11px] font-bold text-slate-500 uppercase">Độ khó</label>
+                       <select 
+                         value={difficulty} 
+                         onChange={(e) => setDifficulty(e.target.value as any)}
+                         className="w-full font-bold bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-primary transition-all"
+                       >
+                         <option value="Dễ">Dễ</option>
+                         <option value="Trung bình">Trung bình</option>
+                         <option value="Khó">Khó</option>
+                       </select>
                     </div>
                   </div>
-
-                  {/* Độ khó */}
-                  <div>
-                     <label className="block text-sm font-bold text-text-primary mb-3">Độ khó</label>
-                     <div className="flex gap-2">
-                      {(['Dễ', 'T.Bình', 'Khó'] as const).map((lvl) => (
-                        <button
-                          key={lvl}
-                          onClick={() => setDifficulty(lvl === 'T.Bình' ? 'Trung bình' : lvl as any)}
-                          className={`flex-1 py-1.5 text-sm font-medium rounded-xl border transition-colors whitespace-nowrap ${
-                            difficulty === (lvl === 'T.Bình' ? 'Trung bình' : lvl)
-                              ? 'bg-primary text-white border-primary'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          {lvl}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+ 
+                  <button
+                    onClick={handleStartQuiz}
+                    disabled={selectedDocIds.length === 0 || generating}
+                    className="w-full bg-gradient-to-r from-primary to-primary-light text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-50"
+                  >
+                    {generating ? <Loader2 className="animate-spin" /> : <Sparkles size={20} />}
+                    {generating ? 'Đang tạo...' : 'Bắt đầu làm bài'}
+                  </button>
                 </div>
+              </div>
 
-                {/* ChatGPT API Key Config */}
-                <button
-                  onClick={handleStartQuiz}
-                  disabled={selectedDocIds.length === 0 || generating}
-                  className="w-full mt-4 bg-gradient-to-r from-primary to-primary-light text-white py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-primary/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {generating ? (
-                    <>
-                      <Loader2 size={20} className="animate-spin" /> Đang tạo câu hỏi...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={20} /> Tạo & bắt đầu làm bài
-                    </>
-                  )}
-                </button>
+              {/* Progress Summary (Desktop) */}
+              <div className="hidden lg:grid grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-center">
+                  <Trophy className="text-yellow-500 mx-auto mb-2" size={24} />
+                  <p className="text-2xl font-black text-slate-900">{unifiedHistory.length}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Bài đã hoàn thành</p>
+                </div>
+                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-center">
+                  <CheckCircle2 className="text-green-500 mx-auto mb-2" size={24} />
+                  <p className="text-2xl font-black text-slate-900">
+                    {unifiedHistory.length > 0 
+                      ? Math.round(unifiedHistory.reduce((acc, h) => acc + (h.score / h.total), 0) / unifiedHistory.length * 100) 
+                      : 0}%
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Điểm trung bình</p>
+                </div>
+                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-center">
+                  <Brain className="text-primary mx-auto mb-2" size={24} />
+                  <p className="text-2xl font-black text-slate-900">{localHistory.length}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Quiz cục bộ</p>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-4 pt-2">
-                {unifiedHistory.length === 0 ? (
-                  <div className="text-center py-16 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
-                    <div className="w-16 h-16 bg-white text-slate-300 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-                      <RotateCcw size={32} />
-                    </div>
-                    <p className="text-slate-500 font-bold">Chưa có lịch sử làm bài</p>
-                    <p className="text-xs text-slate-400 mt-1">Kết quả bài quiz sẽ được lưu tự động tại đây</p>
-                  </div>
-                ) : (
-                  <div className="grid gap-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                    {unifiedHistory.map((item) => (
-                      <div 
-                        key={item.id}
-                        className="bg-slate-50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 p-5 rounded-2xl border border-slate-100 transition-all group cursor-pointer relative overflow-hidden"
-                        onClick={() => {
-                          setActiveQuestions(item.questions);
-                          setScore(item.score);
-                          setPickedAnswers(item.pickedAnswers);
-                          setEssayAnswers(item.essayAnswers);
-                          setFormat(item.format as any);
-                          setStep('result');
-                        }}
-                      >
-                        <div className="absolute top-0 left-0 w-1 h-full bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="min-w-0 flex-1">
-                            <h4 className="font-bold text-slate-900 group-hover:text-primary transition-colors truncate pr-4">{item.title}</h4>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded uppercase">{item.format}</span>
-                              <span className="text-[10px] text-slate-400 font-medium">{new Date(item.date).toLocaleString('vi-VN')}</span>
-                            </div>
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            <div className={`text-xl font-black ${item.score/item.total >= 0.8 ? 'text-success' : item.score/item.total >= 0.5 ? 'text-accent' : 'text-danger'}`}>
-                              {Math.round((item.score / item.total) * 100)}%
-                            </div>
-                            <div className="text-[10px] text-slate-400 font-bold uppercase">{item.score}/{item.total} Câu đúng</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full transition-all duration-500 ${item.score/item.total >= 0.8 ? 'bg-success' : item.score/item.total >= 0.5 ? 'bg-accent' : 'bg-danger'}`} 
-                              style={{ width: `${(item.score / item.total) * 100}%` }} 
-                            />
-                          </div>
-                          <div className="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-primary group-hover:border-primary/20 transition-all">
-                            <ArrowRight size={14} />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </motion.div>
+            </div>
+          </motion.div>
         )}
 
         {step === 'playing' && currentQuestion && (
