@@ -293,7 +293,7 @@ case 'community':
           </div>
           <main className="flex-1 overflow-y-auto custom-scrollbar p-3 md:p-6 lg:p-8 relative z-0">
             <AnimatePresence mode="wait">
-              <motion.div key={currentPage} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.2 }} className="h-full max-w-7xl mx-auto">
+              <motion.div key={currentPage} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.2 }} className="min-h-full max-w-7xl mx-auto">
                 <ErrorBoundary>
                   <Suspense fallback={<LoadingPage />}>
                     {renderPage()}
