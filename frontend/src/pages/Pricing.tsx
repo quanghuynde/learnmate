@@ -266,13 +266,13 @@ export function Pricing({ setCurrentPage }: PricingProps) {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-[32px] shadow-2xl overflow-hidden"
+              className="relative w-full max-w-lg bg-white rounded-[24px] md:rounded-[32px] shadow-2xl overflow-hidden max-h-[95vh] flex flex-col"
             >
-              <div className="p-8">
-                <div className="flex justify-between items-start mb-6">
+              <div className="p-5 md:p-8 overflow-y-auto custom-scrollbar">
+                <div className="flex justify-between items-start mb-4 md:mb-6">
                   <div>
-                    <h2 className="text-2xl font-black text-slate-900 mb-1">Thanh toán chuyển khoản</h2>
-                    <p className="text-sm text-slate-500">Quét mã QR để nâng cấp gói tài khoản</p>
+                    <h2 className="text-xl md:text-2xl font-black text-slate-900 mb-1">Thanh toán chuyển khoản</h2>
+                    <p className="text-xs md:text-sm text-slate-500">Quét mã QR để nâng cấp gói tài khoản</p>
                   </div>
                   <button 
                     onClick={() => setShowQRModal(false)}
@@ -281,10 +281,10 @@ export function Pricing({ setCurrentPage }: PricingProps) {
                     <X size={20} className="text-slate-400" />
                   </button>
                 </div>
-
-                <div className="flex flex-col md:flex-row gap-8 items-center">
+ 
+                <div className="flex flex-col md:flex-row gap-5 md:gap-8 items-center mb-6">
                   {/* QR Code */}
-                  <div className="w-full md:w-1/2 p-4 bg-slate-50 rounded-3xl border border-slate-100">
+                  <div className="w-full md:w-1/2 p-4 bg-slate-50 rounded-2xl md:rounded-3xl border border-slate-100">
                     <img 
                       src={paymentData.qrUrl} 
                       alt="VietQR Payment" 
@@ -294,68 +294,68 @@ export function Pricing({ setCurrentPage }: PricingProps) {
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quét mã bằng app Bank/Ví</p>
                     </div>
                   </div>
-
+ 
                   {/* Payment Info */}
-                  <div className="w-full md:w-1/2 space-y-4">
-                    <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10">
-                      <p className="text-xs text-slate-500 mb-1 uppercase font-bold">Số tiền cần chuyển</p>
-                      <p className="text-2xl font-black text-primary">
+                  <div className="w-full md:w-1/2 space-y-3">
+                    <div className="p-3 md:p-4 rounded-xl md:rounded-2xl bg-primary/5 border border-primary/10">
+                      <p className="text-[10px] text-slate-500 mb-1 uppercase font-bold">Số tiền cần chuyển</p>
+                      <p className="text-xl md:text-2xl font-black text-primary">
                         {paymentData.amount.toLocaleString('vi-VN')}đ
                       </p>
                     </div>
-
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center p-3 rounded-xl hover:bg-slate-50 transition-colors group">
+ 
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center p-2 rounded-xl hover:bg-slate-50 transition-colors group">
                         <div>
-                          <p className="text-[10px] text-slate-400 uppercase font-bold">Ngân hàng</p>
+                          <p className="text-[9px] text-slate-400 uppercase font-bold">Ngân hàng</p>
                           <p className="text-sm font-bold text-slate-800">{paymentData.bankInfo.bankId}</p>
                         </div>
                       </div>
-
-                      <div className="flex justify-between items-center p-3 rounded-xl hover:bg-slate-50 transition-colors group">
+ 
+                      <div className="flex justify-between items-center p-2 rounded-xl hover:bg-slate-50 transition-colors group">
                         <div className="flex-1">
-                          <p className="text-[10px] text-slate-400 uppercase font-bold">Số tài khoản</p>
+                          <p className="text-[9px] text-slate-400 uppercase font-bold">Số tài khoản</p>
                           <p className="text-sm font-bold text-slate-800">{paymentData.bankInfo.accountNo}</p>
                         </div>
                         <button 
                           onClick={() => copyToClipboard(paymentData.bankInfo.accountNo, 'stk')}
-                          className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all"
+                          className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-all"
                         >
-                          {copied === 'stk' ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                          {copied === 'stk' ? <CheckCircle2 size={14} /> : <Copy size={14} />}
                         </button>
                       </div>
-
-                      <div className="flex justify-between items-center p-3 rounded-xl bg-amber-50 border border-amber-100 group">
+ 
+                      <div className="flex justify-between items-center p-2 rounded-xl bg-amber-50 border border-amber-100 group">
                         <div className="flex-1">
-                          <p className="text-[10px] text-amber-600 uppercase font-bold">Nội dung (Quan trọng)</p>
-                          <p className="text-base font-black text-amber-700 tracking-wider">{paymentData.memo}</p>
+                          <p className="text-[9px] text-amber-600 uppercase font-bold">Nội dung (Quan trọng)</p>
+                          <p className="text-sm font-black text-amber-700 tracking-wider">{paymentData.memo}</p>
                         </div>
                         <button 
                           onClick={() => copyToClipboard(paymentData.memo, 'memo')}
-                          className="p-2 text-amber-600 hover:bg-amber-100 rounded-lg transition-all"
+                          className="p-1.5 text-amber-600 hover:bg-amber-100 rounded-lg transition-all"
                         >
-                          {copied === 'memo' ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                          {copied === 'memo' ? <CheckCircle2 size={14} /> : <Copy size={14} />}
                         </button>
                       </div>
                     </div>
                   </div>
                 </div>
-
-                <div className="mt-8 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+ 
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
                   <div className="flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <Loader2 size={16} className="text-primary animate-spin" />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-slate-800">Đang chờ thanh toán...</p>
-                      <p className="text-xs text-slate-500">Hệ thống sẽ tự động kích hoạt gói sau 30s - 1 phút ngay khi nhận được tiền.</p>
+                      <p className="text-[11px] text-slate-500">Hệ thống sẽ tự động kích hoạt gói sau 30s - 1 phút ngay khi nhận được tiền.</p>
                     </div>
                   </div>
                 </div>
-
+ 
                 <button 
                   onClick={() => setShowQRModal(false)}
-                  className="w-full mt-6 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-lg"
+                  className="w-full mt-6 py-3.5 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-lg"
                 >
                   Đóng
                 </button>
