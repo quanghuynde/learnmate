@@ -282,7 +282,7 @@ case 'community':
           )}
         </AnimatePresence>
 
-        <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden relative">
+        <div className="flex-1 flex flex-col h-full min-h-0 relative">
           <div className="relative z-[50]">
             <TopBar 
               token={token} 
@@ -291,9 +291,16 @@ case 'community':
               onMenuClick={() => setIsMobileMenuOpen(true)} 
             />
           </div>
-          <main className="flex-1 overflow-y-auto custom-scrollbar touch-pan-y p-3 md:p-6 lg:p-8 relative z-10">
+          <main className="flex-1 overflow-y-auto custom-scrollbar touch-pan-y p-3 md:p-6 lg:p-8 relative z-10 overscroll-none">
             <AnimatePresence mode="wait">
-              <motion.div key={currentPage} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.2 }} className="min-h-full max-w-7xl mx-auto">
+              <motion.div 
+                key={currentPage} 
+                initial={{ opacity: 0, y: 10 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                exit={{ opacity: 0, y: -10 }} 
+                transition={{ duration: 0.15 }} 
+                className="min-h-full max-w-7xl mx-auto flex flex-col"
+              >
                 <ErrorBoundary>
                   <Suspense fallback={<LoadingPage />}>
                     {renderPage()}
