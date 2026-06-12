@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { startPaymentSync } = require('./src/services/syncService');
 const connectDB = require('./src/config/db');
 const authRoutes = require('./src/routes/authRoutes');
 const userRoutes = require('./src/routes/userRoutes');
@@ -90,4 +91,7 @@ app.listen(PORT, () => {
   console.log(`📡 Môi trường: ${process.env.NODE_ENV}`);
   console.log(`🔑 Google Client ID: ${process.env.GOOGLE_CLIENT_ID ? 'Đã nạp ✅' : 'Chưa có ❌'}`);
   console.log(`📧 SMTP User: ${process.env.SMTP_USER ? 'Đã nạp ✅' : 'Chưa có ❌'}`);
+  
+  // Start automated payment synchronization service
+  startPaymentSync();
 });
