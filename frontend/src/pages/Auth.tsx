@@ -395,7 +395,7 @@ export function Auth({ onLogin }: AuthProps) {
                         theme="outline"
                         size="large"
                         shape="pill"
-                        width="100%"
+                        text="signin_with"
                       />
                     </div>
 
