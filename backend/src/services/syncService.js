@@ -23,8 +23,8 @@ const syncPaymentsWithSePay = async () => {
     if (clientId) {
       // 1a. Using BankHub API (Newer integration from the screenshot)
       // Standard BankHub headers: x-client-id and x-secret-key
-      // Endpoint: https://api.bankhub.vn/v1/transactions
-      const url = 'https://api.bankhub.vn/v1/transactions';
+      // Endpoint: https://bankhub-api.sepay.vn/v1/transactions
+      const url = 'https://bankhub-api.sepay.vn/v1/transactions';
 
       console.log(`Polling BankHub (ClientId: ${clientId})...`);
       
