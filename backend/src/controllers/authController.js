@@ -170,37 +170,37 @@ const forgotPassword = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy người dùng với email này' });
     }
 
-    // Tao reset token ngau nhien
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    // Tao OTP 6 so ngau nhien
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Luu OTP (bam hash) va thoi gian het han
+    user.resetPasswordToken = crypto.createHash('sha256').update(otp).digest('hex');
     user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // Het han trong 10 phut
 
     await user.save();
 
-    // URL khach hang - use FRONTEND_URL (single domain) not CORS_ORIGIN (can be comma-separated)
-    const frontendUrl = process.env.FRONTEND_URL || 
-      (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',')[0].trim();
-    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
-
-    const message = `Bạn đang yêu cầu đặt lại mật khẩu. Vui lòng mở đường dẫn dưới đây để tiếp tục:\n\n${resetUrl}\n\nNếu bạn không yêu cầu thao tác này, hãy bỏ qua email này.`;
-
     try {
       await sendEmail({
         email: user.email,
-        subject: 'Đặt lại mật khẩu LearnMate',
-        message,
+        subject: 'Mã xác thực đăng nhập LearnMate',
+        message: `Mã xác thực của bạn là: ${otp}. Mã này sẽ hết hạn trong 10 phút.`,
         html: `
-          <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2 style="color: #3b82f6;">Đặt lại mật khẩu LearnMate</h2>
-            <p>Bạn nhận được email này vì bạn (hoặc ai đó) đã yêu cầu đặt lại mật khẩu cho tài khoản LearnMate.</p>
-            <p>Vui lòng nhấn vào nút dưới đây để tiếp tục:</p>
-            <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Đặt lại mật khẩu</a>
-            <p style="margin-top: 20px; font-size: 12px; color: #666;">Đường dẫn này sẽ hết hạn trong 10 phút.</p>
+          <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 12px;">
+            <h2 style="color: #1565c0; text-align: center;">Mã xác thực LearnMate</h2>
+            <p>Chào bạn,</p>
+            <p>Bạn nhận được email này vì bạn đã yêu cầu khôi phục mật khẩu hoặc đăng nhập nhanh bằng mã xác thực cho tài khoản LearnMate.</p>
+            <div style="background: #f0f7ff; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 12px; color: #1565c0;">${otp}</span>
+            </div>
+            <p style="font-size: 14px; color: #666;">Mã xác thực này sẽ hết hạn trong <b>10 phút</b>.</p>
+            <p style="font-size: 14px; color: #666;">Nếu bạn không yêu cầu thao tác này, hãy bỏ qua email này.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+            <p style="font-size: 12px; color: #999; text-align: center;">Đây là email tự động, vui lòng không trả lời.</p>
           </div>
         `,
       });
 
-      res.json({ message: 'Email khôi phục đã được gửi' });
+      res.json({ message: 'Mã xác thực đã được gửi tới email của bạn' });
     } catch (err) {
       console.error('Email Error:', err);
       user.resetPasswordToken = undefined;
@@ -208,6 +208,44 @@ const forgotPassword = async (req, res) => {
       await user.save();
       return res.status(500).json({ message: `Lỗi gửi mail: ${err.message}` });
     }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const verifyForgotOTP = async (req, res) => {
+  try {
+    const { email, otpCode } = req.body;
+    if (!email || !otpCode) {
+      return res.status(400).json({ message: 'Vui lòng nhập Email và mã OTP' });
+    }
+
+    const hashedToken = crypto.createHash('sha256').update(otpCode).digest('hex');
+
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Mã OTP không chính xác hoặc đã hết hạn' });
+    }
+
+    // Clear reset tokens
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    // Generate login token
+    const token = generateToken(user._id);
+    await updateStreak(user);
+
+    res.json({
+      message: 'Xác thực thành công và đã đăng nhập',
+      token,
+      user: serializeUser(user),
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -287,6 +325,6 @@ const verify2FALogin = async (req, res) => {
   }
 };
 
-module.exports = { register, login, googleLogin, getMe, forgotPassword, resetPassword, verify2FALogin };
+module.exports = { register, login, googleLogin, getMe, forgotPassword, resetPassword, verify2FALogin, verifyForgotOTP };
 
 

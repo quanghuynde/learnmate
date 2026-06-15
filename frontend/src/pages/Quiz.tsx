@@ -14,6 +14,7 @@ import {
   File,
   Presentation,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 import {
   LineChart,
@@ -24,10 +25,11 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { api, QuizItem, DocumentItem } from '../lib/api';
+import { api, QuizItem, DocumentItem, UserItem } from '../lib/api';
 
 interface QuizProps {
   token: string;
+  user: UserItem | null;
   setCurrentPage?: (page: string) => void;
 }
 
@@ -66,16 +68,20 @@ function getFileIcon(type: string) {
 
 
 
-export function Quiz({ token, setCurrentPage }: QuizProps) {
+export function Quiz({ token, user, setCurrentPage }: QuizProps) {
+  const userId = user?.id || 'guest';
+  const HISTORY_KEY = `learnmate_local_quiz_history_${userId}`;
+  const STATE_KEY = `learnmate_quiz_state_${userId}`;
+
   // Recover state from sessionStorage
   const savedState = useMemo<QuizState | null>(() => {
     try {
-      const saved = sessionStorage.getItem('learnmate_quiz_state');
+      const saved = sessionStorage.getItem(STATE_KEY);
       return saved ? (JSON.parse(saved) as QuizState) : null;
     } catch {
       return null;
     }
-  }, []);
+  }, [STATE_KEY]);
 
   const [step, setStep] = useState<'setup' | 'playing' | 'result'>(savedState?.step || 'setup');
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>(savedState?.selectedDocIds || []);
@@ -103,24 +109,24 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
   const [isAnswered, setIsAnswered] = useState(selectedAnswer !== null);
   const [generating, setGenerating] = useState(false);
   const [localHistory, setLocalHistory] = useState<LocalQuizHistory[]>(() => {
-    const saved = localStorage.getItem('learnmate_local_quiz_history');
+    const saved = localStorage.getItem(HISTORY_KEY);
     return saved ? JSON.parse(saved) : [];
   });
 
   useEffect(() => {
-    localStorage.setItem('learnmate_local_quiz_history', JSON.stringify(localHistory));
-  }, [localHistory]);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(localHistory));
+  }, [localHistory, HISTORY_KEY]);
 
   // Sync state to sessionStorage
   useEffect(() => {
     if (step === 'setup') {
-      sessionStorage.removeItem('learnmate_quiz_state');
+      sessionStorage.removeItem(STATE_KEY);
     } else {
-      sessionStorage.setItem('learnmate_quiz_state', JSON.stringify({
+      sessionStorage.setItem(STATE_KEY, JSON.stringify({
         step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, essayAnswers
       }));
     }
-  }, [step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers]);
+  }, [step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, STATE_KEY]);
 
   // Documents list (for dropdown)
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -395,8 +401,29 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
     return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [localHistory, history]);
 
+  const handleDeleteQuiz = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!window.confirm('Bạn có chắc chắn muốn xóa bài Quiz này khỏi lịch sử không?')) return;
+
+    try {
+      // 1. Delete from backend if possible
+      if (!id.startsWith('local-')) {
+        await api.deleteQuiz(token, id);
+      }
+      
+      // 2. Delete from local state & storage
+      setLocalHistory(prev => prev.filter(l => l.id !== id));
+      setHistory(prev => prev.filter(h => (h as any)._id !== id && (h as any).id !== id));
+      
+      alert('Đã xóa quiz thành công');
+    } catch (err: any) {
+      console.error('Failed to delete quiz:', err);
+      alert('Lỗi khi xóa quiz: ' + (err.message || 'Không xác định'));
+    }
+  };
+
   const resetQuiz = () => {
-    sessionStorage.removeItem('learnmate_quiz_state');
+    sessionStorage.removeItem(STATE_KEY);
     setStep('setup');
     setScore(0);
     setCurrentQ(0);
@@ -432,7 +459,7 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
                   unifiedHistory.map((item) => (
                     <div 
                       key={item.id}
-                      className="bg-slate-50 hover:bg-white p-3 rounded-xl border border-slate-100 transition-all cursor-pointer group"
+                      className="bg-slate-50 hover:bg-white p-3 rounded-xl border border-slate-100 transition-all cursor-pointer group relative"
                       onClick={() => {
                         setActiveQuestions(item.questions);
                         setScore(item.score);
@@ -442,10 +469,17 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
                         setStep('result');
                       }}
                     >
-                      <h4 className="font-bold text-slate-900 text-xs truncate group-hover:text-primary">{item.title}</h4>
+                      <button
+                        onClick={(e) => handleDeleteQuiz(e, item.id)}
+                        className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-danger hover:bg-danger/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10"
+                        title="Xóa bài này"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                      <h4 className="font-bold text-slate-900 text-xs pr-6 truncate group-hover:text-primary">{item.title}</h4>
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-[9px] text-slate-400">{new Date(item.date).toLocaleDateString('vi-VN')}</span>
-                        <span className="text-[10px] font-black text-primary">{Math.round((item.score / item.total) * 100)}%</span>
+                        <span className="text-[10px] font-black text-primary">{item.total > 0 ? Math.round((item.score / item.total) * 100) : 0}%</span>
                       </div>
                     </div>
                   ))

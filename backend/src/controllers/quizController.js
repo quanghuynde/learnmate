@@ -24,13 +24,20 @@ const createQuiz = async (req, res) => {
       tier = 'Basic';
     }
 
-    const currentQuizCount = await Quiz.countDocuments({ user: req.user.id });
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+    const currentQuizCount = await Quiz.countDocuments({ 
+      user: req.user.id,
+      createdAt: { $gte: fourteenDaysAgo }
+    });
+
     const limits = { 'Basic': 30, 'Pro': 60, 'Premium': Infinity };
     const userLimit = limits[tier] || 30;
 
     if (currentQuizCount >= userLimit) {
       return res.status(403).json({ 
-        message: `Bạn đã đạt giới hạn tạo Quiz tối đa (${userLimit} bài) cho gói ${tier}. Vui lòng nâng cấp gói để tiếp tục.` 
+        message: `Bạn đã đạt giới hạn tạo Quiz trong 14 ngày qua (${userLimit} bài) cho gói ${tier}. Lượt tạo mới sẽ được hồi lại sau khi các bài cũ quá 14 ngày.` 
       });
     }
 
@@ -146,4 +153,20 @@ const getQuizHistory = async (req, res) => {
   }
 };
 
-module.exports = { getQuizzes, createQuiz, getQuiz, submitQuiz, getQuizHistory };
+const deleteQuiz = async (req, res) => {
+  try {
+    const quiz = await Quiz.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    if (!quiz) {
+      return res.status(404).json({ message: 'Không tìm thấy quiz hoặc bạn không có quyền xóa' });
+    }
+    
+    // Also delete associated results
+    await QuizResult.deleteMany({ quiz: req.params.id });
+    
+    res.json({ message: 'Đã xóa quiz thành công' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getQuizzes, createQuiz, getQuiz, submitQuiz, getQuizHistory, deleteQuiz };

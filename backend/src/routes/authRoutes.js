@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, googleLogin, getMe, forgotPassword, resetPassword, verify2FALogin } = require('../controllers/authController');
+const { register, login, googleLogin, getMe, forgotPassword, resetPassword, verify2FALogin, verifyForgotOTP } = require('../controllers/authController');
 const { setup2FA, verifySetup2FA, disable2FA } = require('../controllers/twoFactorController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -9,6 +9,7 @@ router.post('/login', login);
 router.post('/google', googleLogin);
 router.get('/me', protect, getMe);
 router.post('/forgot-password', forgotPassword);
+router.post('/verify-forgot-otp', verifyForgotOTP);
 router.post('/reset-password/:token', resetPassword);
 
 // 2FA Routes

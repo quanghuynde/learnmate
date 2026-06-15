@@ -21,12 +21,16 @@ const syncPaymentsWithSePay = async () => {
     let remoteTxns = [];
 
     if (clientId) {
-      // 1a. Using BankHub API (Newer integration from the screenshot)
-      // Standard BankHub headers: x-client-id and x-secret-key
-      // Endpoint: https://bankhub-api.sepay.vn/v1/transactions
-      const url = 'https://bankhub-api.sepay.vn/v1/transactions';
+      // 1a. Using BankHub API
+      // Determine base URL based on Client ID (BH-SB = Sandbox)
+      const isSandbox = clientId.startsWith('BH-SB');
+      const baseUrl = isSandbox 
+        ? 'https://bankhub-api-sandbox.sepay.vn' 
+        : 'https://bankhub-api.sepay.vn';
+      
+      const url = `${baseUrl}/v1/transactions`;
 
-      console.log(`Polling BankHub (ClientId: ${clientId})...`);
+      console.log(`Polling BankHub (${isSandbox ? 'Sandbox' : 'Production'}) (ClientId: ${clientId})...`);
       
       const response = await axios.get(url, {
         headers: {
@@ -34,7 +38,7 @@ const syncPaymentsWithSePay = async () => {
           'x-secret-key': apiToken,
           'Content-Type': 'application/json'
         },
-        timeout: 30000 // Increased timeout to 30s for slow BankHub responses
+        timeout: 30000 
       });
       
       console.log(`[DEBUG] BankHub Polling Successful. Status: ${response.status}`);

@@ -326,6 +326,9 @@ export const api = {
   forgotPassword: (email: string) =>
     request<{ message: string }>('/auth/forgot-password', { method: 'POST', body: { email } }),
 
+  verifyForgotOTP: (email: string, otpCode: string) =>
+    request<AuthPayload & { message: string }>('/auth/verify-forgot-otp', { method: 'POST', body: { email, otpCode } }),
+
   resetPassword: (token: string, password: string) =>
     request<{ message: string }>(`/auth/reset-password/${token}`, { method: 'POST', body: { password } }),
 
@@ -377,6 +380,8 @@ export const api = {
     request<{ quiz: QuizItem }>('/quizzes', { method: 'POST', token, body: data }),
   submitQuiz: (token: string, id: string, answers: any[]) =>
     request<any>(`/quizzes/${id}/submit`, { method: 'POST', token, body: { answers } }),
+  deleteQuiz: (token: string, id: string) =>
+    request<{ message: string }>(`/quizzes/${id}`, { method: 'DELETE', token }),
   getQuizHistory: (token: string) =>
     cachedRequest<{ results: any[] }>('quiz_history', '/quizzes/results/history', { token }),
 
