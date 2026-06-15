@@ -34,7 +34,7 @@ function buildMessageId(domain) {
 const sendEmail = async (options) => {
   const transporter = getTransporter();
 
-  const from = process.env.MAIL_FROM || 'LearnMate <no-reply@learnmate.com>';
+  const from = process.env.MAIL_FROM || `LearnMate <${process.env.SMTP_USER}>`;
   const replyTo = process.env.MAIL_REPLY_TO || from;
   const messageIdDomain = process.env.MAIL_MESSAGE_ID_DOMAIN || 'learnmate.local';
 
