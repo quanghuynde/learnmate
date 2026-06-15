@@ -10,7 +10,7 @@ interface AuthProps {
 }
 
 export function Auth({ onLogin }: AuthProps) {
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'forgot_otp'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,6 +23,7 @@ export function Auth({ onLogin }: AuthProps) {
   const [requires2FA, setRequires2FA] = useState(false);
   const [tempToken, setTempToken] = useState('');
   const [otpCode, setOtpCode] = useState('');
+  const [forgotOtpCode, setForgotOtpCode] = useState('');
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -41,8 +42,23 @@ export function Auth({ onLogin }: AuthProps) {
       try {
         const res = await api.forgotPassword(email);
         setSuccess(res.message);
+        setMode('forgot_otp');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Không thể gửi email khôi phục');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (mode === 'forgot_otp') {
+      try {
+        const response = await api.verifyForgotOTP(email, forgotOtpCode);
+        if (response.token) {
+          onLogin(response.token, response.user);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Mã OTP không chính xác');
       } finally {
         setLoading(false);
       }
@@ -276,15 +292,40 @@ export function Auth({ onLogin }: AuthProps) {
                       <input
                         type="email"
                         required
+                        disabled={mode === 'forgot_otp'}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-[#1565c0]/10 focus:border-[#1565c0] transition-all text-sm font-medium"
+                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-[#1565c0]/10 focus:border-[#1565c0] transition-all text-sm font-medium disabled:opacity-50"
                         placeholder="name@email.com"
                       />
                     </div>
                   </div>
 
-                  {mode !== 'forgot' && (
+                  {mode === 'forgot_otp' && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-1.5"
+                    >
+                      <label className="block text-sm font-bold text-slate-700 ml-1 font-outfit">Mã OTP (6 số)</label>
+                      <div className="relative group">
+                        <Shield size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#1565c0] transition-colors" />
+                        <input
+                          type="text"
+                          required
+                          maxLength={6}
+                          value={forgotOtpCode}
+                          onChange={(e) => setForgotOtpCode(e.target.value.replace(/\D/g, ''))}
+                          className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-[#1565c0]/10 focus:border-[#1565c0] transition-all text-center text-xl font-bold tracking-[0.5em]"
+                          placeholder="000000"
+                          autoFocus
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-400 text-center italic">Vui lòng kiểm tra email của bạn để lấy mã</p>
+                    </motion.div>
+                  )}
+
+                  {mode !== 'forgot' && mode !== 'forgot_otp' && (
                     <div className="space-y-1.5">
                       <div className="flex justify-between items-center mb-0.5">
                         <label className="block text-sm font-bold text-slate-700 ml-1 font-outfit">Mật khẩu</label>
@@ -335,7 +376,7 @@ export function Auth({ onLogin }: AuthProps) {
                       disabled={loading}
                       className="w-full bg-gradient-to-r from-[#1565c0] to-[#1e88e5] text-white py-4 rounded-2xl shadow-xl shadow-[#1565c0]/25 font-bold uppercase tracking-[0.2em] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60 flex items-center justify-center gap-2 font-outfit"
                     >
-                      {loading ? 'Đang xử lý...' : mode === 'login' ? 'Tiếp tục' : mode === 'register' ? 'Đăng ký' : 'Khôi phục'}
+                      {loading ? 'Đang xử lý...' : mode === 'login' ? 'Tiếp tục' : mode === 'register' ? 'Đăng ký' : mode === 'forgot_otp' ? 'Xác nhận OTP' : 'Khôi phục'}
                       {!loading && <ArrowRight size={18} />}
                     </button>
 
@@ -365,11 +406,14 @@ export function Auth({ onLogin }: AuthProps) {
                           setMode(mode === 'login' ? 'register' : 'login');
                           setError('');
                           setSuccess('');
+                          setForgotOtpCode('');
                         }}
                         className="text-sm font-bold text-slate-400 hover:text-[#1565c0] transition-colors font-outfit"
                       >
                         {mode === 'login' ? (
                           <>Chưa có tài khoản? <span className="text-[#1565c0] underline decoration-2 underline-offset-4">Đăng ký ngay</span></>
+                        ) : mode === 'forgot_otp' ? (
+                           <>Quay lại <span className="text-[#1565c0] underline decoration-2 underline-offset-4">Đăng nhập</span></>
                         ) : (
                           <>Đã có tài khoản? <span className="text-[#1565c0] underline decoration-2 underline-offset-4">Đăng nhập</span></>
                         )}

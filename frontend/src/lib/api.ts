@@ -326,6 +326,9 @@ export const api = {
   forgotPassword: (email: string) =>
     request<{ message: string }>('/auth/forgot-password', { method: 'POST', body: { email } }),
 
+  verifyForgotOTP: (email: string, otpCode: string) =>
+    request<AuthPayload & { message: string }>('/auth/verify-forgot-otp', { method: 'POST', body: { email, otpCode } }),
+
   resetPassword: (token: string, password: string) =>
     request<{ message: string }>(`/auth/reset-password/${token}`, { method: 'POST', body: { password } }),
 
