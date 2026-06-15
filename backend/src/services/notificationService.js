@@ -32,6 +32,7 @@ async function createUserNotification(userId, payload) {
           }
         }
 
+        console.log(`[Notification] Triggering email to ${user.email} for type: ${payload.type}`);
         await sendEmail({
           email: user.email,
           subject: payload.emailSubject || payload.title,
@@ -39,7 +40,7 @@ async function createUserNotification(userId, payload) {
           html: html
         });
       } catch (mailError) {
-        console.error('Failed to send email notification:', mailError.message);
+        console.error(`[Notification] Failed to send email to ${user?.email}:`, mailError.message);
         // Do not throw the error, we still want the in-app notification to succeed
       }
     }

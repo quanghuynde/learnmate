@@ -33,6 +33,13 @@ export function TopBar({ token, user, setCurrentPage, onMenuClick }: TopBarProps
 
   useEffect(() => {
     loadNotifications().catch(() => null);
+    
+    // Set up polling interval (every 30 seconds)
+    const interval = setInterval(() => {
+      loadNotifications().catch(() => null);
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, [token]);
 
   const markAll = async () => {

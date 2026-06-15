@@ -34,8 +34,8 @@ const createExam = async (req, res) => {
       totalTopics: totalTopics || 0,
     });
 
-    // Fire-and-forget notification
-    createUserNotification(req.user.id, {
+    // Await notification
+    await createUserNotification(req.user.id, {
       title: 'Mục tiêu kỳ thi mới',
       message: `Bạn đã thêm kỳ thi "${name}" vào lộ trình học tập.`,
       type: 'exam_created',

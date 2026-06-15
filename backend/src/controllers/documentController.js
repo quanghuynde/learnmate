@@ -129,6 +129,14 @@ const processDocumentInBackground = (docId, filePath, type) => {
           status: 'processed',
           pages: Math.ceil(content.length / 3000)
         });
+        const { createUserNotification } = require('../services/notificationService');
+        await createUserNotification(req.user.id, {
+          title: 'Tài liệu đã xử lý xong',
+          message: `Tài liệu "${docId}" đã được xử lý thành công và sẵn sàng để sử dụng.`,
+          type: 'system', // Use system for now or add 'document_processed' to enum
+          metadata: { documentId: docId }
+        });
+        
         console.log(`[BG] ✅ Document ${docId} processed successfully.`);
       } else {
         console.warn(`[BG] ⚠️ Document ${docId} extraction failed or returned invalid content (binary: ${isBinary}).`);

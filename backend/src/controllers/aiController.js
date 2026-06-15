@@ -589,9 +589,9 @@ YÊU CẦU ĐỊNH DẠNG JSON (Chỉ trả về JSON, không thêm bất kỳ v
       mapData
     });
 
-    // Fire-and-forget notification
+    // Await notification
     const { createUserNotification } = require('../services/notificationService');
-    createUserNotification(req.user.id, {
+    await createUserNotification(req.user.id, {
       title: 'Bản đồ kiến thức đã sẵn sàng',
       message: `Bản đồ tri thức "${newMap.title}" đã được tạo xong.`,
       type: 'knowledge_map_created',
