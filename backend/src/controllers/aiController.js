@@ -589,6 +589,20 @@ YÊU CẦU ĐỊNH DẠNG JSON (Chỉ trả về JSON, không thêm bất kỳ v
       mapData
     });
 
+    // Fire-and-forget notification
+    const { createUserNotification } = require('../services/notificationService');
+    createUserNotification(req.user.id, {
+      title: 'Bản đồ kiến thức đã sẵn sàng',
+      message: `Bản đồ tri thức "${newMap.title}" đã được tạo xong.`,
+      type: 'knowledge_map_created',
+      emailSubject: 'LearnMate - Bản đồ tri thức mới',
+      metadata: {
+        title: newMap.title,
+        documentSources: docNames,
+        mapId: newMap._id.toString()
+      },
+    });
+
     res.json({ mapData: newMap.mapData, mapId: newMap._id, title: newMap.title });
   } catch (error) {
     console.error('AI Knowledge Map error:', error);

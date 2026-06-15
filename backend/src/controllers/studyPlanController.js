@@ -39,10 +39,15 @@ const createStudyPlan = async (req, res) => {
     createUserNotification(req.user.id, {
       title: 'Tạo kế hoạch học thành công',
       message: `Kế hoạch môn ${subject || 'chưa đặt tên'} đã được tạo.`,
-      type: 'study_plan',
+      type: 'study_plan_created',
       emailSubject: 'LearnMate - Kế hoạch học mới',
-      emailText: `Bạn vừa tạo kế hoạch học mới cho môn: ${subject || 'chưa đặt tên'}.`,
-      metadata: { studyPlanId: plan._id.toString() },
+      metadata: { 
+        subject: subject || 'chưa đặt tên',
+        examDate,
+        intensity,
+        taskCount: tasks ? tasks.length : 0,
+        studyPlanId: plan._id.toString() 
+      },
     });
 
     res.status(201).json({ message: 'Tạo kế hoạch thành công', studyPlan: plan });

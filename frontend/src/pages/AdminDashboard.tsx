@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, CreditCard, Activity, DollarSign, Loader2, TrendingUp, Calendar, ArrowRight, Brain } from 'lucide-react';
+import { Users, CreditCard, DollarSign, Loader2, TrendingUp, Calendar, ArrowRight, Brain } from 'lucide-react';
 import { api } from '../lib/api';
 
 interface AdminDashboardProps {

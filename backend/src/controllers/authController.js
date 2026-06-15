@@ -80,7 +80,7 @@ const login = async (req, res) => {
     await updateStreak(user);
 
     res.json({
-      message: 'Dang nhap thanh cong',
+      message: 'Đăng nhập thành công',
       token,
       user: serializeUser(user),
     });
@@ -92,12 +92,12 @@ const login = async (req, res) => {
 const googleLogin = async (req, res) => {
   try {
     if (!process.env.GOOGLE_CLIENT_ID) {
-      return res.status(500).json({ message: 'Server chua cau hinh GOOGLE_CLIENT_ID' });
+      return res.status(500).json({ message: 'Server chưa cấu hình GOOGLE_CLIENT_ID' });
     }
 
     const { credential } = req.body;
     if (!credential) {
-      return res.status(400).json({ message: 'Thieu credential tu Google' });
+      return res.status(400).json({ message: 'Thiếu credential từ Google' });
     }
 
     const ticket = await googleClient.verifyIdToken({
@@ -141,13 +141,13 @@ const googleLogin = async (req, res) => {
     await updateStreak(user);
 
     res.json({
-      message: 'Dang nhap Google thanh cong',
+      message: 'Đăng nhập Google thành công',
       token,
       user: serializeUser(user),
     });
   } catch (error) {
     console.error('Google Auth Error:', error);
-    res.status(500).json({ message: `Lá»—i xÃ¡c thá»±c Google: ${error.message}` });
+    res.status(500).json({ message: `Lỗi xác thực Google: ${error.message}` });
   }
 };
 
@@ -167,7 +167,7 @@ const forgotPassword = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(404).json({ message: 'Khong tim thay nguoi dung voi email nay' });
+      return res.status(404).json({ message: 'Không tìm thấy người dùng với email này' });
     }
 
     // Tao reset token ngau nhien
@@ -226,7 +226,7 @@ const resetPassword = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ message: 'Token khong hop le hoac da het han' });
+      return res.status(400).json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
     }
 
     user.password = password;
@@ -234,7 +234,7 @@ const resetPassword = async (req, res) => {
     user.resetPasswordExpires = undefined;
     await user.save();
 
-    res.json({ message: 'Mat khau da duoc cap nhat thanh cong' });
+    res.json({ message: 'Mật khẩu đã được cập nhật thành công' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
