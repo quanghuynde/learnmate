@@ -11,7 +11,7 @@ router.get('/packages', protect, getPackages);
 router.post('/checkout-manual', protect, createManualPayment);
 
 // SePay Webhook
-router.post('/sepay-webhook', sepayWebhook); // Change to POST for SePay
+router.post('/webhook', sepayWebhook); // Changed from /sepay-webhook to match SePay config
 
 // Credit history endpoints
 const { getCreditHistory, getAIUsageLogs } = require('../controllers/creditController');
