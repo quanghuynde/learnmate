@@ -73,6 +73,10 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Health check
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'OK', message: 'LearnMate API is running 🚀' });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'LearnMate API đang hoạt động ✅' });
 });
