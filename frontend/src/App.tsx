@@ -179,8 +179,13 @@ export function App() {
 
   const handleLogout = () => {
     googleLogout();
-    localStorage.removeItem('learnmate_token');
-    sessionStorage.removeItem('learnmate_current_page');
+    
+    // Clear all LearnMate-related storage
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('learnmate_')) localStorage.removeItem(key);
+    });
+    sessionStorage.clear();
+
     setToken('');
     setUser(null);
     setCurrentPage('dashboard');
@@ -198,7 +203,7 @@ export function App() {
       case 'knowledge':
         return <KnowledgeMap token={token} user={user} />;
       case 'quiz':
-        return <Quiz token={token} setCurrentPage={setCurrentPage} />;
+        return <Quiz token={token} user={user} setCurrentPage={setCurrentPage} />;
       case 'readiness':
         return <ExamReadiness token={token} />;
       case 'progress':

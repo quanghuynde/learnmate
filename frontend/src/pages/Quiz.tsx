@@ -25,10 +25,11 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { api, QuizItem, DocumentItem } from '../lib/api';
+import { api, QuizItem, DocumentItem, UserItem } from '../lib/api';
 
 interface QuizProps {
   token: string;
+  user: UserItem | null;
   setCurrentPage?: (page: string) => void;
 }
 
@@ -67,16 +68,20 @@ function getFileIcon(type: string) {
 
 
 
-export function Quiz({ token, setCurrentPage }: QuizProps) {
+export function Quiz({ token, user, setCurrentPage }: QuizProps) {
+  const userId = user?.id || 'guest';
+  const HISTORY_KEY = `learnmate_local_quiz_history_${userId}`;
+  const STATE_KEY = `learnmate_quiz_state_${userId}`;
+
   // Recover state from sessionStorage
   const savedState = useMemo<QuizState | null>(() => {
     try {
-      const saved = sessionStorage.getItem('learnmate_quiz_state');
+      const saved = sessionStorage.getItem(STATE_KEY);
       return saved ? (JSON.parse(saved) as QuizState) : null;
     } catch {
       return null;
     }
-  }, []);
+  }, [STATE_KEY]);
 
   const [step, setStep] = useState<'setup' | 'playing' | 'result'>(savedState?.step || 'setup');
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>(savedState?.selectedDocIds || []);
@@ -104,24 +109,24 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
   const [isAnswered, setIsAnswered] = useState(selectedAnswer !== null);
   const [generating, setGenerating] = useState(false);
   const [localHistory, setLocalHistory] = useState<LocalQuizHistory[]>(() => {
-    const saved = localStorage.getItem('learnmate_local_quiz_history');
+    const saved = localStorage.getItem(HISTORY_KEY);
     return saved ? JSON.parse(saved) : [];
   });
 
   useEffect(() => {
-    localStorage.setItem('learnmate_local_quiz_history', JSON.stringify(localHistory));
-  }, [localHistory]);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(localHistory));
+  }, [localHistory, HISTORY_KEY]);
 
   // Sync state to sessionStorage
   useEffect(() => {
     if (step === 'setup') {
-      sessionStorage.removeItem('learnmate_quiz_state');
+      sessionStorage.removeItem(STATE_KEY);
     } else {
-      sessionStorage.setItem('learnmate_quiz_state', JSON.stringify({
+      sessionStorage.setItem(STATE_KEY, JSON.stringify({
         step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, essayAnswers
       }));
     }
-  }, [step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers]);
+  }, [step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, STATE_KEY]);
 
   // Documents list (for dropdown)
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -418,7 +423,7 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
   };
 
   const resetQuiz = () => {
-    sessionStorage.removeItem('learnmate_quiz_state');
+    sessionStorage.removeItem(STATE_KEY);
     setStep('setup');
     setScore(0);
     setCurrentQ(0);
