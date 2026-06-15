@@ -1,6 +1,7 @@
 const Exam = require('../models/Exam');
 const QuizResult = require('../models/QuizResult');
 const StudySession = require('../models/StudySession');
+const { createUserNotification } = require('../services/notificationService');
 const {
   calculateReadinessScore,
   getRadarChartData,
@@ -32,6 +33,21 @@ const createExam = async (req, res) => {
       examDate,
       totalTopics: totalTopics || 0,
     });
+
+    // Fire-and-forget notification
+    createUserNotification(req.user.id, {
+      title: 'Mục tiêu kỳ thi mới',
+      message: `Bạn đã thêm kỳ thi "${name}" vào lộ trình học tập.`,
+      type: 'exam_created',
+      emailSubject: 'LearnMate - Mục tiêu kỳ thi mới',
+      metadata: {
+        name,
+        subject,
+        examDate,
+        examId: exam._id.toString()
+      },
+    });
+
     res.status(201).json({ message: 'Tạo kỳ thi thành công', exam });
   } catch (error) {
     res.status(500).json({ message: error.message });

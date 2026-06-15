@@ -40,10 +40,14 @@ const createQuiz = async (req, res) => {
     createUserNotification(req.user.id, {
       title: 'Quiz mới đã được tạo',
       message: `Quiz "${title}" (${format}) đã sẵn sàng.`,
-      type: 'quiz',
+      type: 'quiz_created',
       emailSubject: 'LearnMate - Quiz mới',
-      emailText: `Bạn vừa tạo quiz mới: ${title} (${format}).`,
-      metadata: { quizId: quiz._id.toString() },
+      metadata: { 
+        title, 
+        format, 
+        totalQuestions,
+        quizId: quiz._id.toString() 
+      },
     });
 
     res.status(201).json({ message: 'Tạo quiz thành công', quiz });
@@ -113,10 +117,16 @@ const submitQuiz = async (req, res) => {
     createUserNotification(req.user.id, {
       title: 'Kết quả quiz mới',
       message: `Bạn đạt ${percentage}% cho quiz "${quiz.title}".`,
-      type: 'quiz',
+      type: 'quiz_result',
       emailSubject: 'LearnMate - Kết quả quiz',
-      emailText: `Kết quả quiz ${quiz.title}: ${percentage}% (${score}/${total}).`,
-      metadata: { quizId: quiz._id.toString(), percentage },
+      metadata: { 
+        title: quiz.title,
+        quizId: quiz._id.toString(), 
+        percentage,
+        score,
+        totalQuestions: total,
+        xpEarned
+      },
       sendMail: true,
     });
 

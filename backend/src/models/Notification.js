@@ -1,11 +1,20 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     title: { type: String, required: true },
     message: { type: String, required: true },
-    type: { type: String, enum: ['study_plan', 'quiz', 'system'], default: 'system' },
+     type: { 
+       type: String, 
+       enum: [
+         'study_plan', 'quiz', 'system', 
+         'quiz_created', 'quiz_result', 
+         'study_plan_created', 'exam_created', 
+         'knowledge_map_created'
+       ], 
+       default: 'system' 
+     },
     isRead: { type: Boolean, default: false },
     metadata: { type: Object, default: {} },
   },

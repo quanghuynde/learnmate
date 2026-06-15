@@ -34,8 +34,10 @@ const syncPaymentsWithSePay = async () => {
           'x-secret-key': apiToken,
           'Content-Type': 'application/json'
         },
-        timeout: 15000 // Increased timeout to 15s
+        timeout: 30000 // Increased timeout to 30s for slow BankHub responses
       });
+      
+      console.log(`[DEBUG] BankHub Polling Successful. Status: ${response.status}`);
       
       // BankHub response structure can vary, but usually it's an array of transactions directly or in a .transactions field
       remoteTxns = response.data.transactions || response.data || [];
@@ -105,7 +107,9 @@ const syncPaymentsWithSePay = async () => {
     }
   } catch (error) {
     if (error.response) {
-      console.error('SePay Sync Error (Response):', error.response.status, error.response.data);
+      console.error('SePay Sync Error (Response):', error.response.status, JSON.stringify(error.response.data));
+    } else if (error.code === 'ECONNABORTED') {
+      console.error('SePay Sync Error: Connection Timed Out (Check if BankHub API is slow or blocked)');
     } else {
       console.error('SePay Sync Error (Message):', error.message);
     }

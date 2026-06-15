@@ -83,13 +83,15 @@ const sepayWebhook = async (req, res) => {
     const payload = JSON.stringify(req.body);
     const secret = process.env.SEPAY_SECRET_KEY;
 
+    console.log(`[Webhook] Received SePay hit. Content: ${req.body.content}, Amount: ${req.body.amount}`);
+
     // Verify HMAC-SHA256 signature
     const expected = 'sha256=' + crypto.createHmac('sha256', secret)
       .update(timestamp + '.' + payload)
       .digest('hex');
 
     if (signature !== expected) {
-      console.warn('Invalid SePay signature');
+      console.warn(`[Webhook] Invalid SePay signature. Expected: ${expected.substring(0, 10)}..., Got: ${signature.substring(0, 10)}...`);
       return res.status(401).send('Invalid signature');
     }
 
