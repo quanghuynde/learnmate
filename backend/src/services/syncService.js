@@ -21,26 +21,26 @@ const syncPaymentsWithSePay = async () => {
     let remoteTxns = [];
 
     if (clientId) {
-      // Using SePay v2 API (more stable) even for BankHub-style tokens
-      // Sandbox/Test tokens start with BH-SB... or similar
-      const url = 'https://api.sepay.vn/v2/transactions/list';
+      // 1a. Using BankHub API (Newer integration from the screenshot)
+      // Standard BankHub headers: x-client-id and x-secret-key
+      // Endpoint: https://api.bankhub.vn/v1/transactions
+      const url = 'https://api.bankhub.vn/v1/transactions';
 
-      console.log(`Polling SePay/BankHub (ClientId: ${clientId})...`);
+      console.log(`Polling BankHub (ClientId: ${clientId})...`);
       
       const response = await axios.get(url, {
-        params: {
-          account_number: bankAccount,
-          limit: 20
-        },
         headers: {
-          'Authorization': `Bearer ${apiToken}`,
+          'x-client-id': clientId,
+          'x-secret-key': apiToken,
           'Content-Type': 'application/json'
         },
-        timeout: 10000
+        timeout: 15000 // Increased timeout to 15s
       });
+      
+      // BankHub response structure can vary, but usually it's an array of transactions directly or in a .transactions field
       remoteTxns = response.data.transactions || response.data || [];
     } else {
-      // Standard SePay v2 API
+      // 1b. Standard SePay v2 API
       const response = await axios.get('https://api.sepay.vn/v2/transactions/list', {
         params: {
           account_number: bankAccount,
@@ -50,7 +50,7 @@ const syncPaymentsWithSePay = async () => {
           'Authorization': `Bearer ${apiToken}`,
           'Content-Type': 'application/json'
         },
-        timeout: 10000
+        timeout: 15000
       });
       remoteTxns = response.data.transactions || [];
     }
