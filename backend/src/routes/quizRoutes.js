@@ -7,7 +7,7 @@ router.use(protect);
 
 router.get('/results/history', getQuizHistory);
 router.route('/').get(getQuizzes).post(createQuiz);
-router.get('/:id', getQuiz);
+router.route('/:id').get(getQuiz).delete(deleteQuiz);
 router.post('/:id/submit', submitQuiz);
 
 module.exports = router;

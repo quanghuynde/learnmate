@@ -14,6 +14,7 @@ import {
   File,
   Presentation,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 import {
   LineChart,
@@ -395,6 +396,27 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
     return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [localHistory, history]);
 
+  const handleDeleteQuiz = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!window.confirm('Bạn có chắc chắn muốn xóa bài Quiz này khỏi lịch sử không?')) return;
+
+    try {
+      // 1. Delete from backend if possible
+      if (!id.startsWith('local-')) {
+        await api.deleteQuiz(token, id);
+      }
+      
+      // 2. Delete from local state & storage
+      setLocalHistory(prev => prev.filter(l => l.id !== id));
+      setHistory(prev => prev.filter(h => (h as any)._id !== id && (h as any).id !== id));
+      
+      alert('Đã xóa quiz thành công');
+    } catch (err: any) {
+      console.error('Failed to delete quiz:', err);
+      alert('Lỗi khi xóa quiz: ' + (err.message || 'Không xác định'));
+    }
+  };
+
   const resetQuiz = () => {
     sessionStorage.removeItem('learnmate_quiz_state');
     setStep('setup');
@@ -432,7 +454,7 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
                   unifiedHistory.map((item) => (
                     <div 
                       key={item.id}
-                      className="bg-slate-50 hover:bg-white p-3 rounded-xl border border-slate-100 transition-all cursor-pointer group"
+                      className="bg-slate-50 hover:bg-white p-3 rounded-xl border border-slate-100 transition-all cursor-pointer group relative"
                       onClick={() => {
                         setActiveQuestions(item.questions);
                         setScore(item.score);
@@ -442,10 +464,17 @@ export function Quiz({ token, setCurrentPage }: QuizProps) {
                         setStep('result');
                       }}
                     >
-                      <h4 className="font-bold text-slate-900 text-xs truncate group-hover:text-primary">{item.title}</h4>
+                      <button
+                        onClick={(e) => handleDeleteQuiz(e, item.id)}
+                        className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-danger hover:bg-danger/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10"
+                        title="Xóa bài này"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                      <h4 className="font-bold text-slate-900 text-xs pr-6 truncate group-hover:text-primary">{item.title}</h4>
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-[9px] text-slate-400">{new Date(item.date).toLocaleDateString('vi-VN')}</span>
-                        <span className="text-[10px] font-black text-primary">{Math.round((item.score / item.total) * 100)}%</span>
+                        <span className="text-[10px] font-black text-primary">{item.total > 0 ? Math.round((item.score / item.total) * 100) : 0}%</span>
                       </div>
                     </div>
                   ))
