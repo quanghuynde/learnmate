@@ -35,8 +35,8 @@ const createStudyPlan = async (req, res) => {
       date,
     });
 
-    // Fire-and-forget notification to avoid blocking the response
-    createUserNotification(req.user.id, {
+    // Await notification
+    await createUserNotification(req.user.id, {
       title: 'Tạo kế hoạch học thành công',
       message: `Kế hoạch môn ${subject || 'chưa đặt tên'} đã được tạo.`,
       type: 'study_plan_created',

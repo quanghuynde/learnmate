@@ -1,4 +1,4 @@
-﻿const crypto = require('crypto');
+const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
 let cachedTransporter = null;
@@ -64,6 +64,7 @@ const sendEmail = async (options) => {
 
   try {
     const info = await transporter.sendMail(mailOptions);
+    console.log(`[Notification] Email sent successfully to ${to}. MessageId: ${info.messageId}`);
     return info;
   } catch (error) {
     if (error?.responseCode === 535 || /BadCredentials|Username and Password not accepted|Application-specific password required/i.test(error?.message || '')) {
