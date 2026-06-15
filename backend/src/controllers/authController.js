@@ -36,7 +36,7 @@ const register = async (req, res) => {
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: 'Email da duoc su dung' });
+      return res.status(400).json({ message: 'Email đã được sử dụng' });
     }
 
     const user = await User.create({ name, email, password, authProvider: 'local' });
@@ -57,12 +57,12 @@ const login = async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ message: 'Vui long nhap email va mat khau' });
+      return res.status(400).json({ message: 'Vui lòng nhập email và mật khẩu' });
     }
 
     const user = await User.findOne({ email }).select('+password');
     if (!user || !(await user.comparePassword(password))) {
-      return res.status(401).json({ message: 'Email hoac mat khau khong dung' });
+      return res.status(401).json({ message: 'Email hoặc mật khẩu không đúng' });
     }
 
     if (user.twoFactorEnabled) {
@@ -177,8 +177,10 @@ const forgotPassword = async (req, res) => {
 
     await user.save();
 
-    // URL khach hang
-    const resetUrl = `${process.env.CORS_ORIGIN}/reset-password/${resetToken}`;
+    // URL khach hang - use FRONTEND_URL (single domain) not CORS_ORIGIN (can be comma-separated)
+    const frontendUrl = process.env.FRONTEND_URL || 
+      (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',')[0].trim();
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
     const message = `Bạn đang yêu cầu đặt lại mật khẩu. Vui lòng mở đường dẫn dưới đây để tiếp tục:\n\n${resetUrl}\n\nNếu bạn không yêu cầu thao tác này, hãy bỏ qua email này.`;
 
