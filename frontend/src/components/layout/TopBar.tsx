@@ -27,17 +27,22 @@ export function TopBar({ token, user, setCurrentPage, onMenuClick }: TopBarProps
   const unread = notifications.filter((n) => !n.isRead).length;
 
   const loadNotifications = async () => {
-    const res = await api.getNotifications(token);
-    setNotifications(res.notifications || []);
+    try {
+      const res = await api.getNotifications(token);
+      console.log(`[Frontend] Loaded ${res.notifications?.length || 0} notifications`);
+      setNotifications(res.notifications || []);
+    } catch (err) {
+      console.error('[Frontend] Failed to load notifications:', err);
+    }
   };
 
   useEffect(() => {
     loadNotifications().catch(() => null);
     
-    // Set up polling interval (every 30 seconds)
+    // Set up polling interval (every 10 seconds)
     const interval = setInterval(() => {
       loadNotifications().catch(() => null);
-    }, 30000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [token]);
