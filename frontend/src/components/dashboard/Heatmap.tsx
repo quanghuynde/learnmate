@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface HeatmapProps {
   data: Array<{ date: string; score: number }>;
@@ -58,22 +59,6 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data }) => {
     return result;
   }, [data]);
 
-  const getLevel = (score: number) => {
-    if (score <= 0) return 0;
-    if (score <= 3) return 1;
-    if (score <= 7) return 2;
-    if (score <= 12) return 3;
-    return 4;
-  };
-
-  const colors = [
-    'bg-slate-100',      // 0
-    'bg-green-100',      // 1
-    'bg-green-300',      // 2
-    'bg-success-light',  // 3
-    'bg-success',        // 4
-  ];
-
   const months = useMemo(() => {
     if (!data.length) return [];
     const monthLabels: Array<{ label: string; index: number }> = [];
@@ -124,17 +109,17 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data }) => {
                 ))}
             </div>
 
-            {/* Grid */}
             <div 
                 className="grid grid-flow-col gap-[3px] w-fit" 
                 style={{ gridTemplateRows: 'repeat(7, 1fr)' }}
             >
                 {weeks.map((week, wIdx) => (
                     week.map((day, dIdx) => (
-                        <div
+                        <HeatmapCell 
                             key={`${wIdx}-${dIdx}`}
-                            className={`w-3 h-3 rounded-[2px] transition-all duration-300 ${day.score === -1 ? 'bg-transparent' : colors[getLevel(day.score)]}`}
-                            title={day.date ? `${day.date}: ${day.score} điểm` : ''}
+                            day={day}
+                            wIdx={wIdx}
+                            dIdx={dIdx}
                         />
                     ))
                 ))}
@@ -151,6 +136,60 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data }) => {
         </div>
         <span>More</span>
       </div>
+    </div>
+  );
+};
+
+const getLevel = (score: number) => {
+  if (score <= 0) return 0;
+  if (score <= 3) return 1;
+  if (score <= 7) return 2;
+  if (score <= 12) return 3;
+  return 4;
+};
+
+const colors = [
+  'bg-slate-100',      // 0
+  'bg-green-100',      // 1
+  'bg-green-300',      // 2
+  'bg-success-light',  // 3
+  'bg-success',        // 4
+];
+
+const HeatmapCell: React.FC<{
+  day: { date: string; score: number };
+  wIdx: number;
+  dIdx: number;
+}> = ({ day}) => {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+        className="relative group"
+        onMouseEnter={() => day.date && setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+    >
+        <div
+            className={`w-3 h-3 rounded-[2px] transition-all duration-300 ${day.score === -1 ? 'bg-transparent' : colors[getLevel(day.score)]}`}
+        />
+        {day.date && (
+          <AnimatePresence>
+            {hovered && (
+              <motion.div
+                initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none"
+              >
+                <div className="bg-slate-900 text-white text-[10px] font-bold px-2 py-1.5 rounded-lg shadow-xl whitespace-nowrap border border-white/10">
+                    <p>{new Date(day.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+                    <p className="text-primary-light mt-0.5">{day.score} điểm hoạt động</p>
+                </div>
+                <div className="w-2 h-2 bg-slate-900 rotate-45 absolute -bottom-1 left-1/2 -translate-x-1/2 border-r border-b border-white/10" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
     </div>
   );
 };

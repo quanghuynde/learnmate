@@ -11,7 +11,6 @@ import {
   MessageSquare,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
   Gamepad2,
   User,
   Coins,
@@ -57,7 +56,10 @@ export function Sidebar({ isOpen, setIsOpen, currentPage, setCurrentPage, user, 
   const initials = user?.name ? getInitials(user.name) : '?';
 
   return (
-    <motion.aside animate={{ width: mobileMode ? '100%' : isOpen ? 256 : 80 }} className={`h-full bg-sidebar text-white flex flex-col relative z-20 flex-shrink-0 transition-all duration-300 ${mobileMode ? '' : 'hidden md:flex'}`}>
+    <motion.aside 
+      animate={{ width: mobileMode ? '100%' : isOpen ? 288 : 80 }} 
+      className={`h-full bg-sidebar text-white flex flex-col relative z-20 flex-shrink-0 transition-all duration-300 ${mobileMode ? '' : 'hidden md:flex'}`}
+    >
       {/* Logo - hidden in mobile drawer mode since drawer has its own header */}
       {!mobileMode && (
         <div className="p-4 flex items-center justify-between h-16 border-b border-slate-800">
@@ -157,11 +159,7 @@ export function Sidebar({ isOpen, setIsOpen, currentPage, setCurrentPage, user, 
           )}
         </button>
 
-        {/* AI button */}
-        <button className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-primary-light text-white rounded-xl py-2.5 hover:shadow-lg hover:shadow-primary/20 transition-all ${!isOpen && 'px-0'}`}>
-          <Sparkles size={18} />
-          {isOpen && <span className="text-sm font-medium">Trợ lý AI</span>}
-        </button>
+        
       </div>
     </motion.aside>
   );

@@ -62,6 +62,7 @@ export function Documents({ token }: DocumentsProps) {
   const [search, setSearch] = useState('');
   const [successFile, setSuccessFile] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevDocsRef = useRef<typeof docs>([]);
 
   const [showWebModal, setShowWebModal] = useState(false);
   const [webUrl, setWebUrl] = useState('');
@@ -98,6 +99,15 @@ export function Documents({ token }: DocumentsProps) {
   const handleShowSummary = async (doc: DocumentItem) => {
     setSummaryDoc(doc);
     setShowSummaryModal(true);
+    
+    // Check localStorage for existing history
+    const savedChat = localStorage.getItem(`learnmate_doc_chat_${doc._id}`);
+    if (savedChat) {
+      setSummaryHistory(JSON.parse(savedChat));
+      setSummaryLoading(false);
+      return;
+    }
+
     setSummaryLoading(true);
     setSummaryHistory([]);
     try {
@@ -118,6 +128,13 @@ export function Documents({ token }: DocumentsProps) {
       setSummaryLoading(false);
     }
   };
+
+  // Persist chat history to localStorage
+  useEffect(() => {
+    if (summaryDoc && summaryHistory.length > 0) {
+      localStorage.setItem(`learnmate_doc_chat_${summaryDoc._id}`, JSON.stringify(summaryHistory));
+    }
+  }, [summaryHistory, summaryDoc]);
 
   const handleSendFollowUp = async () => {
     if (!followUpInput.trim() || followUpLoading || !summaryDoc) return;
@@ -140,7 +157,12 @@ export function Documents({ token }: DocumentsProps) {
 
   useEffect(() => {
     if (scrollChatRef.current) {
-      scrollChatRef.current.scrollTop = scrollChatRef.current.scrollHeight;
+      setTimeout(() => {
+        scrollChatRef.current?.scrollTo({
+           top: scrollChatRef.current.scrollHeight,
+           behavior: 'smooth'
+        });
+      }, 100);
     }
   }, [summaryHistory, followUpLoading]);
 
@@ -164,10 +186,24 @@ export function Documents({ token }: DocumentsProps) {
   useEffect(() => {
     const hasProcessing = docs.some(d => d.status === 'processing');
     if (hasProcessing) {
-      const interval = setInterval(() => {
-        loadDocuments();
+      const interval = setInterval(async () => {
+        const prev = prevDocsRef.current;
+        await loadDocuments();
+        // Detect newly processed docs
+        const nowDocs = (await api.getDocuments(token).catch(() => ({ documents: [] }))).documents || [];
+        const newlyDone = nowDocs.filter(d =>
+          d.status === 'processed' &&
+          prev.some(p => p._id === d._id && p.status === 'processing')
+        );
+        if (newlyDone.length > 0) {
+          setSuccessFile(newlyDone[0].name + ' đã xử lý xong! ✅');
+          setTimeout(() => setSuccessFile(''), 4000);
+        }
+        prevDocsRef.current = nowDocs;
       }, 5000);
       return () => clearInterval(interval);
+    } else {
+      prevDocsRef.current = docs;
     }
   }, [docs]);
 
@@ -278,12 +314,15 @@ export function Documents({ token }: DocumentsProps) {
         />
 
         {uploading ? (
-          <div className="p-12 text-center max-w-md mx-auto bg-white rounded-3xl border border-slate-100 shadow-sm">
+            <div className="p-12 text-center max-w-md mx-auto bg-white rounded-3xl border border-slate-100 shadow-sm">
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-5">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
             <h3 className="text-lg font-bold text-text-primary mb-1">Đang tải lên và xử lý...</h3>
-            <p className="text-slate-500 text-sm mb-5">AI đang phân tích nội dung tài liệu của bạn</p>
+            <p className="text-slate-500 text-sm mb-1">AI đang phân tích nội dung tài liệu của bạn</p>
+            <p className="text-xs text-emerald-600 font-medium mb-5 flex items-center justify-center gap-1.5">
+              <CheckCircle2 size={13} /> Bạn có thể rời trang — tài liệu sẽ tiếp tục xử lý
+            </p>
             <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-2">
               <motion.div
                 className="h-full bg-gradient-to-r from-primary to-primary-light rounded-full"

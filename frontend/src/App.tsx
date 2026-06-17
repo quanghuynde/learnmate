@@ -129,6 +129,16 @@ export function App() {
     }
   }, [isPaymentResultPath]);
 
+  const refreshUser = async () => {
+    if (!token) return;
+    try {
+      const res = await api.getMe(token);
+      setUser(res.user);
+    } catch {
+      // silently fail if refresh fails
+    }
+  };
+
   useEffect(() => {
     const validateToken = async () => {
       if (!token) {
@@ -195,7 +205,7 @@ export function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard setCurrentPage={setCurrentPage} token={token} user={user} />;
+        return <Dashboard setCurrentPage={setCurrentPage} token={token} user={user} refreshUser={refreshUser} />;
       case 'planner':
         return <StudyPlanner token={token} />;
       case 'documents':
@@ -203,12 +213,12 @@ export function App() {
       case 'knowledge':
         return <KnowledgeMap token={token} user={user} />;
       case 'quiz':
-        return <Quiz token={token} user={user} setCurrentPage={setCurrentPage} />;
+        return <Quiz token={token} user={user} setCurrentPage={setCurrentPage} refreshUser={refreshUser} />;
       case 'readiness':
-        return <ExamReadiness token={token} />;
+        return <ExamReadiness token={token} setCurrentPage={setCurrentPage} />;
       case 'progress':
         return <Progress token={token} />;
-case 'community':
+      case 'community':
          return <Community token={token} user={user} />;
       case 'video':
         return <AIDialogue token={token} />;
