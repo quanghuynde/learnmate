@@ -115,7 +115,7 @@ const extractText = async (filePath, type) => {
 };
 
 // Background processing using setImmediate (no Redis required)
-const processDocumentInBackground = (docId, filePath, type) => {
+const processDocumentInBackground = (docId, filePath, type, userId) => {
   setImmediate(async () => {
     try {
       const content = (await extractText(filePath, type)) || '';
@@ -129,13 +129,15 @@ const processDocumentInBackground = (docId, filePath, type) => {
           status: 'processed',
           pages: Math.ceil(content.length / 3000)
         });
-        const { createUserNotification } = require('../services/notificationService');
-        await createUserNotification(req.user.id, {
-          title: 'Tài liệu đã xử lý xong',
-          message: `Tài liệu "${docId}" đã được xử lý thành công và sẵn sàng để sử dụng.`,
-          type: 'system', // Use system for now or add 'document_processed' to enum
-          metadata: { documentId: docId }
-        });
+        if (userId) {
+          const { createUserNotification } = require('../services/notificationService');
+          await createUserNotification(userId, {
+            title: 'Tài liệu đã xử lý xong',
+            message: `Tài liệu đã được xử lý thành công và sẵn sàng để sử dụng.`,
+            type: 'system',
+            metadata: { documentId: docId }
+          });
+        }
         
         console.log(`[BG] ✅ Document ${docId} processed successfully.`);
       } else {
@@ -224,7 +226,7 @@ const createDocument = async (req, res) => {
     console.log(`[UPLOAD] Starting background processing for: ${filePath}`);
 
     // Process in background (non-blocking, no Redis)
-    processDocumentInBackground(doc._id, filePath, type);
+    processDocumentInBackground(doc._id, filePath, type, req.user.id);
 
     res.status(201).json({ 
       message: 'Tải lên thành công. Hệ thống đang trích xuất nội dung trong nền.', 
