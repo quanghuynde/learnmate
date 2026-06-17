@@ -15,6 +15,7 @@ import {
   Presentation,
   Loader2,
   Trash2,
+  ChevronRight,
 } from 'lucide-react';
 import {
   LineChart,
@@ -89,6 +90,8 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
   const [format, setFormat] = useState<'Trắc nghiệm' | 'Đúng/Sai' | 'Tự luận'>(savedState?.format || 'Trắc nghiệm');
   const [difficulty, setDifficulty] = useState<'Dễ' | 'Trung bình' | 'Khó'>(savedState?.difficulty || 'Trung bình');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showHistoryMobile, setShowHistoryMobile] = useState(false);
+  const [deletingQuizId, setDeletingQuizId] = useState<string | null>(null);
 
   // Active quiz session state
   const [activeQuestions, setActiveQuestions] = useState<QuizItem['questions']>(savedState?.activeQuestions || []);
@@ -403,8 +406,10 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
 
   const handleDeleteQuiz = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bài Quiz này khỏi lịch sử không?')) return;
+    setDeletingQuizId(id);
+  };
 
+  const confirmDeleteQuiz = async (id: string) => {
     try {
       // 1. Delete from backend if possible
       if (!id.startsWith('local-')) {
@@ -415,7 +420,7 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
       setLocalHistory(prev => prev.filter(l => l.id !== id));
       setHistory(prev => prev.filter(h => (h as any)._id !== id && (h as any).id !== id));
       
-      alert('Đã xóa quiz thành công');
+      setDeletingQuizId(null);
     } catch (err: any) {
       console.error('Failed to delete quiz:', err);
       alert('Lỗi khi xóa quiz: ' + (err.message || 'Không xác định'));
@@ -435,7 +440,7 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
   };
 
   return (
-    <div className="max-w-6xl mx-auto pb-20">
+    <div className="max-w-6xl mx-auto pb-20 px-2 sm:px-4">
       <AnimatePresence mode="wait">
         {step === 'setup' && (
           <motion.div
@@ -445,21 +450,40 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
             exit={{ opacity: 0, y: -20 }}
             className="flex flex-col lg:flex-row gap-6"
           >
-            {/* History Sidebar */}
-            <div className="w-full lg:w-80 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden lg:h-[600px]">
-              <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2 text-slate-900 font-bold">
+            {/* History Sidebar - Moved to top on mobile */}
+            <div className="w-full lg:w-80 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden lg:h-[600px] max-h-[400px] lg:max-h-none order-1 lg:order-1">
+              <button 
+                className="lg:hidden p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between text-slate-900 font-bold w-full"
+                onClick={() => setShowHistoryMobile(!showHistoryMobile)}
+              >
+                <div className="flex items-center gap-2">
+                  <RotateCcw size={18} className="text-primary" /> Lịch sử Quiz
+                </div>
+                <ChevronRight size={18} className={`transition-transform duration-300 ${showHistoryMobile ? 'rotate-90' : ''}`} />
+              </button>
+              
+              <div className="hidden lg:flex p-4 border-b border-slate-100 bg-slate-50/50 items-center gap-2 text-slate-900 font-bold">
                 <RotateCcw size={18} className="text-primary" /> Lịch sử Quiz
               </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+
+              <AnimatePresence>
+                {(showHistoryMobile || window.innerWidth >= 1024) && (
+                  <motion.div 
+                    initial={window.innerWidth < 1024 ? { height: 0, opacity: 0 } : undefined}
+                    animate={window.innerWidth < 1024 ? { height: 'auto', opacity: 1 } : undefined}
+                    exit={window.innerWidth < 1024 ? { height: 0, opacity: 0 } : undefined}
+                    className="flex-1 overflow-hidden flex flex-col"
+                  >
+                    <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 custom-scrollbar min-h-[200px]">
                 {unifiedHistory.length === 0 ? (
                   <div className="text-center py-10 text-slate-400">
                     <p className="text-xs">Chưa có lịch sử</p>
                   </div>
                 ) : (
                   unifiedHistory.map((item) => (
-                    <div 
-                      key={item.id}
-                      className="bg-slate-50 hover:bg-white p-3 rounded-xl border border-slate-100 transition-all cursor-pointer group relative"
+                      <div 
+                        key={item.id}
+                        className="bg-slate-50 hover:bg-white p-2 sm:p-3 rounded-xl border border-slate-100 transition-all cursor-pointer group relative"
                       onClick={() => {
                         setActiveQuestions(item.questions);
                         setScore(item.score);
@@ -469,27 +493,57 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
                         setStep('result');
                       }}
                     >
-                      <button
-                        onClick={(e) => handleDeleteQuiz(e, item.id)}
-                        className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-danger hover:bg-danger/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10"
-                        title="Xóa bài này"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                      <h4 className="font-bold text-slate-900 text-xs pr-6 truncate group-hover:text-primary">{item.title}</h4>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <h4 className="font-bold text-slate-900 text-sm truncate group-hover:text-primary flex-1 min-w-0">{item.title}</h4>
+                        <div className="relative">
+                          <button
+                            onClick={(e) => handleDeleteQuiz(e, item.id)}
+                            className="p-1 text-slate-400 hover:text-danger hover:bg-danger/10 rounded-lg opacity-100 md:opacity-0 group-hover:opacity-100 transition-all z-10"
+                            title="Xóa bài này"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                          <AnimatePresence>
+                            {deletingQuizId === item.id && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.9, x: 10 }}
+                                animate={{ opacity: 1, scale: 1, x: 0 }}
+                                exit={{ opacity: 0, scale: 0.9, x: 10 }}
+                                className="absolute right-0 top-full mt-2 z-[60] bg-slate-900 text-white p-3 rounded-2xl shadow-2xl min-w-[200px]"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <p className="text-[11px] font-bold mb-3 leading-tight text-center">Xóa kết quả Quiz này?</p>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setDeletingQuizId(null) }}
+                                    className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-xl text-[10px] font-bold transition-colors"
+                                  >Hủy</button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); confirmDeleteQuiz(item.id) }}
+                                    className="flex-1 py-1.5 bg-red-500 hover:bg-red-600 rounded-xl text-[10px] font-bold transition-colors"
+                                  >Xóa</button>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
                       <div className="flex items-center justify-between mt-2">
-                        <span className="text-[9px] text-slate-400">{new Date(item.date).toLocaleDateString('vi-VN')}</span>
-                        <span className="text-[10px] font-black text-primary">{item.total > 0 ? Math.round((item.score / item.total) * 100) : 0}%</span>
+                        <span className="text-[10px] text-slate-400">{new Date(item.date).toLocaleDateString('vi-VN')}</span>
+                        <span className="text-xs font-black text-primary">{item.total > 0 ? Math.round((item.score / item.total) * 100) : 0}%</span>
                       </div>
                     </div>
                   ))
                 )}
               </div>
-            </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
             {/* Setup Panel */}
-            <div className="flex-1 space-y-6">
-              <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-6 md:p-8">
+            <div className="flex-1 space-y-6 order-2 lg:order-2">
+              <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-2 sm:p-6 md:p-8">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
                     <Brain size={24} />
@@ -531,7 +585,7 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
                           {documents
                             .filter((doc) => doc.name.toLowerCase().includes(searchQuery.toLowerCase()))
                             .map((doc) => (
-                            <label key={doc._id} className="flex items-center gap-3 p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-all">
+                            <label key={doc._id} className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-all">
                               <input 
                                 type="checkbox" 
                                 checked={selectedDocIds.includes(doc._id)}
@@ -554,40 +608,58 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
                   </div>
  
                   {/* Settings grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-slate-500 uppercase">Số câu hỏi</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+                    <div className="space-y-3">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Số câu hỏi</label>
                       <input
                         type="number"
                         min="1"
                         value={numQuestions}
                         onChange={(e) => setNumQuestions(Number(e.target.value))}
-                        className="w-full font-bold bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-primary transition-all"
+                        className="w-full font-bold bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-primary transition-all text-sm"
                       />
                     </div>
-                    <div className="space-y-2">
-                       <label className="text-[11px] font-bold text-slate-500 uppercase">Định dạng</label>
-                       <select 
-                         value={format} 
-                         onChange={(e) => setFormat(e.target.value as any)}
-                         className="w-full font-bold bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-primary transition-all"
-                       >
-                         <option value="Trắc nghiệm">Trắc nghiệm</option>
-                         <option value="Đúng/Sai">Đúng/Sai</option>
-                         <option value="Tự luận">Tự luận</option>
-                       </select>
-                    </div>
-                    <div className="space-y-2">
-                       <label className="text-[11px] font-bold text-slate-500 uppercase">Độ khó</label>
-                       <select 
-                         value={difficulty} 
-                         onChange={(e) => setDifficulty(e.target.value as any)}
-                         className="w-full font-bold bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-primary transition-all"
-                       >
-                         <option value="Dễ">Dễ</option>
-                         <option value="Trung bình">Trung bình</option>
-                         <option value="Khó">Khó</option>
-                       </select>
+                    
+                    <div className="sm:col-span-3 space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-3">
+                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Định dạng</label>
+                            <div className="grid grid-cols-3 bg-slate-50 p-1 rounded-xl border border-slate-200 shadow-sm gap-0.5 sm:gap-1">
+                             {(['Trắc nghiệm', 'Đúng/Sai', 'Tự luận'] as const).map((f) => (
+                               <button
+                                 key={f}
+                                 onClick={() => setFormat(f)}
+                                 className={`flex-1 py-2 px-1 sm:px-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${
+                                   format === f 
+                                   ? 'bg-white text-primary shadow-sm ring-1 ring-slate-100' 
+                                   : 'text-slate-500 hover:text-slate-700'
+                                 }`}
+                               >
+                                 {f}
+                               </button>
+                             ))}
+                           </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Độ khó</label>
+                            <div className="grid grid-cols-3 bg-slate-50 p-1 rounded-xl border border-slate-200 shadow-sm gap-0.5 sm:gap-1">
+                             {(['Dễ', 'Trung bình', 'Khó'] as const).map((d) => (
+                               <button
+                                 key={d}
+                                 onClick={() => setDifficulty(d)}
+                                 className={`flex-1 py-2 px-1 sm:px-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${
+                                   difficulty === d
+                                   ? 'bg-white text-primary shadow-sm ring-1 ring-slate-100' 
+                                   : 'text-slate-500 hover:text-slate-700'
+                                 }`}
+                               >
+                                 {d}
+                               </button>
+                             ))}
+                           </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
  
@@ -604,12 +676,12 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
 
               {/* Progress Summary (Desktop) */}
               <div className="hidden lg:grid grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-center">
+                <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm text-center">
                   <Trophy className="text-yellow-500 mx-auto mb-2" size={24} />
                   <p className="text-2xl font-black text-slate-900">{unifiedHistory.length}</p>
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Bài đã hoàn thành</p>
                 </div>
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-center">
+                <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm text-center">
                   <CheckCircle2 className="text-green-500 mx-auto mb-2" size={24} />
                   <p className="text-2xl font-black text-slate-900">
                     {unifiedHistory.length > 0 
@@ -618,7 +690,7 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
                   </p>
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Điểm trung bình</p>
                 </div>
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-center">
+                <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-sm text-center">
                   <Brain className="text-primary mx-auto mb-2" size={24} />
                   <p className="text-2xl font-black text-slate-900">{localHistory.length}</p>
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Quiz cục bộ</p>
