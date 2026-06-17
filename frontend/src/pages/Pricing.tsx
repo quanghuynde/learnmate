@@ -103,6 +103,27 @@ export function Pricing({ setCurrentPage, token: propToken }: PricingProps) {
       .catch(() => {}); // Silently fail — UI works without this
   }, [token]);
 
+  // Polling for payment status
+  useEffect(() => {
+    let interval: any;
+    if (showQRModal && paymentData?.paymentId) {
+      interval = setInterval(async () => {
+        try {
+          const res = await api.getPaymentStatus(token, paymentData.paymentId);
+          if (res.status === 'completed') {
+            setShowQRModal(false);
+            showNotification('Thanh toán thành công! Gói của bạn đã được kích hoạt.', 'success');
+            // Refresh user data if needed or redirect
+            setTimeout(() => window.location.reload(), 1500);
+          }
+        } catch (error) {
+          console.error('Error polling payment status:', error);
+        }
+      }, 5000); // Check every 5 seconds
+    }
+    return () => clearInterval(interval);
+  }, [showQRModal, paymentData, token]);
+
   const handlePurchase = async (tierKey: string) => {
     if (tierKey === 'Basic') {
       setCurrentPage('dashboard');

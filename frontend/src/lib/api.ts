@@ -450,6 +450,9 @@ export const api = {
       bankInfo: { bankId: string; accountNo: string; accountName: string } 
     }>('/payments/checkout-manual', { method: 'POST', token, body: { packageId } }),
   
+  getPaymentStatus: (token: string, paymentId: string) =>
+    request<{ status: string }>(`/payments/${paymentId}/status`, { token }),
+  
   getCreditHistory: (token: string) =>
     request<{ transactions: CreditTransactionItem[] }>('/payments/credits/history', { token }),
   
