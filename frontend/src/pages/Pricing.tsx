@@ -11,6 +11,7 @@ interface PricingProps {
   setCurrentPage: (page: string) => void;
   token: string;
   user: any;
+  refreshUser?: () => Promise<void>;
 }
 
 // Static tier definitions - always show these 3
@@ -87,7 +88,7 @@ const AI_COSTS = [
   { label: 'Chat với AI', cost: 1, unit: 'tin nhắn' },
 ];
 
-export function Pricing({ setCurrentPage, token: propToken }: PricingProps) {
+export function Pricing({ setCurrentPage, token: propToken, refreshUser }: PricingProps) {
   const { showNotification } = useNotification();
   const [packages, setPackages] = useState<PackageItem[]>([]);
   const [buying, setBuying] = useState<string | null>(null);
@@ -114,7 +115,7 @@ export function Pricing({ setCurrentPage, token: propToken }: PricingProps) {
             setShowQRModal(false);
             showNotification('Thanh toán thành công! Gói của bạn đã được kích hoạt.', 'success');
             // Refresh user data if needed or redirect
-            setTimeout(() => window.location.reload(), 1500);
+            if (refreshUser) refreshUser();
           }
         } catch (error) {
           console.error('Error polling payment status:', error);

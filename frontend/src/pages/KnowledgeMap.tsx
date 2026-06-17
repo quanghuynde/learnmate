@@ -60,8 +60,10 @@ const ROOT_X = 180
 // ─── Measure text width ──────────────────────────────────────────────────────
 
 function measureText(text: string, fontSize = 13): number {
-  return Math.min(Math.max(text.length * (fontSize * 0.58), 80), 260)
+  return Math.min(Math.max(text.length * (fontSize * 0.6), 80), 350)
 }
+
+const lastTouchDistRef = { current: null as number | null }
 
 // ─── Node with position info ─────────────────────────────────────────────────
 
@@ -294,7 +296,7 @@ function MindMapSVG({
               style={{ userSelect: 'none', pointerEvents: 'none' }}
             >
               <tspan>
-                {node.label.length > 38 ? node.label.slice(0, 36) + '…' : node.label}
+                {node.label.length > 60 ? node.label.slice(0, 58) + '…' : node.label}
               </tspan>
             </text>
 
@@ -788,16 +790,38 @@ export function KnowledgeMap({ token, user }: KnowledgeMapProps) {
         onWheel={handleWheel}
         // Add touch events for mobile panning
         onTouchStart={(e) => {
-          const touch = e.touches[0];
-          setIsPanning(true);
-          panStart.current = { x: touch.clientX - pan.x, y: touch.clientY - pan.y };
+          if (e.touches.length === 1) {
+            const touch = e.touches[0];
+            setIsPanning(true);
+            panStart.current = { x: touch.clientX - pan.x, y: touch.clientY - pan.y };
+            lastTouchDistRef.current = null;
+          } else if (e.touches.length === 2) {
+            const dist = Math.hypot(
+              e.touches[0].clientX - e.touches[1].clientX,
+              e.touches[0].clientY - e.touches[1].clientY
+            );
+            lastTouchDistRef.current = dist;
+            setIsPanning(false);
+          }
         }}
         onTouchMove={(e) => {
-          if (!isPanning) return;
-          const touch = e.touches[0];
-          setPan({ x: touch.clientX - panStart.current.x, y: touch.clientY - panStart.current.y });
+          if (e.touches.length === 1 && isPanning) {
+            const touch = e.touches[0];
+            setPan({ x: touch.clientX - panStart.current.x, y: touch.clientY - panStart.current.y });
+          } else if (e.touches.length === 2 && lastTouchDistRef.current !== null) {
+            const dist = Math.hypot(
+              e.touches[0].clientX - e.touches[1].clientX,
+              e.touches[0].clientY - e.touches[1].clientY
+            );
+            const delta = dist - lastTouchDistRef.current;
+            setZoom(z => Math.min(2.5, Math.max(0.3, z + delta * 0.01)));
+            lastTouchDistRef.current = dist;
+          }
         }}
-        onTouchEnd={() => setIsPanning(false)}
+        onTouchEnd={() => {
+          setIsPanning(false);
+          lastTouchDistRef.current = null;
+        }}
       >
         <div
           style={{
@@ -807,7 +831,6 @@ export function KnowledgeMap({ token, user }: KnowledgeMapProps) {
             top: 0,
             left: 0,
           }}
-          onMouseDown={e => e.stopPropagation()}
         >
           {treeData ? (
             <MindMapSVG

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Trophy,
   Medal,
@@ -33,6 +33,7 @@ export function Community({ token, user }: CommunityProps) {
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [isPosting, setIsPosting] = useState(false)
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null)
 
   // Parse period string (e.g., 'monthly-0-2026')
   const getLeaderboardParams = (period: string) => {
@@ -568,8 +569,11 @@ export function Community({ token, user }: CommunityProps) {
                   </p>
 
                   {post.image && (
-                    <div className="mb-5 rounded-2xl overflow-hidden border border-slate-100 shadow-sm">
-                      <img src={post.image} alt="Post content" className="w-full max-h-[500px] object-contain bg-slate-50" />
+                    <div 
+                      className="mb-5 rounded-2xl overflow-hidden border border-slate-100 shadow-sm cursor-zoom-in"
+                      onClick={() => setLightboxImage(post.image || null)}
+                    >
+                      <img src={post.image} alt="Post content" className="w-full max-h-[500px] object-contain bg-slate-50 transition-transform duration-500 hover:scale-[1.02]" />
                     </div>
                   )}
 
@@ -660,6 +664,38 @@ export function Community({ token, user }: CommunityProps) {
           </div>
         </motion.div>
       )}
+
+      <AnimatePresence>
+        {lightboxImage && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 cursor-zoom-out"
+              onClick={() => setLightboxImage(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative max-w-5xl w-full max-h-[90vh] flex items-center justify-center z-10"
+            >
+              <img 
+                src={lightboxImage} 
+                alt="Full preview" 
+                className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl"
+              />
+              <button 
+                onClick={() => setLightboxImage(null)}
+                className="absolute -top-4 -right-4 md:top-0 md:-right-12 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-all border border-white/20"
+              >
+                <X size={24} />
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

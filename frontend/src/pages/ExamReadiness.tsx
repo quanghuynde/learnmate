@@ -16,11 +16,11 @@ import {
 } from 'recharts'
 import { api, ExamReadinessData } from '../lib/api'
 
-export function ExamReadiness({ token }: { token: string }) {
+export function ExamReadiness({ token, setCurrentPage }: { token: string; setCurrentPage?: (page: string) => void }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [readinessData, setReadinessData] = useState<ExamReadinessData | null>(null)
-  const [currentPage, setCurrentPage] = useState(0)
+  const [currentPage, setCurrentPageLocal] = useState(0)
 
   useEffect(() => {
     fetchReadinessData()
@@ -66,20 +66,59 @@ export function ExamReadiness({ token }: { token: string }) {
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
             <Target className="text-primary" /> Độ sẵn sàng thi
           </h1>
+          <p className="text-slate-500 text-sm mt-1">Phân tích mức độ sẵn sàng cho kỳ thi của bạn</p>
         </div>
-        <div className="bg-white rounded-3xl border border-slate-200 p-10 text-center">
-          <Target className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-slate-700 mb-2">Chưa cài đặt kỳ thi</h3>
-          <p className="text-slate-500 mb-2">
-            Vui lòng cài đặt mốc thời gian thi ở trang chủ để xem phân tích độ sẵn sàng.
-          </p>
-          <p className="text-sm text-slate-400">
-            Hệ thống sẽ tự động phân tích dựa trên kết quả kiểm tra và tiến độ học tập của bạn.
-          </p>
+        {/* Onboarding Card */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-2xl mx-auto">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Target className="w-10 h-10 text-primary" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">Chào mừng đến Độ sẵn sàng thi!</h3>
+            <p className="text-slate-500 text-sm">Thực hiện 3 bước đơn giản để kích hoạt tính năng phân tích của bạn.</p>
+          </div>
+          <ol className="space-y-4 mb-8">
+            <li className="flex items-start gap-4 p-4 bg-slate-50 rounded-2xl">
+              <span className="w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">1</span>
+              <div>
+                <p className="font-bold text-slate-800">Đặt mục tiêu kỳ thi</p>
+                <p className="text-sm text-slate-500 mt-0.5">Trên trang Dashboard, tìm mục "Kỳ thi sắp tới" và nhấn <strong>Cài đặt kỳ thi</strong>.</p>
+              </div>
+            </li>
+            <li className="flex items-start gap-4 p-4 bg-slate-50 rounded-2xl">
+              <span className="w-8 h-8 bg-primary/60 text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">2</span>
+              <div>
+                <p className="font-bold text-slate-800">Làm bài Quiz từ tài liệu</p>
+                <p className="text-sm text-slate-500 mt-0.5">Chuyển sang trang Quiz và tạo ít nhất 1 bài kiểm tra từ tài liệu học của bạn.</p>
+              </div>
+            </li>
+            <li className="flex items-start gap-4 p-4 bg-slate-50 rounded-2xl">
+              <span className="w-8 h-8 bg-slate-300 text-white rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">3</span>
+              <div>
+                <p className="font-bold text-slate-800">Xem phân tích tự động</p>
+                <p className="text-sm text-slate-500 mt-0.5">Hệ thống sẽ tự động tạo biểu đồ độ sẵn sàng dựa trên kết quả của bạn.</p>
+              </div>
+            </li>
+          </ol>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => setCurrentPage?.('dashboard')}
+              className="px-6 py-3 bg-primary text-white rounded-2xl font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+            >
+              <Target size={18} /> Cài đặt kỳ thi ngay
+            </button>
+            <button
+              onClick={() => setCurrentPage?.('quiz')}
+              className="px-6 py-3 bg-slate-100 text-slate-700 rounded-2xl font-bold hover:bg-slate-200 transition-colors"
+            >
+              Tạo bài Quiz →
+            </button>
+          </div>
         </div>
       </div>
     )
   }
+
 
   const radarData = readinessData?.radarData || []
   const trendData = readinessData?.trendData || []
@@ -129,7 +168,7 @@ export function ExamReadiness({ token }: { token: string }) {
         <div className="flex justify-center items-center gap-4 bg-white border border-slate-200 px-4 py-2 rounded-2xl w-fit mx-auto shadow-sm">
           <button 
             disabled={currentPage === 0}
-            onClick={() => setCurrentPage(p => p - 1)}
+            onClick={() => setCurrentPageLocal((p: number) => p - 1)}
             className="p-1.5 hover:bg-slate-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all"
           >
             <ChevronLeft size={20} />
@@ -139,7 +178,7 @@ export function ExamReadiness({ token }: { token: string }) {
           </span>
           <button 
             disabled={currentPage >= totalPages - 1}
-            onClick={() => setCurrentPage(p => p + 1)}
+            onClick={() => setCurrentPageLocal((p: number) => p + 1)}
             className="p-1.5 hover:bg-slate-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all"
           >
             <ChevronRight size={20} />
@@ -346,14 +385,14 @@ export function ExamReadiness({ token }: { token: string }) {
                 <div className="flex gap-2">
                   <button 
                     disabled={currentPage === 0}
-                    onClick={() => setCurrentPage(p => p - 1)}
+                    onClick={() => setCurrentPageLocal((p: number) => p - 1)}
                     className="p-1 hover:bg-slate-100 rounded-lg disabled:opacity-30 transition-all"
                   >
                     <ChevronLeft size={18} />
                   </button>
                   <button 
                     disabled={currentPage >= totalPages - 1}
-                    onClick={() => setCurrentPage(p => p + 1)}
+                    onClick={() => setCurrentPageLocal((p: number) => p + 1)}
                     className="p-1 hover:bg-slate-100 rounded-lg disabled:opacity-30 transition-all"
                   >
                     <ChevronRight size={18} />

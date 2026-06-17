@@ -16,6 +16,8 @@ import {
   Loader2,
   Trash2,
   ChevronRight,
+  ClipboardList,
+  Target,
 } from 'lucide-react';
 import {
   LineChart,
@@ -32,6 +34,7 @@ interface QuizProps {
   token: string;
   user: UserItem | null;
   setCurrentPage?: (page: string) => void;
+  refreshUser?: () => Promise<void>;
 }
 
 interface LocalQuizHistory {
@@ -74,10 +77,10 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
   const HISTORY_KEY = `learnmate_local_quiz_history_${userId}`;
   const STATE_KEY = `learnmate_quiz_state_${userId}`;
 
-  // Recover state from sessionStorage
+  // Recover state from localStorage
   const savedState = useMemo<QuizState | null>(() => {
     try {
-      const saved = sessionStorage.getItem(STATE_KEY);
+      const saved = localStorage.getItem(STATE_KEY);
       return saved ? (JSON.parse(saved) as QuizState) : null;
     } catch {
       return null;
@@ -92,6 +95,7 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showHistoryMobile, setShowHistoryMobile] = useState(false);
   const [deletingQuizId, setDeletingQuizId] = useState<string | null>(null);
+  const [isReviewing, setIsReviewing] = useState(false);
 
   // Active quiz session state
   const [activeQuestions, setActiveQuestions] = useState<QuizItem['questions']>(savedState?.activeQuestions || []);
@@ -120,16 +124,16 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(localHistory));
   }, [localHistory, HISTORY_KEY]);
 
-  // Sync state to sessionStorage
+  // Sync state to localStorage
   useEffect(() => {
     if (step === 'setup') {
-      sessionStorage.removeItem(STATE_KEY);
+      localStorage.removeItem(STATE_KEY);
     } else {
-      sessionStorage.setItem(STATE_KEY, JSON.stringify({
-        step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, essayAnswers
+      localStorage.setItem(STATE_KEY, JSON.stringify({
+        step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, essayAnswers, isReviewing
       }));
     }
-  }, [step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, STATE_KEY]);
+  }, [step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, essayAnswers, isReviewing, STATE_KEY]);
 
   // Documents list (for dropdown)
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -319,12 +323,47 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
   };
 
   const prevQuestion = () => {
+    if (isReviewing) {
+      setIsReviewing(false);
+      return;
+    }
     if (currentQ === 0) return;
     const prevIdx = currentQ - 1;
     setCurrentQ(prevIdx);
     const prevAnswer = pickedAnswers[prevIdx] ?? null;
     setSelectedAnswer(prevAnswer);
     setIsAnswered(prevAnswer !== null);
+  };
+
+  const handleSkipQuestion = () => {
+    if (activeQuestions.length <= 1) return;
+    
+    const questions = [...activeQuestions];
+    const current = questions[currentQ];
+    
+    // Move current question to the end
+    questions.splice(currentQ, 1);
+    questions.push(current);
+    
+    // Also need to adjust pickedAnswers and essayAnswers
+    const nextPicked = [...pickedAnswers];
+    const pickedVal = nextPicked[currentQ];
+    nextPicked.splice(currentQ, 1);
+    nextPicked.push(pickedVal);
+    
+    const nextEssay = [...essayAnswers];
+    const essayVal = nextEssay[currentQ];
+    nextEssay.splice(currentQ, 1);
+    nextEssay.push(essayVal);
+    
+    setActiveQuestions(questions);
+    setPickedAnswers(nextPicked);
+    setEssayAnswers(nextEssay);
+    
+    // Stay on the same index, but content changed
+    const newAnswer = nextPicked[currentQ] ?? null;
+    setSelectedAnswer(newAnswer);
+    setIsAnswered(newAnswer !== null);
   };
 
   const nextQuestion = async () => {
@@ -338,6 +377,10 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
       return;
     }
 
+    setIsReviewing(true);
+  };
+
+  const handleFinishQuiz = async () => {
     const answers = activeQuestions.map((_, idx) => ({
       questionIndex: idx,
       selectedAnswer: pickedAnswers[idx] ?? -1,
@@ -700,7 +743,7 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
           </motion.div>
         )}
 
-        {step === 'playing' && currentQuestion && (
+        {step === 'playing' && currentQuestion && !isReviewing && (
           <motion.div
             key="playing"
             initial={{ opacity: 0, x: 20 }}
@@ -810,24 +853,35 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
 
                 {/* Fixed bottom navigation for playing mode */}
                 <div className="flex justify-between items-center mt-10 pt-6 border-t border-slate-100">
-                  <div>
-                    {currentQ > 0 && (
+                  <div className="flex gap-3">
+                    {currentQ > 0 ? (
                       <button
                         onClick={prevQuestion}
                         className="bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-semibold flex items-center gap-2 hover:bg-slate-200 transition-colors"
                       >
                         <ArrowLeft size={18} /> Câu trước
                       </button>
+                    ) : (
+                      <div className="w-10"></div>
                     )}
                   </div>
                   
-                  <div>
-                    {isAnswered && (
+                  <div className="flex items-center gap-3">
+                    {!isAnswered && (
+                      <button
+                        onClick={handleSkipQuestion}
+                        className="px-6 py-3 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-semibold hover:bg-amber-100 transition-all flex items-center gap-2"
+                      >
+                        Bỏ qua <ArrowRight size={18} />
+                      </button>
+                    )}
+                    
+                    {(isAnswered || format === 'Tự luận') && (
                       <button
                         onClick={nextQuestion}
                         className="bg-primary text-white px-8 py-3 rounded-xl font-semibold flex items-center gap-2 hover:bg-primary-light transition-colors shadow-lg shadow-primary/20"
                       >
-                        {currentQ < activeQuestions.length - 1 ? 'Câu tiếp theo' : 'Xem kết quả'} 
+                        {currentQ < activeQuestions.length - 1 ? 'Câu tiếp theo' : 'Xem lại & Nộp bài'} 
                         <ArrowRight size={18} />
                       </button>
                     )}
@@ -882,7 +936,81 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
           </motion.div>
         )}
 
+        {step === 'playing' && isReviewing && (
+          <motion.div
+            key="reviewing"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="max-w-3xl mx-auto"
+          >
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-8 bg-slate-50 border-b border-slate-100 text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <ClipboardList size={32} className="text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">Xem lại bài làm</h2>
+                <p className="text-slate-500 mt-1">Kiểm tra lại tất cả các câu trả lời trước khi nộp bài.</p>
+              </div>
+
+              <div className="p-8 space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar">
+                {activeQuestions.map((q, idx) => {
+                  const isAnsweredQ = pickedAnswers[idx] !== undefined;
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setCurrentQ(idx);
+                        const ans = pickedAnswers[idx] ?? null;
+                        setSelectedAnswer(ans);
+                        setIsAnswered(ans !== null);
+                        setIsReviewing(false);
+                      }}
+                      className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left ${
+                        isAnsweredQ ? 'border-slate-100 bg-white hover:border-primary/50' : 'border-amber-100 bg-amber-50/50 hover:border-amber-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                          isAnsweredQ ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-600'
+                        }`}>
+                          {idx + 1}
+                        </span>
+                        <div>
+                          <p className={`text-sm font-semibold truncate max-w-[400px] ${isAnsweredQ ? 'text-slate-700' : 'text-amber-700'}`}>
+                            {q.question}
+                          </p>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 mt-0.5">
+                            {isAnsweredQ ? 'Đã trả lời' : 'Chưa trả lời'}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight size={18} className="text-slate-300" />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-4">
+                <button
+                  onClick={() => setIsReviewing(false)}
+                  className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-100 transition-all"
+                >
+                  <ArrowLeft size={18} /> Quay lại
+                </button>
+                <button
+                  onClick={handleFinishQuiz}
+                  className="flex-1 bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary-light hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <Target size={18} /> Nộp bài ngay
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {step === 'result' && (
+
           <motion.div
             key="result"
             initial={{ opacity: 0, scale: 0.95 }}

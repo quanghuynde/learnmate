@@ -75,15 +75,15 @@ export function TopBar({ token, user, setCurrentPage, onMenuClick }: TopBarProps
         </div>
       </div>
 
-      <div className={`${isSearchFocused ? 'flex' : 'hidden md:flex'} flex-1 max-w-xl relative`}>
-        <div className={`flex items-center bg-bg rounded-full px-4 py-2 border transition-colors ${isSearchFocused ? 'border-primary-light ring-2 ring-primary-light/20' : 'border-transparent'}`}>
+      <div className={`${isSearchFocused ? 'flex' : 'hidden md:flex'} flex-1 max-w-xl relative group`}>
+        <div className={`w-full flex items-center bg-bg rounded-full px-4 py-2 border transition-colors ${isSearchFocused ? 'border-primary-light ring-2 ring-primary-light/20' : 'border-transparent'}`}>
           <Search size={18} className="text-slate-400" />
           <input
             type="text"
             placeholder="Tìm chủ đề, tài liệu hoặc câu hỏi..."
             className="bg-transparent border-none outline-none flex-1 ml-2 text-sm text-text-primary placeholder:text-slate-400"
             onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => setIsSearchFocused(false)}
+            onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -93,18 +93,82 @@ export function TopBar({ token, user, setCurrentPage, onMenuClick }: TopBarProps
             </button>
           )}
         </div>
+
+        {/* Global Search Results */}
+        <AnimatePresence>
+          {isSearchFocused && searchQuery.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-[100]"
+            >
+              <div className="p-2 border-b border-slate-50 bg-slate-50/50">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">Kết quả tìm kiếm</span>
+              </div>
+              <div className="max-h-[350px] overflow-y-auto custom-scrollbar p-1">
+                {[
+                  { id: 'dashboard', label: 'Trang chủ', cat: 'Tính năng' },
+                  { id: 'quiz', label: 'Bắt đầu Quiz AI', cat: 'Tính năng' },
+                  { id: 'documents', label: 'Quản lý Tài liệu', cat: 'Tính năng' },
+                  { id: 'knowledge', label: 'Bản đồ kiến thức', cat: 'Tính năng' },
+                  { id: 'planner', label: 'Kế hoạch học tập', cat: 'Tính năng' },
+                  { id: 'pricing', label: 'Nạp Credit / Gói cước', cat: 'Tài khoản' },
+                  { id: 'gamification', label: 'Nhiệm vụ & Đổi thưởng', cat: 'Tham gia' },
+                  { id: 'community', label: 'Cộng đồng LearnMate', cat: 'Tham gia' },
+                ].filter(i => i.label.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map((result) => (
+                  <button
+                    key={result.id}
+                    onClick={() => {
+                        setCurrentPage(result.id);
+                        setSearchQuery('');
+                        setIsSearchFocused(false);
+                    }}
+                    className="w-full flex items-center justify-between p-3 hover:bg-primary/5 rounded-xl transition-colors text-left group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                        <Search size={14} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-text-primary group-hover:text-primary transition-colors">{result.label}</p>
+                        <p className="text-[10px] text-slate-400 font-medium">{result.cat}</p>
+                      </div>
+                    </div>
+                    <Check size={14} className="text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="flex items-center gap-4 ml-4">
         {/* Credit Balance */}
-        <button 
-          onClick={() => setCurrentPage('pricing')}
-          className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-full hover:bg-primary/20 transition-all border border-primary/20"
-        >
-          <Coins size={16} />
-          <span className="text-sm font-bold">{user?.currentCredits?.toLocaleString() || 0}</span>
-          <span className="text-[10px] opacity-70">Credit</span>
-        </button>
+        <div className="hidden sm:flex items-center gap-1">
+          <button 
+            onClick={() => setCurrentPage('pricing')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all border ${
+              (user?.currentCredits ?? 0) < 20
+                ? 'bg-red-50 text-red-600 border-red-200 ring-2 ring-red-200 animate-pulse'
+                : (user?.currentCredits ?? 0) < 50
+                ? 'bg-amber-50 text-amber-600 border-amber-200'
+                : 'bg-primary/10 text-primary border-primary/20 hover:bg-primary/20'
+            }`}
+          >
+            <Coins size={16} />
+            <span className="text-sm font-bold">{user?.currentCredits?.toLocaleString() || 0}</span>
+            <span className="text-[10px] opacity-70">Credit</span>
+            {(user?.currentCredits ?? 0) < 50 && (
+              <span className="text-[10px] font-black">
+                {(user?.currentCredits ?? 0) < 20 ? '🔴 Sắp hết!' : '⚠️ Thấp'}
+              </span>
+            )}
+          </button>
+
+        </div>
         {/* Notifications */}
         <div className="relative">
           <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors relative">

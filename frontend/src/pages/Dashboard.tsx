@@ -18,6 +18,7 @@ import {
   Bell,
   Coins,
   ClipboardList,
+  LifeBuoy,
 } from 'lucide-react';
 import { api, ExamItem, StudyPlanItem, UserItem } from '../lib/api';
 import { Heatmap } from '../components/dashboard/Heatmap';
@@ -26,6 +27,7 @@ interface DashboardProps {
   setCurrentPage: (page: string) => void;
   token: string;
   user: UserItem | null;
+  refreshUser?: () => Promise<void>;
 }
 
 type TaskItem = {
@@ -37,7 +39,7 @@ type TaskItem = {
   time?: string;
 };
 
-export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardProps) {
+export function Dashboard({ setCurrentPage, token, user: userProp, refreshUser }: DashboardProps) {
 
   const [exam, setExam] = useState<ExamItem | null>(null);
   const [studyPlans, setStudyPlans] = useState<StudyPlanItem[]>([]);
@@ -138,7 +140,9 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
   useEffect(() => {
     const timer = setInterval(() => {
       if (!exam) return;
-      const target = new Date(exam.examDate).getTime();
+      // Parse ISO string but treat as local date components to avoid GMT/UTC shifts
+      const d = new Date(exam.examDate);
+      const target = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
       const now = Date.now();
       const diff = Math.max(0, target - now);
       setTimeLeft({
@@ -332,7 +336,22 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${task.type.includes('Đọc') ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>{task.type}</span>
                     </div>
                   </div>
-                  {task.status !== 'done' && <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors">{task.status === 'doing' ? 'Tiếp tục' : 'Bắt đầu'}</button>}
+                  {task.status !== 'done' && (
+                    <div className="flex gap-2">
+                       <button 
+                         onClick={() => {
+                           alert(`Đã đặt nhắc nhở cho nhiệm vụ: ${task.title}. Bạn sẽ nhận được thông báo trước khi bắt đầu!`);
+                         }}
+                         className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                         title="Đặt nhắc nhở"
+                       >
+                         <Bell size={18} />
+                       </button>
+                       <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors">
+                         {task.status === 'doing' ? 'Tiếp tục' : 'Bắt đầu'}
+                       </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -357,6 +376,21 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
                 <div className="w-10 h-10 rounded-lg bg-green-50 text-green-600 flex items-center justify-center group-hover:bg-green-100 transition-colors"><Brain size={20} /></div>
                 <div><h4 className="font-semibold text-text-primary text-sm">Bắt đầu Quiz</h4><p className="text-xs text-slate-500">Kiểm tra kiến thức</p></div>
               </button>
+
+              <a 
+                href="https://www.facebook.com/profile.php?id=61590696952498" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:border-blue-400 hover:bg-blue-50 transition-colors text-left group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all">
+                  <LifeBuoy size={20} />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-text-primary text-sm group-hover:text-blue-700 transition-colors">Hỗ trợ khách hàng</h4>
+                  <p className="text-xs text-slate-500">Liên hệ nếu gặp lỗi</p>
+                </div>
+              </a>
 
               <a 
                 href="https://forms.gle/sVFQ5MxZW4j2kKi57" 
@@ -445,11 +479,13 @@ export function Dashboard({ setCurrentPage, token, user: userProp }: DashboardPr
                         setExamName(created.exam.name);
                         setExam(created.exam);
                       }
+                      if (refreshUser) refreshUser();
+                      setIsEditingExam(false);
                     } catch (err) {
                       console.error("Failed to save exam changes:", err);
                       alert("Không thể lưu thay đổi. Vui lòng kiểm tra lại kết nối!");
+                      setIsEditingExam(false);
                     }
-                    setIsEditingExam(false);
                   }}
                   className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary-light transition-colors"
                 >
