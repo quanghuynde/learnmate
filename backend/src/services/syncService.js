@@ -79,8 +79,11 @@ const syncPaymentsWithSePay = async () => {
       // Find a remote transaction that matches this payment's memo and amount
       // SePay uses 'content', BankHub uses 'description'
       const match = remoteTxns.find(t => {
-        const content = (t.content || t.description || '').toLowerCase();
-        const amount = parseFloat(t.amount || 0);
+        if (!t) return false;
+        const content = (t.content || t.description || t.transaction_content || '').toLowerCase();
+        const amount = parseFloat(t.amount || t.amount_in || 0);
+        
+        if (!payment.memo) return false;
         return content.includes(payment.memo.toLowerCase()) && amount >= payment.amount;
       });
 
