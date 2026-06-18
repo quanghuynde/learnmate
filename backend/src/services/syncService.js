@@ -46,8 +46,8 @@ const syncPaymentsWithSePay = async () => {
       // BankHub response structure can vary, but usually it's an array of transactions directly or in a .transactions field
       remoteTxns = response.data.transactions || response.data || [];
     } else {
-      // 1b. Standard SePay v2 API
-      const response = await axios.get('https://userapi.sepay.vn/v2/transactions', {
+      // 1b. Standard SePay API (v1 works with this token)
+      const response = await axios.get('https://my.sepay.vn/userapi/transactions/list', {
         params: {
           account_number: bankAccount,
           limit: 20
@@ -79,8 +79,11 @@ const syncPaymentsWithSePay = async () => {
       // Find a remote transaction that matches this payment's memo and amount
       // SePay uses 'content', BankHub uses 'description'
       const match = remoteTxns.find(t => {
-        const content = (t.content || t.description || '').toLowerCase();
-        const amount = parseFloat(t.amount || 0);
+        if (!t) return false;
+        const content = (t.content || t.description || t.transaction_content || '').toLowerCase();
+        const amount = parseFloat(t.amount || t.amount_in || 0);
+        
+        if (!payment.memo) return false;
         return content.includes(payment.memo.toLowerCase()) && amount >= payment.amount;
       });
 
