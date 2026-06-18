@@ -47,7 +47,7 @@ const syncPaymentsWithSePay = async () => {
       remoteTxns = response.data.transactions || response.data || [];
     } else {
       // 1b. Standard SePay v2 API
-      const response = await axios.get('https://api.sepay.vn/v2/transactions/list', {
+      const response = await axios.get('https://userapi.sepay.vn/v2/transactions', {
         params: {
           account_number: bankAccount,
           limit: 20
