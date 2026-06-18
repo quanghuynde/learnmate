@@ -46,8 +46,8 @@ const syncPaymentsWithSePay = async () => {
       // BankHub response structure can vary, but usually it's an array of transactions directly or in a .transactions field
       remoteTxns = response.data.transactions || response.data || [];
     } else {
-      // 1b. Standard SePay v2 API
-      const response = await axios.get('https://userapi.sepay.vn/v2/transactions', {
+      // 1b. Standard SePay API (v1 works with this token)
+      const response = await axios.get('https://my.sepay.vn/userapi/transactions/list', {
         params: {
           account_number: bankAccount,
           limit: 20
