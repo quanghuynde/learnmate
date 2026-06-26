@@ -132,6 +132,29 @@ const extractText = async (filePath, type) => {
       } catch (err) {
         console.warn(`[BG] OCR failed for ${filePath}:`, err.message);
       }
+    } else if (['mp3', 'wav', 'm4a', 'ogg', 'flac'].includes(docType)) {
+      try {
+        console.log(`[BG] Starting transcription for audio: ${filePath}`);
+        const FormData = require('form-data');
+        const formData = new FormData();
+        formData.append('file', fs.createReadStream(filePath));
+        formData.append('model', 'whisper-1');
+        formData.append('language', 'vi');
+
+        const response = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
+          headers: {
+            ...formData.getHeaders(),
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+          },
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity
+        });
+        text = response.data.text || '';
+        console.log(`[BG] Audio transcribed successfully: ${text.length} chars`);
+      } catch (err) {
+        console.error(`[BG] Audio transcription failed:`, err.response?.data || err.message);
+        text = '';
+      }
     } else {
       // Try any-text as a general fallback for other formats
       try {

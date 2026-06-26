@@ -3,6 +3,8 @@ const KnowledgeMap = require('../models/KnowledgeMap');
 const { deductCredits, hasEnoughCredits } = require('../services/creditService');
 const UsageLog = require('../models/UsageLog');
 const sendEmail = require('../services/emailService');
+const fs = require('fs');
+const path = require('path');
 
 // Rate limit email throttle (1 hour)
 let lastRateLimitEmailSent = 0;
@@ -51,7 +53,7 @@ async function callAI(prompt, systemPrompt = null, options = {}) {
     if (isReasoningModel) {
       // Reasonings models like o1 often don't support 'system' role, or handle it differently.
       // We convert it to a user prompt prefix for safety.
-      messages.push({ role: "user", content: `[System Instruction]\n${systemPrompt}\n\n[User Request]\n${prompt}` });
+      messages.push({ role: "user", content: `[System Instruction]\n${systemPrompt}\n\n[User Request]\n${typeof prompt === 'string' ? prompt : JSON.stringify(prompt)}` });
     } else {
       messages.push({ role: "system", content: systemPrompt });
       messages.push({ role: "user", content: prompt });
@@ -202,29 +204,47 @@ const summarizeDocument = async (req, res) => {
       });
     }
 
-    // No cached summary → need to generate via XAI
+    // No cached summary → need to generate via AI
     const canProceed = await hasEnoughCredits(req.user.id, 'SUMMARIZE_DOCUMENT');
     if (!canProceed) {
       return res.status(402).json({ message: 'Bạn không đủ Credit để thực hiện tóm tắt. Vui lòng nạp thêm.' });
     }
 
     let result;
-    try {
-      result = await generateSummaryFromText(doc.name, doc.content);
-    } catch (aiError) {
-      console.error('AI Summarize XAI call failed, trying OpenAI fallback:', aiError.message);
-      
+    const isImage = ['jpg', 'jpeg', 'png', 'bmp', 'webp'].includes(doc.type?.toLowerCase());
+
+    if (isImage && doc.fileUrl) {
       try {
-        // Fallback to OpenAI if xAI fails
-        const prompt = `Bạn là một trợ lý phân tích tài liệu chuyên nghiệp. Hãy tóm tắt nội dung của tài liệu sau đây.\n\nTÊN TÀI LIỆU: "${doc.name}"\nNỘI DUNG TRÍCH XUẤT:\n${doc.content?.substring(0, 10000)}`;
-        const systemPrompt = "Bạn là một trợ lý AI tóm tắt tài liệu. Bạn trả về văn bản thuần túy, súc tích. KHÔNG sử dụng định dạng markdown như dấu sao (**) để in đậm. Trả lời bằng Tiếng Việt.";
+        console.log(`[AI] Multimodal summarize for image: ${doc.name}`);
+        const relativePath = doc.fileUrl.replace(/^\//, '');
+        const filePath = path.resolve(process.cwd(), relativePath);
         
+        if (fs.existsSync(filePath)) {
+          const imageBase64 = fs.readFileSync(filePath, { encoding: 'base64' });
+          const mimeType = `image/${doc.type === 'jpg' ? 'jpeg' : doc.type}`;
+          
+          const multimodalPrompt = [
+            { type: "text", text: `Hãy phân tích kỹ hình ảnh tài liệu có tên "${doc.name}" và cung cấp bản tóm tắt nội dung chính xác. Trả lời bằng Tiếng Việt.` },
+            { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } }
+          ];
+          
+          const systemPrompt = "Bạn là một trợ lý AI tóm tắt tài liệu chuyên nghiệp. Bạn có khả năng phân tích hình ảnh cực tốt. Trình bày bằng Markdown, súc tích.";
+          result = await callAI(multimodalPrompt, systemPrompt, { model: 'gpt-4o-mini', max_tokens: 1500 });
+        } else {
+          throw new Error('File not found for multimodal processing');
+        }
+      } catch (imgError) {
+        console.error('Multimodal summarize failed, falling back to text:', imgError.message);
+        result = await generateSummaryFromText(doc.name, doc.content);
+      }
+    } else {
+      try {
+        result = await generateSummaryFromText(doc.name, doc.content);
+      } catch (aiError) {
+        console.error('AI Summarize XAI call failed, trying OpenAI fallback:', aiError.message);
+        const prompt = `Bạn là một trợ lý phân tích tài liệu chuyên nghiệp. Hãy tóm tắt nội dung của tài liệu sau đây.\n\nTÊN TÀI LIỆU: "${doc.name}"\nNỘI DUNG TRÍCH XUẤT:\n${doc.content?.substring(0, 10000)}`;
+        const systemPrompt = "Bạn là một trợ lý AI tóm tắt tài liệu. Bạn trả về văn bản bằng Tiếng Việt, súc tích, định dạng Markdown.";
         result = await callAI(prompt, systemPrompt, { max_tokens: 1500 });
-      } catch (fallbackError) {
-        console.error('AI Summarize OpenAI fallback also failed:', fallbackError.message);
-        return res.status(503).json({ 
-          message: 'Dịch vụ AI hiện đang quá tải hoặc gặp sự cố kỹ thuật. Vui lòng thử lại sau.' 
-        });
       }
     }
     
