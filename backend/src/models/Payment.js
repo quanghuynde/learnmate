@@ -17,7 +17,7 @@ const paymentSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    default: 'VietQR',
+    default: 'PayOS',
   },
   status: {
     type: String,
@@ -26,6 +26,11 @@ const paymentSchema = new mongoose.Schema({
   },
   transactionCode: String,
   memo: String,
+  orderCode: {
+    type: Number,
+    unique: true,
+    sparse: true
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Payment', paymentSchema);

@@ -146,9 +146,12 @@ export function Pricing({ setCurrentPage, token: propToken, refreshUser }: Prici
 
     try {
       setBuying(tierKey);
-      const res = await api.createManualCheckout(token, pkg._id);
-      setPaymentData(res);
-      setShowQRModal(true);
+      const res = await api.createPayOSCheckout(token, pkg._id);
+      if (res.checkoutUrl) {
+        window.location.href = res.checkoutUrl;
+      } else {
+        throw new Error('Không nhận được link thanh toán từ PayOS');
+      }
     } catch (error: any) {
       showNotification(error.message || 'Không thể tạo thanh toán. Vui lòng thử lại.', 'error');
     } finally {

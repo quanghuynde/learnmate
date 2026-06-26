@@ -65,18 +65,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   );
 };
 
-const NotificationItem: React.FC<{ 
-  notification: Notification; 
-  onClose: () => void 
-}> = ({ notification, onClose }) => {
-  const icons = {
+const NotificationItem = React.forwardRef<HTMLDivElement, {
+  notification: Notification;
+  onClose: () => void;
+}>(({ notification, onClose }, ref) => {
+  const icons: Record<NotificationType, React.ReactNode> = {
     success: <CheckCircle2 className="text-emerald-500" size={20} />,
     error: <AlertCircle className="text-rose-500" size={20} />,
     warning: <AlertTriangle className="text-amber-500" size={20} />,
     info: <Info className="text-blue-500" size={20} />,
   };
 
-  const bgColors = {
+  const bgColors: Record<NotificationType, string> = {
     success: 'bg-emerald-50/90 border-emerald-100',
     error: 'bg-rose-50/90 border-rose-100',
     warning: 'bg-amber-50/90 border-amber-100',
@@ -85,6 +85,7 @@ const NotificationItem: React.FC<{
 
   return (
     <motion.div
+      ref={ref}
       initial={{ opacity: 0, x: 20, scale: 0.95 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
       exit={{ opacity: 0, x: 20, scale: 0.95 }}
@@ -112,4 +113,6 @@ const NotificationItem: React.FC<{
       </button>
     </motion.div>
   );
-};
+});
+
+NotificationItem.displayName = 'NotificationItem';
