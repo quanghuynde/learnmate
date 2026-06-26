@@ -30,7 +30,8 @@ async function notifyAdminRateLimit(provider, errorMsg) {
 async function callAI(prompt, systemPrompt = null, options = {}) {
   const apiKey = process.env.OPENAI_API_KEY;
   const apiBase = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
-  const model = process.env.OPENAI_MODEL || 'gpt-4o'; // Use gpt-4o as default base, env overrides it
+  // Allow callers to override the model via options.model
+  const model = options.model || process.env.OPENAI_MODEL || 'gpt-4o';
 
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY chưa được cấu hình trong backend .env');

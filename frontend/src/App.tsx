@@ -303,7 +303,8 @@ export function App() {
               token={token} 
               user={user} 
               setCurrentPage={setCurrentPage} 
-              onMenuClick={() => setIsMobileMenuOpen(true)} 
+              onMenuClick={() => setIsMobileMenuOpen(true)}
+              onLogout={handleLogout}
             />
           </div>
           <main className="flex-1 overflow-y-auto custom-scrollbar touch-pan-y p-3 md:p-6 lg:p-8 relative z-10 overscroll-none">

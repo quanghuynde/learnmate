@@ -5,32 +5,59 @@ const TTL = 60000; // 1 minute
 
 async function request<T>(url: string, options: any = {}): Promise<T> {
   const isFormData = options.body instanceof FormData;
+  const timeoutMs = options.timeout || 30000;
+  const maxRetries = options.retries ?? (url.includes('/status') ? 2 : 0);
+
   const headers = {
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE_URL}${url}`, {
-    ...options,
-    headers,
-    body: isFormData ? options.body : (options.body ? JSON.stringify(options.body) : undefined),
-  });
+  const executeRequest = async (attempt: number = 0): Promise<T> => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
 
-  const raw = await response.text();
-  let data: any = {};
-  try {
-    data = raw ? JSON.parse(raw) : {};
-  } catch (e) {
-    data = { message: raw };
-  }
+    try {
+      const response = await fetch(`${API_BASE_URL}${url}`, {
+        ...options,
+        headers,
+        body: isFormData ? options.body : (options.body ? JSON.stringify(options.body) : undefined),
+        signal: controller.signal
+      });
 
-  if (!response.ok) {
-    const errorMessage = data?.message || `Lỗi Server (${response.status})`;
-    throw new Error(errorMessage);
-  }
+      clearTimeout(id);
 
-  return data as T;
+      const raw = await response.text();
+      let data: any = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        data = { message: raw };
+      }
+
+      if (!response.ok) {
+        if (response.status === 429 && attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return executeRequest(attempt + 1);
+        }
+
+        const errorMessage = data?.message || `Lỗi Server (${response.status})`;
+        throw new Error(errorMessage);
+      }
+
+      return data as T;
+    } catch (err: any) {
+      clearTimeout(id);
+      if (err.name === 'AbortError') {
+        throw new Error(`Yêu cầu quá thời gian (${timeoutMs/1000}s). Vui lòng thử lại.`);
+      }
+      throw err;
+    }
+  };
+
+  return executeRequest();
 }
 
 const inflight = new Map<string, Promise<any>>();
@@ -41,7 +68,6 @@ async function cachedRequest<T>(cacheKey: string, url: string, options: any = {}
     return hit.data as T;
   }
 
-  // Deduplicate in-flight requests
   const existing = inflight.get(cacheKey);
   if (existing) return existing as Promise<T>;
 
@@ -184,18 +210,15 @@ export type KnowledgeMapNode = {
   id: string;
   label: string;
   children?: KnowledgeMapNode[];
-  // Legacy fields (old maps)
   subjectId?: string;
   color?: string;
   status?: 'done' | 'doing' | 'todo';
 };
 
 export type KnowledgeMapData = {
-  // New tree format
   tree?: KnowledgeMapNode;
   documentSources?: string[];
   aiInsight?: string;
-  // Legacy format (for backward compatibility)
   subjects?: Array<{ id: string; label: string; color: string }>;
   topics?: Array<{ id: string; label: string; subjectId: string; status: 'done' | 'doing' | 'todo' }>;
   connections?: Array<{ from: string; to: string }>;
@@ -219,6 +242,7 @@ export type DocumentItem = {
   status: string;
   content?: string;
   createdAt: string;
+  summary?: string;
 };
 
 export type QuestionItem = {
@@ -317,96 +341,65 @@ export type GamificationOverview = {
 };
 
 export const api = {
+  // Auth
   register: (data: any) => request<AuthPayload & { message: string }>('/auth/register', { method: 'POST', body: data }),
   login: (data: any) => request<AuthPayload & { message: string }>('/auth/login', { method: 'POST', body: data }),
-  
-  googleLogin: (credential: string) =>
-    request<{ message: string } & AuthPayload>('/auth/google', { method: 'POST', body: { credential } }),
-
-  forgotPassword: (email: string) =>
-    request<{ message: string }>('/auth/forgot-password', { method: 'POST', body: { email } }),
-
-  verifyForgotOTP: (email: string, otpCode: string) =>
-    request<AuthPayload & { message: string }>('/auth/verify-forgot-otp', { method: 'POST', body: { email, otpCode } }),
-
-  resetPassword: (token: string, password: string) =>
-    request<{ message: string }>(`/auth/reset-password/${token}`, { method: 'POST', body: { password } }),
-
+  googleLogin: (credential: string) => request<{ message: string } & AuthPayload>('/auth/google', { method: 'POST', body: { credential } }),
+  forgotPassword: (email: string) => request<{ message: string }>('/auth/forgot-password', { method: 'POST', body: { email } }),
+  verifyForgotOTP: (email: string, otpCode: string) => request<AuthPayload & { message: string }>('/auth/verify-forgot-otp', { method: 'POST', body: { email, otpCode } }),
+  resetPassword: (token: string, password: string) => request<{ message: string }>(`/auth/reset-password/${token}`, { method: 'POST', body: { password } }),
   getMe: (token: string) => request<{ user: UserItem }>('/auth/me', { token }),
 
-  // 2FA Methods
-  setup2FA: (token: string) =>
-    request<{ qrCodeUrl: string; secret: string }>('/auth/2fa/setup', { method: 'POST', token }),
-  
-  verifySetup2FA: (token: string, otpCode: string) =>
-    request<{ message: string }>('/auth/2fa/verify-setup', { method: 'POST', token, body: { otpCode } }),
+  // 2FA
+  setup2FA: (token: string) => request<{ qrCodeUrl: string; secret: string }>('/auth/2fa/setup', { method: 'POST', token }),
+  verifySetup2FA: (token: string, otpCode: string) => request<{ message: string }>('/auth/2fa/verify-setup', { method: 'POST', token, body: { otpCode } }),
+  disable2FA: (token: string, otpCode: string) => request<{ message: string }>('/auth/2fa/disable', { method: 'POST', token, body: { otpCode } }),
+  verify2FALogin: (tempToken: string, otpCode: string) => request<AuthPayload & { message: string }>('/auth/2fa/login', { method: 'POST', body: { tempToken, otpCode } }),
 
-  disable2FA: (token: string, otpCode: string) =>
-    request<{ message: string }>('/auth/2fa/disable', { method: 'POST', token, body: { otpCode } }),
+  // User
+  updateProfile: (token: string, payload: Partial<UserItem>) => request<{ user: UserItem }>('/users/profile', { method: 'PUT', token, body: payload }),
 
-  verify2FALogin: (tempToken: string, otpCode: string) =>
-    request<AuthPayload & { message: string }>('/auth/2fa/login', { method: 'POST', body: { tempToken, otpCode } }),
-
-  updateProfile: (token: string, payload: Partial<UserItem>) =>
-    request<{ user: UserItem }>('/users/profile', { method: 'PUT', token, body: payload }),
-
+  // Exams
   getExams: (token: string) => cachedRequest<{ exams: ExamItem[] }>('exams', '/exams', { token }),
-  createExam: (token: string, data: any) =>
-    request<{ exam: ExamItem }>('/exams', { method: 'POST', token, body: data }),
-  updateExam: (token: string, id: string, data: any) =>
-    request<{ exam: ExamItem }>(`/exams/${id}`, { method: 'PUT', token, body: data }),
-  getExamReadiness: (token: string, examId: string) =>
-    cachedRequest<ExamReadinessData>(`readiness_${examId}`, `/exams/${examId}/readiness`, { token }),
+  createExam: (token: string, data: any) => request<{ exam: ExamItem }>('/exams', { method: 'POST', token, body: data }),
+  updateExam: (token: string, id: string, data: any) => request<{ exam: ExamItem }>(`/exams/${id}`, { method: 'PUT', token, body: data }),
+  getExamReadiness: (token: string, examId: string) => cachedRequest<ExamReadinessData>(`readiness_${examId}`, `/exams/${examId}/readiness`, { token }),
 
-  getStudyPlans: (token: string, date?: string) =>
-    request<{ studyPlans: StudyPlanItem[] }>(`/study-plans${date ? `?date=${date}` : ''}`, { token }),
-  createStudyPlan: (token: string, data: any) =>
-    request<{ studyPlan: StudyPlanItem }>('/study-plans', { method: 'POST', token, body: data }),
-  updateStudyPlan: (token: string, id: string, data: any) =>
-    request<{ studyPlan: StudyPlanItem }>(`/study-plans/${id}`, { method: 'PUT', token, body: data }),
-  updateTaskStatus: (token: string, planId: string, taskId: string, status: 'todo' | 'doing' | 'done') =>
-    request<{ studyPlan: StudyPlanItem }>(`/study-plans/${planId}/tasks/${taskId}`, { method: 'PUT', token, body: { status } }),
-  deleteStudyPlan: (token: string, id: string) =>
-    request<{ message: string }>(`/study-plans/${id}`, { method: 'DELETE', token }),
+  // Study Plans
+  getStudyPlans: (token: string, date?: string) => request<{ studyPlans: StudyPlanItem[] }>(`/study-plans${date ? `?date=${date}` : ''}`, { token }),
+  createStudyPlan: (token: string, data: any) => request<{ studyPlan: StudyPlanItem }>('/study-plans', { method: 'POST', token, body: data }),
+  updateStudyPlan: (token: string, id: string, data: any) => request<{ studyPlan: StudyPlanItem }>(`/study-plans/${id}`, { method: 'PUT', token, body: data }),
+  updateTaskStatus: (token: string, planId: string, taskId: string, status: 'todo' | 'doing' | 'done') => request<{ studyPlan: StudyPlanItem }>(`/study-plans/${planId}/tasks/${taskId}`, { method: 'PUT', token, body: { status } }),
+  deleteStudyPlan: (token: string, id: string) => request<{ message: string }>(`/study-plans/${id}`, { method: 'DELETE', token }),
 
-  getProgressOverview: (token: string) =>
-    cachedRequest<any>('progress_overview', '/progress/overview', { token }),
+  // Progress
+  getProgressOverview: (token: string) => cachedRequest<any>('progress_overview', '/progress/overview', { token }),
+  createSession: (token: string, data: any) => request<any>('/progress/sessions', { method: 'POST', token, body: data }),
 
-  createSession: (token: string, data: any) =>
-    request<any>('/progress/sessions', { method: 'POST', token, body: data }),
-
+  // Quizzes
   getQuizzes: (token: string) => request<{ quizzes: QuizItem[] }>('/quizzes', { token }),
-  createQuiz: (token: string, data: any) =>
-    request<{ quiz: QuizItem }>('/quizzes', { method: 'POST', token, body: data }),
-  submitQuiz: (token: string, id: string, answers: any[]) =>
-    request<any>(`/quizzes/${id}/submit`, { method: 'POST', token, body: { answers } }),
-  deleteQuiz: (token: string, id: string) =>
-    request<{ message: string }>(`/quizzes/${id}`, { method: 'DELETE', token }),
-  getQuizHistory: (token: string) =>
-    cachedRequest<{ results: any[] }>('quiz_history', '/quizzes/results/history', { token }),
+  createQuiz: (token: string, data: any) => request<{ quiz: QuizItem }>('/quizzes', { method: 'POST', token, body: data }),
+  submitQuiz: (token: string, id: string, answers: any[]) => request<any>(`/quizzes/${id}/submit`, { method: 'POST', token, body: { answers } }),
+  deleteQuiz: (token: string, id: string) => request<{ message: string }>(`/quizzes/${id}`, { method: 'DELETE', token }),
+  getQuizHistory: (token: string) => cachedRequest<{ results: any[] }>('quiz_history', '/quizzes/results/history', { token }),
 
+  // Documents
   getDocuments: (token: string) => cachedRequest<{ documents: DocumentItem[] }>('documents', '/documents', { token }),
   uploadDocument: (token: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     return request<any>('/documents', { method: 'POST', token, body: formData });
   },
+  deleteDocument: (token: string, id: string) => request<any>(`/documents/${id}`, { method: 'DELETE', token }),
 
-  deleteDocument: (token: string, id: string) =>
-    request<any>(`/documents/${id}`, { method: 'DELETE', token }),
-
-  getNotifications: (token: string) =>
-    request<{ notifications: NotificationItem[] }>('/notifications', { token }),
-  markNotificationRead: (token: string, id: string) =>
-    request<any>(`/notifications/${id}/read`, { method: 'PUT', token }),
-  markAllNotificationsRead: (token: string) =>
-    request<any>('/notifications/read-all', { method: 'PUT', token }),
+  // Notifications
+  getNotifications: (token: string) => request<{ notifications: NotificationItem[]; unreadCount: number }>('/notifications', { token }),
+  markNotificationRead: (token: string, id: string) => request<any>(`/notifications/${id}/read`, { method: 'PUT', token }),
+  markAllNotificationsRead: (token: string) => request<any>('/notifications/read-all', { method: 'PUT', token }),
 
   // Gamification
-  getGamificationOverview: (token: string) =>
-    cachedRequest<GamificationOverview>('gamification_overview', '/gamification/overview', { token }),
-  getAchievements: (token: string) =>
-    cachedRequest<{ achievements: AchievementItem[] }>('achievements', '/gamification/achievements', { token }),
+  getGamificationOverview: (token: string) => cachedRequest<GamificationOverview>('gamification_overview', '/gamification/overview', { token }),
+  getAchievements: (token: string) => cachedRequest<{ achievements: AchievementItem[] }>('achievements', '/gamification/achievements', { token }),
   getLeaderboard: (token: string, limit: number = 10, type: string = 'monthly', month?: number, year?: number) =>
     cachedRequest<{ userRank: number | null; leaderboard: LeaderboardItem[] }>(
       `leaderboard_${limit}_${type}_${month || ''}_${year || ''}`,
@@ -414,75 +407,40 @@ export const api = {
       { token }
     ),
 
-  // Community / Posts
-  getPosts: (token: string, search?: string) =>
-    request<{ count: number; posts: PostItem[] }>(`/posts${search ? `?search=${encodeURIComponent(search)}` : ''}`, { token }),
-  
-  createPost: (token: string, data: { content: string; image?: string }) =>
-    request<{ message: string; post: PostItem }>('/posts', { method: 'POST', token, body: data }),
-  
+  // Community
+  getPosts: (token: string, search?: string) => request<{ count: number; posts: PostItem[] }>(`/posts${search ? `?search=${encodeURIComponent(search)}` : ''}`, { token }),
+  createPost: (token: string, data: { content: string; image?: string }) => request<{ message: string; post: PostItem }>('/posts', { method: 'POST', token, body: data }),
   uploadPostImage: (token: string, file: File) => {
     const formData = new FormData();
     formData.append('image', file);
     return request<{ imageUrl: string }>('/posts/upload-image', { method: 'POST', token, body: formData });
   },
+  toggleLike: (token: string, postId: string) => request<{ message: string; likesCount: number; isLiked: boolean }>(`/posts/${postId}/like`, { method: 'PUT', token }),
+  addComment: (token: string, postId: string, content: string) => request<{ message: string; comments: CommentItem[] }>(`/posts/${postId}/comments`, { method: 'POST', token, body: { content } }),
 
-  toggleLike: (token: string, postId: string) =>
-    request<{ message: string; likesCount: number; isLiked: boolean }>(`/posts/${postId}/like`, { method: 'PUT', token }),
+  // AI
+  generateDialogue: (token: string, data: { documentId: string; language: string; speakerFemaleName: string; speakerMaleName: string }) => request<{ dialogue: any[] }>('/ai/generate-dialogue', { method: 'POST', token, body: data }),
+  generateKnowledgeMap: (token: string, documentIds: string[], title?: string) => request<{ mapData: KnowledgeMapData; mapId: string; title: string }>('/ai/generate-knowledge-map', { method: 'POST', token, body: { documentIds, title } }),
+  getKnowledgeMaps: (token: string) => request<{ maps: any[] }>('/ai/knowledge-maps', { token }),
+  getKnowledgeMapById: (token: string, id: string) => request<{ mapData: KnowledgeMapData; title: string }>(`/ai/knowledge-maps/${id}`, { token }),
+  deleteKnowledgeMap: (token: string, id: string) => request<{ message: string }>(`/ai/knowledge-maps/${id}`, { method: 'DELETE', token }),
+  summarizeDocument: (token: string, documentId: string) => request<{ summary: string; history: any[]; cached?: boolean }>('/ai/summarize', { method: 'POST', token, body: { documentId } }),
+  chatWithDocument: (token: string, documentId: string, message: string, history: any[]) => request<{ content: string }>('/ai/chat-document', { method: 'POST', token, body: { documentId, message, history } }),
+  generateQuiz: (token: string, data: any) => request<{ text: string; hintNames: string }>('/ai/generate-quiz', { method: 'POST', token, body: data }),
   
-  addComment: (token: string, postId: string, content: string) =>
-    request<{ message: string; comments: CommentItem[] }>(`/posts/${postId}/comments`, { method: 'POST', token, body: { content } }),
+  // Assistant
+  askAssistantGuide: (token: string, message: string, uiContext: any, history: any[]) => request<{ message: string; actions: any[] }>('/ai-assistant/guide', { method: 'POST', token, body: { message, uiContext, history } }),
 
+  // Payment
+  getPackages: (token: string) => request<{ packages: PackageItem[] }>('/payments/packages', { token }),
+  createManualCheckout: (token: string, packageId: string) => request<any>('/payments/checkout-manual', { method: 'POST', token, body: { packageId } }),
+  getPaymentStatus: (token: string, paymentId: string) => request<{ status: string }>(`/payments/${paymentId}/status`, { token }),
+  getCreditHistory: (token: string) => request<{ transactions: CreditTransactionItem[] }>('/payments/credits/history', { token }),
+  getAIUsageLogs: (token: string) => request<{ logs: UsageLogItem[] }>('/payments/credits/usage', { token }),
+
+  // Cache Control
   invalidateCache: (key?: string) => {
     if (key) cache.delete(key);
     else cache.clear();
   },
-
-  // Payment & Credit
-  getPackages: (token: string) => request<{ packages: PackageItem[] }>('/payments/packages', { token }),
-  
-  createManualCheckout: (token: string, packageId: string) =>
-    request<{ 
-      paymentId: string; 
-      amount: number; 
-      memo: string; 
-      qrUrl: string; 
-      bankInfo: { bankId: string; accountNo: string; accountName: string } 
-    }>('/payments/checkout-manual', { method: 'POST', token, body: { packageId } }),
-  
-  getPaymentStatus: (token: string, paymentId: string) =>
-    request<{ status: string }>(`/payments/${paymentId}/status`, { token }),
-  
-  getCreditHistory: (token: string) =>
-    request<{ transactions: CreditTransactionItem[] }>('/payments/credits/history', { token }),
-  
-  getAIUsageLogs: (token: string) =>
-    request<{ logs: UsageLogItem[] }>('/payments/credits/usage', { token }),
-
-  // Admin
-  getAdminStats: (token: string) => request<any>('/admin/stats', { token }),
-
-  generateDialogue: (token: string, data: { documentId: string; language: string; speakerFemaleName: string; speakerMaleName: string }) =>
-    request<{ dialogue: string }>('/ai/generate-dialogue', { method: 'POST', token, body: data }),
-
-  generateKnowledgeMap: (token: string, documentIds: string[], title?: string) =>
-    request<{ mapData: KnowledgeMapData; mapId: string; title: string }>('/ai/generate-knowledge-map', { method: 'POST', token, body: { documentIds, title } }),
-  getKnowledgeMaps: (token: string) => 
-    request<{ maps: any[] }>('/ai/knowledge-maps', { token }),
-  getKnowledgeMapById: (token: string, id: string) => 
-    request<{ mapData: KnowledgeMapData; title: string }>(`/ai/knowledge-maps/${id}`, { token }),
-  deleteKnowledgeMap: (token: string, id: string) => 
-    request<{ message: string }>(`/ai/knowledge-maps/${id}`, { method: 'DELETE', token }),
-
-  summarizeDocument: (token: string, documentId: string) =>
-    request<{ summary: string; history: any[] }>('/ai/summarize', { method: 'POST', token, body: { documentId } }),
-
-  chatWithDocument: (token: string, documentId: string, message: string, history: any[]) =>
-    request<{ content: string }>('/ai/chat-document', { method: 'POST', token, body: { documentId, message, history } }),
-
-  askAssistantGuide: (token: string, message: string, uiContext: any, history: any[]) =>
-    request<{ message: string; actions: any[] }>('/ai-assistant/guide', { method: 'POST', token, body: { message, uiContext, history } }),
-
-  generateQuiz: (token: string, data: any) =>
-    request<{ text: string; hintNames: string }>('/ai/generate-quiz', { method: 'POST', token, body: data }),
 };

@@ -80,6 +80,8 @@ export function Documents({ token }: DocumentsProps) {
   const scrollChatRef = useRef<HTMLDivElement>(null);
   const [displayLimit, setDisplayLimit] = useState(10);
 
+  const [successMsg, setSuccessMsg] = useState('');
+
   const handleUploadFromText = async (content: string, type: 'web' | 'text' | 'youtube') => {
     if (!content.trim()) return;
     const blob = new Blob([content], { type: 'text/plain' });
@@ -94,7 +96,7 @@ export function Documents({ token }: DocumentsProps) {
     await uploadFile(file);
   };
 
-
+  // Flashcard creation removed
 
   const handleShowSummary = async (doc: DocumentItem) => {
     setSummaryDoc(doc);
@@ -196,8 +198,8 @@ export function Documents({ token }: DocumentsProps) {
           prev.some(p => p._id === d._id && p.status === 'processing')
         );
         if (newlyDone.length > 0) {
-          setSuccessFile(newlyDone[0].name + ' đã xử lý xong! ✅');
-          setTimeout(() => setSuccessFile(''), 4000);
+          setSuccessMsg(`${newlyDone[0].name} đã xử lý xong! ✅`);
+          setTimeout(() => setSuccessMsg(''), 4000);
         }
         prevDocsRef.current = nowDocs;
       }, 5000);
@@ -256,9 +258,14 @@ export function Documents({ token }: DocumentsProps) {
 
   const handleDelete = async (id: string) => {
     try {
+      const docToDelete = docs.find(d => d._id === id);
       await api.deleteDocument(token, id);
       api.invalidateCache('documents');
       await loadDocuments();
+      if (docToDelete) {
+        setSuccessMsg(`Đã xóa tài liệu: ${docToDelete.name}`);
+        setTimeout(() => setSuccessMsg(''), 3000);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Xóa tài liệu thất bại');
     }
@@ -299,6 +306,17 @@ export function Documents({ token }: DocumentsProps) {
           >
             <CheckCircle2 size={18} />
             <span>Đã tải lên thành công: <strong>{successFile}</strong></span>
+          </motion.div>
+        )}
+        {successMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-700 px-5 py-3 rounded-2xl text-sm font-medium"
+          >
+            <CheckCircle2 size={18} />
+            <span>{successMsg}</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -468,6 +486,7 @@ export function Documents({ token }: DocumentsProps) {
                       >
                         <MessageSquare size={13} /> <span className="hidden xs:inline">Tóm tắt</span><span className="xs:hidden">Tóm tắt</span>
                       </button>
+                      {/* Flashcard button removed */}
                       {doc.status === 'processed' ? (
                         <div className="flex items-center gap-1 text-[10px] md:text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1.5 rounded-full">
                           <CheckCircle2 size={12} /> <span className="hidden xs:inline">Đã xử lý</span>
