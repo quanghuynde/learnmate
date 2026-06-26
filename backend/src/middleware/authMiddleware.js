@@ -15,6 +15,12 @@ const protect = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Prevent temporary (pre-2FA) tokens from accessing protected routes
+    if (decoded.isTemp) {
+      return res.status(401).json({ message: 'Vui lòng hoàn tất xác thực 2 bước để truy cập' });
+    }
+
     req.user = await User.findById(decoded.id);
 
     if (!req.user) {

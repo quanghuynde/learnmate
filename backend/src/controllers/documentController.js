@@ -6,6 +6,8 @@ const pdf = require('pdf-parse');
 const mammoth = require('mammoth');
 const textract = require('textract');
 const officeparser = require('officeparser');
+const { YoutubeTranscript } = require('youtube-transcript');
+const anytext = require('any-text');
 const Document = require('../models/Document');
 const { validateAndDeduct } = require('../services/creditService');
 
@@ -66,8 +68,50 @@ const extractText = async (filePath, type) => {
       if (text.startsWith('http://') || text.startsWith('https://')) {
         try {
           if (text.includes('youtube.com') || text.includes('youtu.be')) {
-            const transcript = await YoutubeTranscript.fetchTranscript(text);
-            text = transcript.map(t => t.text).join(' ');
+            const youtubeUrl = text.trim();
+            let videoTitle = '';
+            let videoAuthor = '';
+            let videoDescription = '';
+            let transcriptText = '';
+
+            // 1. Get title & author via oEmbed (reliable, no API key needed)
+            try {
+              const oEmbedRes = await axios.get(`https://www.youtube.com/oembed?url=${encodeURIComponent(youtubeUrl)}&format=json`);
+              videoTitle = oEmbedRes.data.title || '';
+              videoAuthor = oEmbedRes.data.author_name || '';
+            } catch (oembedErr) {
+              console.warn('[BG] oEmbed failed:', oembedErr.message);
+            }
+
+            // 2. Get description via HTML meta tag
+            try {
+              const { data: htmlData } = await axios.get(youtubeUrl, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36' },
+                timeout: 10000
+              });
+              const $ = cheerio.load(htmlData);
+              videoDescription = $('meta[property="og:description"]').attr('content') || '';
+            } catch (descErr) {
+              console.warn('[BG] YouTube description fetch failed:', descErr.message);
+            }
+
+            // 3. Get transcript
+            try {
+              const transcript = await YoutubeTranscript.fetchTranscript(youtubeUrl);
+              transcriptText = transcript.map(t => t.text).join(' ');
+            } catch (transcriptErr) {
+              console.warn('[BG] YouTube transcript fetch failed:', transcriptErr.message);
+            }
+
+            // 4. Combine all metadata + transcript into rich content
+            const parts = [];
+            if (videoTitle) parts.push(`TIÊU ĐỀ VIDEO: ${videoTitle}`);
+            if (videoAuthor) parts.push(`KÊNH: ${videoAuthor}`);
+            if (videoDescription) parts.push(`MÔ TẢ VIDEO: ${videoDescription}`);
+            if (transcriptText) parts.push(`NỘI DUNG TRANSCRIPT:\n${transcriptText}`);
+            else if (!transcriptText && videoDescription) parts.push('(Video không có transcript tự động)');
+            text = parts.join('\n\n');
+
           } else {
             const { data } = await axios.get(text, {
                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36' }
@@ -79,6 +123,14 @@ const extractText = async (filePath, type) => {
         } catch (scrapeError) {
           console.error('Lỗi khi scrape URL:', scrapeError.message);
         }
+      }
+    } else if (['jpg', 'jpeg', 'png', 'bmp', 'webp'].includes(docType)) {
+      try {
+        const Tesseract = require('tesseract.js');
+        const { data: { text: rawText } } = await Tesseract.recognize(filePath, 'vie+eng');
+        text = rawText || '';
+      } catch (err) {
+        console.warn(`[BG] OCR failed for ${filePath}:`, err.message);
       }
     } else {
       // Try any-text as a general fallback for other formats
@@ -200,8 +252,8 @@ const createDocument = async (req, res) => {
     try {
       await validateAndDeduct(req.user.id, 10, 'Upload Document');
     } catch (err) {
-      if (req.file.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
+      if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) { console.error('Failed to unlink file after credit failure:', e); }
       }
       return res.status(402).json({ message: err.message });
     }
@@ -210,15 +262,23 @@ const createDocument = async (req, res) => {
     const ext = path.extname(originalNameUtf8).toLowerCase();
     const type = ext ? ext.replace('.', '') : 'unknown';
 
-    const doc = await Document.create({
-      user: req.user.id,
-      name: originalNameUtf8,
-      type,
-      pages: 0,
-      fileUrl: `/uploads/documents/${req.file.filename}`,
-      fileSize: req.file.size,
-      status: 'processing',
-    });
+    let doc;
+    try {
+      doc = await Document.create({
+        user: req.user.id,
+        name: originalNameUtf8,
+        type,
+        pages: 0,
+        fileUrl: `/uploads/documents/${req.file.filename}`,
+        fileSize: req.file.size,
+        status: 'processing',
+      });
+    } catch (createErr) {
+      if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) { console.error('Failed to unlink file after DB creation failure:', e); }
+      }
+      throw createErr;
+    }
 
     const relativePath = doc.fileUrl.replace(/^\//, '');
     const filePath = path.resolve(process.cwd(), relativePath);
@@ -234,6 +294,10 @@ const createDocument = async (req, res) => {
     });
   } catch (error) {
     console.error('Create Document Error:', error.message);
+    // Final cleanup attempt if anything failed and we have a file path
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+       try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
     res.status(500).json({ message: error.message });
   }
 };

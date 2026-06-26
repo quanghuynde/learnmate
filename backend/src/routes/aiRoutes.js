@@ -9,7 +9,7 @@ const {
   generateKnowledgeMap,
   getKnowledgeMaps,
   getKnowledgeMapById,
-  deleteKnowledgeMap
+  deleteKnowledgeMap,
 } = require('../controllers/aiController');
 
 router.use(protect);
@@ -24,5 +24,7 @@ router.post('/generate-knowledge-map', generateKnowledgeMap);
 router.get('/knowledge-maps', getKnowledgeMaps);
 router.get('/knowledge-maps/:id', getKnowledgeMapById);
 router.delete('/knowledge-maps/:id', deleteKnowledgeMap);
+
+// No flashcard routes
 
 module.exports = router;

@@ -2,7 +2,7 @@ const rateLimit = require('express-rate-limit');
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 20, // Limit each IP to 20 requests per windowMs
+  max: 60, // Limit each IP to 60 requests per windowMs (Increased for better UX)
   message: { message: 'Bạn đã thực hiện quá nhiều yêu cầu. Vui lòng thử lại sau 1 phút.' },
   standardHeaders: true,
   legacyHeaders: false,

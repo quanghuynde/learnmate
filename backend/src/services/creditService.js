@@ -29,16 +29,19 @@ async function deductCredits(userId, feature, metadata = {}) {
   const cost = FEATURE_COSTS[feature] || 0;
   if (cost === 0) return true;
 
-  const user = await User.findById(userId);
-  if (!user) throw new Error('User not found');
-  
-  if (user.currentCredits < cost) {
+  // Atomic deduction: find user with enough credits AND decrement in one operation
+  const user = await User.findOneAndUpdate(
+    { _id: userId, currentCredits: { $gte: cost } },
+    { $inc: { currentCredits: -cost } },
+    { new: true }
+  );
+
+  if (!user) {
+    // If user not found or not enough credits, user will be null
+    const checkUser = await User.findById(userId);
+    if (!checkUser) throw new Error('User not found');
     throw new Error('Không đủ Credit để thực hiện chức năng này');
   }
-
-  // Deduct
-  user.currentCredits -= cost;
-  await user.save();
 
   // Log usage
   const log = await UsageLog.create({
