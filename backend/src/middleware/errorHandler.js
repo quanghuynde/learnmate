@@ -1,4 +1,5 @@
 const errorHandler = (err, req, res, next) => {
+  console.error('[Global Error Handler]:', err.stack || err.message);
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   let message = err.message;
 
