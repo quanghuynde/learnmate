@@ -3,12 +3,12 @@ const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const { 
   getPackages, 
-  createManualPayment,
-  sepayWebhook 
+  createPayOSPayment,
+  payosWebhook 
 } = require('../controllers/paymentController');
 
 router.get('/packages', protect, getPackages);
-router.post('/checkout-manual', protect, createManualPayment);
+router.post('/checkout', protect, createPayOSPayment);
 router.get('/:id/status', protect, async (req, res) => {
   const Payment = require('../models/Payment');
   try {
@@ -20,8 +20,8 @@ router.get('/:id/status', protect, async (req, res) => {
   }
 });
 
-// SePay Webhook
-router.post('/webhook', sepayWebhook); // Changed from /sepay-webhook to match SePay config
+// PayOS Webhook
+router.post('/webhook', payosWebhook);
 
 // Credit history endpoints
 const { getCreditHistory, getAIUsageLogs } = require('../controllers/creditController');

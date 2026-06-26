@@ -12,9 +12,12 @@ export function PaymentResult({ setCurrentPage }: PaymentResultProps) {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const code = params.get('vnp_ResponseCode') || '';
+    const code = params.get('code') || '';
+    const payosStatus = params.get('status') || '';
     setResponseCode(code);
-    setStatus(code === '00' ? 'success' : 'failed');
+    
+    // PayOS returns code '00' on success. Sometimes status can be 'PAID' or 'CANCELLED'
+    setStatus((code === '00' || payosStatus === 'PAID') ? 'success' : 'failed');
   }, []);
 
   if (status === 'loading') {

@@ -433,7 +433,7 @@ export const api = {
 
   // Payment
   getPackages: (token: string) => request<{ packages: PackageItem[] }>('/payments/packages', { token }),
-  createManualCheckout: (token: string, packageId: string) => request<any>('/payments/checkout-manual', { method: 'POST', token, body: { packageId } }),
+  createPayOSCheckout: (token: string, packageId: string) => request<any>('/payments/checkout', { method: 'POST', token, body: { packageId } }),
   getPaymentStatus: (token: string, paymentId: string) => request<{ status: string }>(`/payments/${paymentId}/status`, { token }),
   getCreditHistory: (token: string) => request<{ transactions: CreditTransactionItem[] }>('/payments/credits/history', { token }),
   getAIUsageLogs: (token: string) => request<{ logs: UsageLogItem[] }>('/payments/credits/usage', { token }),
