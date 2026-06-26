@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Search, Bell, X, Check, Coins, Menu, User, Settings, LogOut,
   LayoutDashboard, Calendar, FileText, Network, Brain, Target,
-  TrendingUp, Users, MessageSquare, Gamepad2, Clock,
+  TrendingUp, Users, MessageSquare, Gamepad2, Clock, ChevronDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, NotificationItem, UserItem } from '../../lib/api';
+import { Modal } from '../ui/Modal';
 
 interface TopBarProps {
   token: string;
@@ -46,6 +47,7 @@ export function TopBar({ token, user, setCurrentPage, onMenuClick, onLogout }: T
   const [activeSearchIdx, setActiveSearchIdx] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const unread = notifications.filter((n) => !n.isRead).length;
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -279,14 +281,19 @@ export function TopBar({ token, user, setCurrentPage, onMenuClick, onLogout }: T
         <div className="relative" ref={userMenuRef}>
           <button
             onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false); }}
-            className="hidden md:flex items-center gap-3 pl-4 border-l border-slate-200 hover:opacity-80 transition-opacity cursor-pointer"
+            className="hidden md:flex items-center gap-3 pl-4 border-l border-slate-200 hover:opacity-80 transition-opacity cursor-pointer group"
           >
             <div className="text-right">
               <p className="text-sm font-semibold text-text-primary leading-tight">{user?.name || 'Người dùng'}</p>
               <p className="text-xs text-slate-500 leading-tight">{user?.email || ''}</p>
             </div>
-            <div className={`w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm border-2 transition-all ${showUserMenu ? 'border-primary-light ring-2 ring-primary/20 scale-105' : 'border-primary/20 shadow-sm'}`}>
-              {initials}
+            <div className="relative">
+              <div className={`w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm border-2 transition-all ${showUserMenu ? 'border-primary-light ring-2 ring-primary/20 scale-105' : 'border-primary/20 shadow-sm'}`}>
+                {initials}
+              </div>
+              <div className={`absolute -bottom-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center border border-slate-200 shadow-sm transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`}>
+                <ChevronDown size={10} className="text-slate-500" />
+              </div>
             </div>
           </button>
 
@@ -329,7 +336,7 @@ export function TopBar({ token, user, setCurrentPage, onMenuClick, onLogout }: T
                     Nạp Credit
                   </button>
                   <button
-                    onClick={() => { setCurrentPage('history'); setShowUserMenu(false); }}
+                    onClick={() => { setCurrentPage('profile'); setShowUserMenu(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-primary/5 text-text-primary hover:text-primary transition-colors text-sm font-medium"
                   >
                     <Settings size={16} />
@@ -339,7 +346,7 @@ export function TopBar({ token, user, setCurrentPage, onMenuClick, onLogout }: T
 
                 <div className="p-1.5 border-t border-slate-100">
                   <button
-                    onClick={() => { setShowUserMenu(false); onLogout?.(); }}
+                    onClick={() => { setShowUserMenu(false); setShowLogoutConfirm(true); }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-50 text-slate-600 hover:text-red-600 transition-colors text-sm font-medium"
                   >
                     <LogOut size={16} />
@@ -350,6 +357,40 @@ export function TopBar({ token, user, setCurrentPage, onMenuClick, onLogout }: T
             )}
           </AnimatePresence>
         </div>
+
+        {/* Logout Confirmation Modal */}
+        <Modal
+          isOpen={showLogoutConfirm}
+          onClose={() => setShowLogoutConfirm(false)}
+          title="Xác nhận đăng xuất"
+          maxWidth="max-w-md"
+        >
+          <div className="text-center py-2">
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <LogOut size={32} />
+            </div>
+            <h4 className="text-lg font-bold text-slate-900 mb-2">Bạn chắc chắn muốn đăng xuất?</h4>
+            <p className="text-sm text-slate-500 mb-8">Mọi phiên làm việc hiện tại của bạn trên LearnMate sẽ kết thúc.</p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  onLogout?.();
+                }}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-200"
+              >
+                Đăng xuất ngay
+              </button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </header>
   );
