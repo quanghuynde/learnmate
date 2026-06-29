@@ -419,17 +419,17 @@ export const api = {
   addComment: (token: string, postId: string, content: string) => request<{ message: string; comments: CommentItem[] }>(`/posts/${postId}/comments`, { method: 'POST', token, body: { content } }),
 
   // AI
-  generateDialogue: (token: string, data: { documentId: string; language: string; speakerFemaleName: string; speakerMaleName: string }) => request<{ dialogue: any[] }>('/ai/generate-dialogue', { method: 'POST', token, body: data }),
-  generateKnowledgeMap: (token: string, documentIds: string[], title?: string) => request<{ mapData: KnowledgeMapData; mapId: string; title: string }>('/ai/generate-knowledge-map', { method: 'POST', token, body: { documentIds, title } }),
+  generateDialogue: (token: string, data: { documentId: string; language: string; speakerFemaleName: string; speakerMaleName: string }) => request<{ dialogue: any[] }>('/ai/generate-dialogue', { method: 'POST', token, body: data, timeout: 120000 }),
+  generateKnowledgeMap: (token: string, documentIds: string[], title?: string) => request<{ mapData: KnowledgeMapData; mapId: string; title: string }>('/ai/generate-knowledge-map', { method: 'POST', token, body: { documentIds, title }, timeout: 180000 }),
   getKnowledgeMaps: (token: string) => request<{ maps: any[] }>('/ai/knowledge-maps', { token }),
   getKnowledgeMapById: (token: string, id: string) => request<{ mapData: KnowledgeMapData; title: string }>(`/ai/knowledge-maps/${id}`, { token }),
   deleteKnowledgeMap: (token: string, id: string) => request<{ message: string }>(`/ai/knowledge-maps/${id}`, { method: 'DELETE', token }),
-  summarizeDocument: (token: string, documentId: string) => request<{ summary: string; history: any[]; cached?: boolean }>('/ai/summarize', { method: 'POST', token, body: { documentId } }),
-  chatWithDocument: (token: string, documentId: string, message: string, history: any[]) => request<{ content: string }>('/ai/chat-document', { method: 'POST', token, body: { documentId, message, history } }),
-  generateQuiz: (token: string, data: any) => request<{ text: string; hintNames: string }>('/ai/generate-quiz', { method: 'POST', token, body: data }),
+  summarizeDocument: (token: string, documentId: string) => request<{ summary: string; history: any[]; cached?: boolean }>('/ai/summarize', { method: 'POST', token, body: { documentId }, timeout: 120000 }),
+  chatWithDocument: (token: string, documentId: string, message: string, history: any[]) => request<{ content: string }>('/ai/chat-document', { method: 'POST', token, body: { documentId, message, history }, timeout: 60000 }),
+  generateQuiz: (token: string, data: any) => request<{ text: string; hintNames: string }>('/ai/generate-quiz', { method: 'POST', token, body: data, timeout: 180000 }),
   
   // Assistant
-  askAssistantGuide: (token: string, message: string, uiContext: any, history: any[]) => request<{ message: string; actions: any[] }>('/ai-assistant/guide', { method: 'POST', token, body: { message, uiContext, history } }),
+  askAssistantGuide: (token: string, message: string, uiContext: any, history: any[]) => request<{ message: string; actions: any[] }>('/ai-assistant/guide', { method: 'POST', token, body: { message, uiContext, history }, timeout: 60000 }),
 
   // Payment
   getPackages: (token: string) => request<{ packages: PackageItem[] }>('/payments/packages', { token }),
