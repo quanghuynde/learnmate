@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const pdf = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
 const textract = require('textract');
 const officeparser = require('officeparser');
@@ -37,7 +37,8 @@ const extractText = async (filePath, type) => {
 
     if (docType === 'pdf') {
       const dataBuffer = fs.readFileSync(filePath);
-      const data = await pdf(dataBuffer);
+      const parser = new PDFParse({ data: dataBuffer });
+      const data = await parser.getText();
       text = data.text || '';
     } else if (docType === 'docx') {
       const dataBuffer = fs.readFileSync(filePath);
