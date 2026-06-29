@@ -135,6 +135,14 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
     }
   }, [step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, essayAnswers, isReviewing, STATE_KEY]);
 
+  // Safety check: if step is 'playing' but activeQuestions is empty, return to setup
+  useEffect(() => {
+    if (step === 'playing' && (!activeQuestions || activeQuestions.length === 0)) {
+      console.warn('Invalid quiz state: playing but no active questions. Auto-resetting to setup.');
+      resetQuiz();
+    }
+  }, [step, activeQuestions]);
+
   // Documents list (for dropdown)
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [docsLoading, setDocsLoading] = useState(true);
@@ -270,6 +278,10 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
       }
 
       setActiveQuestions(parsedQuestions);
+
+      if (!parsedQuestions || parsedQuestions.length === 0) {
+        throw new Error('AI không tạo được câu hỏi nào từ tài liệu này. Vui lòng thử tài liệu khác.');
+      }
       
       try {
         const quizTitle = selectedDocs.map(d => d.name).join(', ').substring(0, 50) + (selectedDocs.length > 1 ? '...' : '');
@@ -471,6 +483,7 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
   };
 
   const resetQuiz = () => {
+    localStorage.removeItem(STATE_KEY);
     sessionStorage.removeItem(STATE_KEY);
     setStep('setup');
     setScore(0);
