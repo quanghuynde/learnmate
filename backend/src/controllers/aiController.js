@@ -15,15 +15,13 @@ async function notifyAdminRateLimit(provider, errorMsg) {
   if (now - lastRateLimitEmailSent < EMAIL_THROTTLE_MS) return;
 
   lastRateLimitEmailSent = now;
-  try {
-    await sendEmail({
-      email: 'learnmate196@gmail.com',
-      subject: `[LearnMate Alert] AI API Rate Limit Reached (${provider})`,
-      message: `Cảnh báo: API của ${provider} đã đạt giới hạn (HTTP 429).\nThời gian: ${new Date().toLocaleString('vi-VN')}\nLỗi chi tiết: ${errorMsg}\n\nVui lòng kiểm tra lại tài khoản hoặc nạp thêm tiền cho API Key.`,
-    });
-  } catch (err) {
+  sendEmail({
+    email: 'learnmate196@gmail.com',
+    subject: `[LearnMate Alert] AI API Rate Limit Reached (${provider})`,
+    message: `Cảnh báo: API của ${provider} đã đạt giới hạn (HTTP 429).\nThời gian: ${new Date().toLocaleString('vi-VN')}\nLỗi chi tiết: ${errorMsg}\n\nVui lòng kiểm tra lại tài khoản hoặc nạp thêm tiền cho API Key.`,
+  }).catch(err => {
     console.error('Failed to send rate limit alert email:', err.message);
-  }
+  });
 }
 
 /**
