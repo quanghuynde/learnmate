@@ -33,11 +33,13 @@ async function createUserNotification(userId, payload) {
         }
 
         console.log(`[Notification] Triggering email to ${user.email} for type: ${payload.type}`);
-        await sendEmail({
+        sendEmail({
           email: user.email,
           subject: payload.emailSubject || payload.title,
           message: payload.emailText || payload.message,
           html: html
+        }).catch((mailError) => {
+          console.error(`[Notification] Failed to send email to ${user?.email}:`, mailError.message);
         });
       } catch (mailError) {
         console.error(`[Notification] Failed to send email to ${user?.email}:`, mailError.message);
