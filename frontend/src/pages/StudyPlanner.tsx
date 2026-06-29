@@ -393,7 +393,7 @@ export function StudyPlanner({ token }: StudyPlannerProps) {
             ) : (
               <>
                 {/* Timeline vertical line */}
-                <div className="absolute left-[8.5rem] top-0 bottom-0 w-px bg-slate-200" />
+                <div className="absolute left-[9rem] top-0 bottom-0 w-px bg-slate-200" />
                 <div className="space-y-5 relative">
                   {dayTasks.map(({ plan, task }, i) => {
                     const style = TASK_TYPE_STYLES[task.type] ?? TASK_TYPE_STYLES['Khác']
