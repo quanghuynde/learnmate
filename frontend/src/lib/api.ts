@@ -313,6 +313,32 @@ export type LeaderboardItem = {
   streak: number;
 };
 
+export type WorkshopRating = {
+  _id: string;
+  user: { _id: string; name: string; avatar?: string };
+  score: number;
+  comment: string;
+  createdAt: string;
+};
+
+export type WorkshopItem = {
+  _id: string;
+  host: { _id: string; name: string; avatar?: string };
+  title: string;
+  description: string;
+  topic: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  meetingLink: string;
+  platform: 'google_meet' | 'zoom' | 'other';
+  maxAttendees: number;
+  creditCost: number;
+  attendees: { _id: string; name: string; avatar?: string }[];
+  ratings: WorkshopRating[];
+  averageRating: number;
+  createdAt: string;
+};
+
 export type GamificationOverview = {
   user: {
     name: string;
@@ -417,6 +443,22 @@ export const api = {
   },
   toggleLike: (token: string, postId: string) => request<{ message: string; likesCount: number; isLiked: boolean }>(`/posts/${postId}/like`, { method: 'PUT', token }),
   addComment: (token: string, postId: string, content: string) => request<{ message: string; comments: CommentItem[] }>(`/posts/${postId}/comments`, { method: 'POST', token, body: { content } }),
+
+  // Workshops
+  getWorkshops: (token: string, params?: { topic?: string; status?: string; page?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.topic) qs.set('topic', params.topic);
+    if (params?.status) qs.set('status', params.status);
+    if (params?.page) qs.set('page', String(params.page));
+    const query = qs.toString() ? `?${qs.toString()}` : '';
+    return request<{ workshops: WorkshopItem[]; total: number; page: number }>(`/workshops${query}`, { token });
+  },
+  createWorkshop: (token: string, data: Partial<WorkshopItem>) => request<{ message: string; workshop: WorkshopItem }>('/workshops', { method: 'POST', token, body: data }),
+  getWorkshopById: (token: string, id: string) => request<{ workshop: WorkshopItem }>(`/workshops/${id}`, { token }),
+  registerWorkshop: (token: string, id: string) => request<{ message: string; attendeesCount: number }>(`/workshops/${id}/register`, { method: 'POST', token }),
+  cancelWorkshopRegistration: (token: string, id: string) => request<{ message: string }>(`/workshops/${id}/register`, { method: 'DELETE', token }),
+  rateWorkshop: (token: string, id: string, score: number, comment: string) => request<{ message: string; averageRating: number }>(`/workshops/${id}/rate`, { method: 'POST', token, body: { score, comment } }),
+  deleteWorkshop: (token: string, id: string) => request<{ message: string }>(`/workshops/${id}`, { method: 'DELETE', token }),
 
   // AI
   generateDialogue: (token: string, data: { documentId: string; language: string; speakerFemaleName: string; speakerMaleName: string }) => request<{ dialogue: any[] }>('/ai/generate-dialogue', { method: 'POST', token, body: data, timeout: 120000 }),

@@ -19,6 +19,7 @@ const aiRoutes = require('./src/routes/aiRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const aiAssistantRoutes = require('./src/routes/aiAssistantRoutes');
+const workshopRoutes = require('./src/routes/workshopRoutes');
 const errorHandler = require('./src/middleware/errorHandler');
 const { startDailyReminderJob } = require('./src/services/dailyReminderService');
 const { initCreditRenewalJob } = require('./src/services/creditRenewalService');
@@ -77,6 +78,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/ai-assistant', aiAssistantRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/workshops', workshopRoutes);
 
 // Health check
 app.get('/', (req, res) => {

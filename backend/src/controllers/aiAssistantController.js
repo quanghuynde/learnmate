@@ -87,6 +87,14 @@ function heuristicByMessage(message, semanticTargets) {
     };
   }
 
+  // 9b. Hội thảo / Workshop
+  if (q.includes('hội thảo') || q.includes('hoi thao') || q.includes('workshop') || q.includes('tổ chức')) {
+    return {
+      message: 'Tính năng Hội thảo học thuật (Workshop Hub) giúp bạn tạo các buổi trao đổi chia sẻ kiến thức (được tặng +20 Credits) hoặc đăng ký tham gia các buổi học do người chuyên môn khác tổ chức bằng Credits. Bạn cũng có thể hủy đăng ký để được hoàn lại credits, và thực hiện chấm điểm đánh giá (1-5 sao) kèm nhận xét sau khi buổi học kết thúc.',
+      actions: [{ type: 'highlight', target: 'community_feed', durationMs: 5000 }],
+    };
+  }
+
   // 10. Gói Credit / Nạp tiền
   if (q.includes('gói') || q.includes('goi') || q.includes('credit') || q.includes('tài khoản') || q.includes('tai khoan') || q.includes('nạp tiền')) {
     return {
@@ -203,6 +211,7 @@ Danh sách tính năng LearnMate:
 10. Đối thoại AI: Luyện giao tiếp ngoại ngữ hoặc thảo luận sâu qua âm thanh/văn bản.
 11. Gói Credit: Trang nạp Credit và mua các gói subscription (Pro/Premium).
 12. Lịch sử Credit: Theo dõi các giao dịch nạp và sử dụng credit.
+13. Hội thảo học thuật (Workshop): Cho phép tổ chức hội thảo chia sẻ kiến thức (nhận +20 Credits khi host) hoặc học từ người khác (learner tham gia đóng phí bằng Credits tùy ý host. Có thể hủy đăng ký để hoàn tiền trước khi diễn ra, và đánh giá/rate sau khi kết thúc).
 
 Quy tắc:
 - Trả lời ngắn gọn, thân thiện bằng Tiếng Việt.
