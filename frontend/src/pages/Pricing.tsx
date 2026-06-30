@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNotification } from '../components/ui/Notification';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   Check, Zap, Crown, Shield, CreditCard, Coins, ArrowRight, 
-  Loader2, Brain, Star, X, Copy, CheckCircle2 
+  Loader2, Brain, Star 
 } from 'lucide-react';
 import { api, PackageItem } from '../lib/api';
 
@@ -88,13 +88,10 @@ const AI_COSTS = [
   { label: 'Chat với AI', cost: 1, unit: 'tin nhắn' },
 ];
 
-export function Pricing({ setCurrentPage, token: propToken, refreshUser }: PricingProps) {
+export function Pricing({ setCurrentPage, token: propToken }: PricingProps) {
   const { showNotification } = useNotification();
   const [packages, setPackages] = useState<PackageItem[]>([]);
   const [buying, setBuying] = useState<string | null>(null);
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [paymentData, setPaymentData] = useState<any>(null);
-  const [copied, setCopied] = useState<string | null>(null);
 
   const token = propToken || localStorage.getItem('learnmate_token') || '';
 
@@ -104,26 +101,7 @@ export function Pricing({ setCurrentPage, token: propToken, refreshUser }: Prici
       .catch(() => {}); // Silently fail — UI works without this
   }, [token]);
 
-  // Polling for payment status
-  useEffect(() => {
-    let interval: any;
-    if (showQRModal && paymentData?.paymentId) {
-      interval = setInterval(async () => {
-        try {
-          const res = await api.getPaymentStatus(token, paymentData.paymentId);
-          if (res.status === 'completed') {
-            setShowQRModal(false);
-            showNotification('Thanh toán thành công! Gói của bạn đã được kích hoạt.', 'success');
-            // Refresh user data if needed or redirect
-            if (refreshUser) refreshUser();
-          }
-        } catch (error) {
-          console.error('Error polling payment status:', error);
-        }
-      }, 5000); // Check every 5 seconds
-    }
-    return () => clearInterval(interval);
-  }, [showQRModal, paymentData, token]);
+
 
   const handlePurchase = async (tierKey: string) => {
     if (tierKey === 'Basic') {
@@ -157,12 +135,6 @@ export function Pricing({ setCurrentPage, token: propToken, refreshUser }: Prici
     } finally {
       setBuying(null);
     }
-  };
-
-  const copyToClipboard = (text: string, type: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(type);
-    setTimeout(() => setCopied(null), 2000);
   };
 
   return (
@@ -279,120 +251,6 @@ export function Pricing({ setCurrentPage, token: propToken, refreshUser }: Prici
           <CreditCard size={18} /> Tự động kích hoạt
         </div>
       </div>
-
-      {/* Payment Modal */}
-      <AnimatePresence>
-        {showQRModal && paymentData && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowQRModal(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-[24px] md:rounded-[32px] shadow-2xl overflow-hidden max-h-[95vh] flex flex-col"
-            >
-              <div className="p-5 md:p-8 overflow-y-auto custom-scrollbar">
-                <div className="flex justify-between items-start mb-4 md:mb-6">
-                  <div>
-                    <h2 className="text-xl md:text-2xl font-black text-slate-900 mb-1">Thanh toán chuyển khoản</h2>
-                    <p className="text-xs md:text-sm text-slate-500">Quét mã QR để nâng cấp gói tài khoản</p>
-                  </div>
-                  <button 
-                    onClick={() => setShowQRModal(false)}
-                    className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-                  >
-                    <X size={20} className="text-slate-400" />
-                  </button>
-                </div>
- 
-                <div className="flex flex-col md:flex-row gap-5 md:gap-8 items-center mb-6">
-                  {/* QR Code */}
-                  <div className="w-full md:w-1/2 p-4 bg-slate-50 rounded-2xl md:rounded-3xl border border-slate-100">
-                    <img 
-                      src={paymentData.qrUrl} 
-                      alt="VietQR Payment" 
-                      className="w-full aspect-square object-contain"
-                    />
-                    <div className="mt-4 text-center">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quét mã bằng app Bank/Ví</p>
-                    </div>
-                  </div>
- 
-                  {/* Payment Info */}
-                  <div className="w-full md:w-1/2 space-y-3">
-                    <div className="p-3 md:p-4 rounded-xl md:rounded-2xl bg-primary/5 border border-primary/10">
-                      <p className="text-[10px] text-slate-500 mb-1 uppercase font-bold">Số tiền cần chuyển</p>
-                      <p className="text-xl md:text-2xl font-black text-primary">
-                        {paymentData.amount.toLocaleString('vi-VN')}đ
-                      </p>
-                    </div>
- 
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center p-2 rounded-xl hover:bg-slate-50 transition-colors group">
-                        <div>
-                          <p className="text-[9px] text-slate-400 uppercase font-bold">Ngân hàng</p>
-                          <p className="text-sm font-bold text-slate-800">{paymentData.bankInfo.bankId}</p>
-                        </div>
-                      </div>
- 
-                      <div className="flex justify-between items-center p-2 rounded-xl hover:bg-slate-50 transition-colors group">
-                        <div className="flex-1">
-                          <p className="text-[9px] text-slate-400 uppercase font-bold">Số tài khoản</p>
-                          <p className="text-sm font-bold text-slate-800">{paymentData.bankInfo.accountNo}</p>
-                        </div>
-                        <button 
-                          onClick={() => copyToClipboard(paymentData.bankInfo.accountNo, 'stk')}
-                          className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-all"
-                        >
-                          {copied === 'stk' ? <CheckCircle2 size={14} /> : <Copy size={14} />}
-                        </button>
-                      </div>
- 
-                      <div className="flex justify-between items-center p-2 rounded-xl bg-amber-50 border border-amber-100 group">
-                        <div className="flex-1">
-                          <p className="text-[9px] text-amber-600 uppercase font-bold">Nội dung (Quan trọng)</p>
-                          <p className="text-sm font-black text-amber-700 tracking-wider">{paymentData.memo}</p>
-                        </div>
-                        <button 
-                          onClick={() => copyToClipboard(paymentData.memo, 'memo')}
-                          className="p-1.5 text-amber-600 hover:bg-amber-100 rounded-lg transition-all"
-                        >
-                          {copied === 'memo' ? <CheckCircle2 size={14} /> : <Copy size={14} />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
- 
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Loader2 size={16} className="text-primary animate-spin" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-800">Đang chờ thanh toán...</p>
-                      <p className="text-[11px] text-slate-500">Hệ thống sẽ tự động kích hoạt gói sau 30s - 1 phút ngay khi nhận được tiền.</p>
-                    </div>
-                  </div>
-                </div>
- 
-                <button 
-                  onClick={() => setShowQRModal(false)}
-                  className="w-full mt-6 py-3.5 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-lg"
-                >
-                  Đóng
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

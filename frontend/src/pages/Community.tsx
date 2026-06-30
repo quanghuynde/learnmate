@@ -13,6 +13,7 @@ import {
 import { api, LeaderboardItem, UserItem, PostItem } from '../lib/api'
 import { Search, Loader2, X, PlusCircle } from 'lucide-react'
 import { CustomSelect } from '../components/ui/CustomSelect'
+import { WorkshopTab } from './Workshop'
 
 interface CommunityProps {
   token: string
@@ -212,9 +213,9 @@ export function Community({ token, user }: CommunityProps) {
       </div>
 
       <div className="flex gap-2 border-b border-slate-200 overflow-x-auto hide-scrollbar">
-        {['Bảng xếp hạng', 'Bài viết'].map(
+        {['Bảng xếp hạng', 'Bài viết', 'Hội thảo'].map(
           (tab: string, i: number) => {
-            const id = ['leaderboard', 'posts'][i]
+            const id = ['leaderboard', 'posts', 'workshops'][i]
             return (
               <button
                 key={id}
@@ -662,6 +663,15 @@ export function Community({ token, user }: CommunityProps) {
               ))
             )}
           </div>
+        </motion.div>
+      )}
+
+      {activeTab === 'workshops' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <WorkshopTab token={token} user={user} />
         </motion.div>
       )}
 
