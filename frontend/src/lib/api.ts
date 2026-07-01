@@ -92,6 +92,7 @@ export type AuthPayload = {
 };
 
 export type UserItem = {
+  _id?: string;
   id: string;
   name: string;
   email: string;
@@ -315,7 +316,7 @@ export type LeaderboardItem = {
 
 export type WorkshopRating = {
   _id: string;
-  user: { _id: string; name: string; avatar?: string };
+  user: string | { _id: string; id?: string; name: string; avatar?: string };
   score: number;
   comment: string;
   createdAt: string;
@@ -323,7 +324,7 @@ export type WorkshopRating = {
 
 export type WorkshopItem = {
   _id: string;
-  host: { _id: string; name: string; avatar?: string };
+  host: { _id: string; id?: string; name: string; avatar?: string };
   title: string;
   description: string;
   topic: string;
@@ -333,7 +334,7 @@ export type WorkshopItem = {
   platform: 'google_meet' | 'zoom' | 'other';
   maxAttendees: number;
   creditCost: number;
-  attendees: { _id: string; name: string; avatar?: string }[];
+  attendees: Array<string | { _id: string; id?: string; name: string; avatar?: string }>;
   ratings: WorkshopRating[];
   averageRating: number;
   createdAt: string;
