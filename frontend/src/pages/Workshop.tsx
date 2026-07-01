@@ -24,6 +24,16 @@ const PLATFORM_LABELS: Record<string, string> = {
   other: 'Khác',
 }
 
+const getEntityId = (entity: unknown) => {
+  if (!entity) return ''
+  if (typeof entity === 'string') return entity
+  if (typeof entity === 'object') {
+    const item = entity as { _id?: unknown; id?: unknown }
+    return String(item._id ?? item.id ?? '')
+  }
+  return String(entity)
+}
+
 function StarRating({ value, onChange }: { value: number; onChange?: (v: number) => void }) {
   const [hovered, setHovered] = useState(0)
   return (
@@ -56,6 +66,7 @@ function WorkshopCard({
   const [ratingScore, setRatingScore] = useState(0)
   const [ratingComment, setRatingComment] = useState('')
   const [ratingLoading, setRatingLoading] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
   const [error, setError] = useState('')
 
   const now = new Date()
@@ -65,11 +76,14 @@ function WorkshopCard({
   const isOngoing = scheduledAt <= now && endAt >= now
   const isEnded = endAt < now
 
-  const isHost = workshop.host._id === user?.id
-  const isAttendee = workshop.attendees.some((a) => a._id === user?.id)
-  const hasRated = workshop.ratings?.some((r) => r.user._id === user?.id)
+  const currentUserId = getEntityId(user)
+  const isHost = getEntityId(workshop.host) === currentUserId
+  const isAttendee = workshop.attendees.some((attendee) => getEntityId(attendee) === currentUserId)
+  const hasRated = workshop.ratings?.some((rating) => getEntityId(rating.user) === currentUserId)
   const spotsLeft = workshop.maxAttendees > 0 ? workshop.maxAttendees - workshop.attendees.length : null
   const isFull = spotsLeft !== null && spotsLeft <= 0
+  const canViewMeetingLink = isAttendee || isHost
+  const canJoinMeeting = canViewMeetingLink && (isUpcoming || isOngoing)
 
   const statusBadge = isOngoing
     ? { label: 'Đang diễn ra', cls: 'bg-green-100 text-green-700' }
@@ -190,7 +204,14 @@ function WorkshopCard({
 
         {/* Actions */}
         <div className="flex gap-2 flex-wrap">
-          {(isAttendee || isHost) && (isUpcoming || isOngoing) && (
+          <button
+            onClick={() => setShowDetails(true)}
+            className="px-4 py-2 border border-slate-200 text-xs text-slate-600 font-bold rounded-xl hover:bg-slate-50 hover:border-primary/30 hover:text-primary transition-colors"
+          >
+            Chi tiết
+          </button>
+
+          {canJoinMeeting && (
             <a
               href={workshop.meetingLink}
               target="_blank"
@@ -238,6 +259,109 @@ function WorkshopCard({
           {hasRated && <span className="text-xs text-green-600 font-medium flex items-center gap-1"><CheckCircle size={12} /> Đã đánh giá</span>}
         </div>
       </div>
+
+      {/* Detail Modal */}
+      <AnimatePresence>
+        {showDetails && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            onClick={(e) => e.target === e.currentTarget && setShowDetails(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 10 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+            >
+              <div className="sticky top-0 bg-white border-b border-slate-100 px-6 pt-5 pb-4 flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${statusBadge.cls}`}>{statusBadge.label}</span>
+                    <span className="text-[11px] font-medium px-2 py-0.5 bg-primary/10 text-primary rounded-full">{workshop.topic}</span>
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-lg leading-tight">{workshop.title}</h3>
+                </div>
+                <button onClick={() => setShowDetails(false)} className="p-1 text-slate-400 hover:text-slate-600 flex-shrink-0"><X size={20} /></button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Mô tả hội thảo</p>
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{workshop.description}</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-[11px] font-bold text-slate-500 mb-1">Thời gian</p>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {scheduledAt.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {scheduledAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: true }).replace('SA', 'AM').replace('CH', 'PM')} ({workshop.durationMinutes} phút)
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-[11px] font-bold text-slate-500 mb-1">Người tham gia</p>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {workshop.attendees.length}{workshop.maxAttendees > 0 ? `/${workshop.maxAttendees}` : ''} người
+                    </p>
+                    <p className="text-xs text-slate-500">{workshop.creditCost > 0 ? `${workshop.creditCost} Credits/lượt đăng ký` : 'Miễn phí'}</p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-[11px] font-bold text-slate-500 mb-1">Nền tảng</p>
+                    <p className="text-sm font-semibold text-slate-800">{PLATFORM_LABELS[workshop.platform] || 'Khác'}</p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-[11px] font-bold text-slate-500 mb-1">Host</p>
+                    <p className="text-sm font-semibold text-slate-800">{workshop.host.name}</p>
+                  </div>
+                </div>
+
+                {canViewMeetingLink ? (
+                  <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+                    <p className="text-xs font-bold text-primary uppercase tracking-wide mb-2">Link phòng họp</p>
+                    <a
+                      href={workshop.meetingLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-primary font-semibold break-all hover:underline"
+                    >
+                      {workshop.meetingLink}
+                    </a>
+                    <div className="flex gap-2 mt-3 flex-wrap">
+                      <a
+                        href={workshop.meetingLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/90 transition-colors"
+                      >
+                        <ExternalLink size={13} /> Mở Google Meet
+                      </a>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard?.writeText(workshop.meetingLink)
+                          showNotification('Đã copy link phòng họp', 'success')
+                        }}
+                        className="px-4 py-2 border border-primary/20 text-primary text-xs font-bold rounded-xl hover:bg-white transition-colors"
+                      >
+                        Copy link
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-sm font-semibold text-amber-800">Đăng ký để xem link phòng họp.</p>
+                    <p className="text-xs text-amber-700 mt-1">Link Google Meet chỉ hiển thị cho host và người đã đăng ký tham gia.</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Rating Modal */}
       <AnimatePresence>
