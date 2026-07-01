@@ -369,9 +369,9 @@ const generateQuiz = async (req, res) => {
 Dựa trên tài liệu được cung cấp dưới đây, hãy ${formatInstruction} Độ khó: ${diff}.
 
 CHÚ Ý QUAN TRỌNG:
-1. NỘI DUNG TÀI LIỆU CẢNH BÁO: Chỉ sử dụng thông tin có trong phần "TÀI LIỆU" bên dưới. Tuyệt đối không tự bịa ra thông tin không có trong tài liệu.
-2. Nếu tài liệu chứa các ký tự vô nghĩa, mã binary hoặc không đủ thông tin để tạo câu hỏi hay, hãy trả về {"questions": []} và không trả thêm bất kỳ văn bản nào khác.
-3. Giải thích (explanation) phải chi tiết và trích dẫn logic từ tài liệu.
+1. NỘI DUNG TÀI LIỆU CẢNH BÁO: Ưu tiên tối đa việc sử dụng thông tin có trong phần "TÀI LIỆU" bên dưới.
+2. Nếu tài liệu chứa các ký tự vô nghĩa, mã binary hoặc quá ít thông tin trực tiếp để tạo câu hỏi hay, hãy tận dụng kiến thức tổng quát liên quan đến chủ đề của tài liệu đó để tạo ra bộ câu hỏi chất lượng cao và bổ ích nhất.
+3. Giải thích (explanation) phải chi tiết và trích dẫn từ tài liệu (hoặc giải thích chi tiết dựa trên kiến thức nếu dùng kiến thức tổng quát).
 
 TÀI LIỆU:
 ---

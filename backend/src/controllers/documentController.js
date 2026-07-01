@@ -6,6 +6,7 @@ const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
 const textract = require('textract');
 const officeparser = require('officeparser');
+const CFB = require('cfb');
 const { YoutubeTranscript } = require('youtube-transcript');
 const anytext = require('any-text');
 const Document = require('../models/Document');
@@ -18,6 +19,54 @@ const getDocuments = async (req, res) => {
     res.json({ count: docs.length, documents: docs });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// Helper: extract text from legacy binary .ppt file using CFB + manual record scan
+const extractTextFromPPT = (filePath) => {
+  try {
+    const cfb = CFB.read(filePath, { type: 'file' });
+    
+    // Find the 'PowerPoint Document' stream inside the OLE container
+    const pptEntry = cfb.FileIndex.find(e => e.name && e.name.includes('PowerPoint Document'));
+    if (!pptEntry || !pptEntry.content) {
+      console.warn('[PPT] Could not find PowerPoint Document stream.');
+      return '';
+    }
+    
+    const buffer = Buffer.from(pptEntry.content);
+    console.log(`[PPT] Document stream size: ${buffer.length} bytes`);
+    
+    const textParts = [];
+    let i = 0;
+    
+    while (i <= buffer.length - 8) {
+      const recVerInst = buffer.readUInt16LE(i);
+      const recType = buffer.readUInt16LE(i + 2);
+      const recLen = buffer.readUInt32LE(i + 4);
+      
+      // Guard against corrupted records
+      if (recLen > buffer.length - i - 8) { i++; continue; }
+      
+      if (recType === 4000 && recLen > 0) {
+        // TextCharsAtom: UTF-16LE encoded text
+        const text = buffer.slice(i + 8, i + 8 + recLen).toString('utf16le');
+        if (text.trim()) textParts.push(text.trim());
+      } else if (recType === 4008 && recLen > 0) {
+        // TextBytesAtom: 1-byte per char (ASCII/ANSI)
+        const text = buffer.slice(i + 8, i + 8 + recLen).toString('latin1');
+        if (text.trim()) textParts.push(text.trim());
+      }
+      
+      // Container records (recVer 0xF) only advance past the header; atoms advance past header + body
+      const recVer = recVerInst & 0x000F;
+      i += (recVer === 0x000F) ? 8 : (8 + recLen);
+    }
+    
+    return textParts.join(' ').replace(/\s+/g, ' ').trim();
+  } catch (err) {
+    console.error('[PPT] CFB parse error:', err.message);
+    return '';
   }
 };
 
@@ -44,7 +93,11 @@ const extractText = async (filePath, type) => {
       const dataBuffer = fs.readFileSync(filePath);
       const result = await mammoth.extractRawText({ buffer: dataBuffer });
       text = result.value || '';
-    } else if (docType === 'pptx' || docType === 'ppt') {
+    } else if (docType === 'ppt') {
+      // Legacy binary format: use our CFB-based record parser
+      text = extractTextFromPPT(filePath);
+      console.log(`[BG] PPT (legacy): extracted ${text.length} chars via CFB parser.`);
+    } else if (docType === 'pptx') {
       try {
         text = await new Promise((resolve, reject) => {
           textract.fromFileWithPath(filePath, (error, data) => {
@@ -53,7 +106,7 @@ const extractText = async (filePath, type) => {
           });
         });
       } catch (err) {
-        console.warn(`[BG] textract failed for ${docType}, falling back to officeparser:`, err.message);
+        console.warn(`[BG] textract failed for pptx, falling back to officeparser:`, err.message);
         text = await new Promise((resolve) => {
           officeparser.parseOffice(filePath, (data, parseErr) => {
             if (parseErr) resolve('');
