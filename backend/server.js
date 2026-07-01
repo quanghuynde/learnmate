@@ -41,8 +41,15 @@ const app = express();
 app.use(
   cors({
     origin: (origin, callback) => {
-      const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',');
-      if (!origin || allowedOrigins.includes(origin)) {
+      const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+        .split(',')
+        .map(item => item.trim());
+      
+      const isAllowed = !origin || 
+        allowedOrigins.includes(origin) ||
+        /^https?:\/\/(localhost|localhost:\d+|(.*\.)?learnmate\.io\.vn)$/.test(origin);
+
+      if (isAllowed) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
