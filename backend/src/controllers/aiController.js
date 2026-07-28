@@ -326,7 +326,7 @@ Hãy trả lời các câu hỏi của người dùng dựa trên nội dung tà
   }
 };
 
-// @desc  Tạo câu hỏi quiz từ nhiều tài liệu
+// @desc  Tạo câu hỏi quiz từ nhiều tài liệu (hỗ trợ số lượng lớn như 100 câu bằng batching)
 // @route POST /api/ai/generate-quiz
 // @access Private
 const generateQuiz = async (req, res) => {
@@ -343,7 +343,8 @@ const generateQuiz = async (req, res) => {
     const docs = await Document.find({ _id: { $in: documentIds }, user: req.user.id });
     if (!docs.length) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
 
-    const combinedContent = docs.map((d) => d.content || '').join('\n\n---\n\n').trim().slice(0, 15000);
+    // Mở rộng giới hạn trích xuất nội dung từ 15,000 lên 80,000 ký tự cho văn bản dài/dán
+    const combinedContent = docs.map((d) => d.content || '').join('\n\n---\n\n').trim().slice(0, 80000);
     if (!combinedContent || combinedContent.length < 20) {
       return res.status(400).json({ message: 'Tài liệu chưa được xử lý xong hoặc không chứa nội dung văn bản để tạo câu hỏi.' });
     }
@@ -351,23 +352,43 @@ const generateQuiz = async (req, res) => {
     const count = parseInt(numQuestions) || 10;
     const diff = difficulty || 'Trung bình';
 
-    let formatInstruction = "";
-    let jsonFormat = "";
-
-    if (format === 'Trắc nghiệm') {
-      formatInstruction = `tạo ra ${count} câu hỏi trắc nghiệm 4 lựa chọn.`;
-      jsonFormat = `"options": ["A", "B", "C", "D"], "correctIndex": 0,`;
-    } else if (format === 'Đúng/Sai') {
-      formatInstruction = `tạo ra ${count} câu hỏi Đúng/Sai.`;
-      jsonFormat = `"options": ["Đúng", "Sai"], "correctIndex": 0,`;
-    } else {
-      formatInstruction = `tạo ra ${count} câu hỏi tự luận.`;
-      jsonFormat = `"options": ["Gợi ý"], "correctIndex": 0,`;
+    // Đơn vị mỗi batch tối đa 20 câu để đảm bảo AI trả về câu trả lời hoàn chỉnh không bị cắt ngắn (truncation)
+    const MAX_BATCH_SIZE = 20;
+    const batchSizes = [];
+    let remaining = count;
+    while (remaining > 0) {
+      const currentBatch = Math.min(remaining, MAX_BATCH_SIZE);
+      batchSizes.push(currentBatch);
+      remaining -= currentBatch;
     }
 
-    const prompt = `Bạn là một chuyên gia khảo thí bài tập sừng sỏ. 
-Dựa trên tài liệu được cung cấp dưới đây, hãy ${formatInstruction} Độ khó: ${diff}.
+    let allQuestions = [];
+    let totalPromptTokens = 0;
+    let totalCompletionTokens = 0;
 
+    for (let bIndex = 0; bIndex < batchSizes.length; bIndex++) {
+      const batchCount = batchSizes[bIndex];
+      let formatInstruction = "";
+      let jsonFormat = "";
+
+      if (format === 'Trắc nghiệm') {
+        formatInstruction = `tạo ra ${batchCount} câu hỏi trắc nghiệm 4 lựa chọn (không trùng lặp với các câu đã tạo).`;
+        jsonFormat = `"options": ["A", "B", "C", "D"], "correctIndex": 0,`;
+      } else if (format === 'Đúng/Sai') {
+        formatInstruction = `tạo ra ${batchCount} câu hỏi Đúng/Sai (không trùng lặp với các câu đã tạo).`;
+        jsonFormat = `"options": ["Đúng", "Sai"], "correctIndex": 0,`;
+      } else {
+        formatInstruction = `tạo ra ${batchCount} câu hỏi tự luận (không trùng lặp với các câu đã tạo).`;
+        jsonFormat = `"options": ["Gợi ý"], "correctIndex": 0,`;
+      }
+
+      const existingTopicsStr = allQuestions.length > 0
+        ? `\nĐÃ CÓ CÁC CÂU HỎI SAU (TRÁNH LẶP LẠI NỘI DUNG/CÂU HỎI TƯƠNG TỰ):\n${allQuestions.slice(-20).map((q, idx) => `${idx + 1}. ${q.question}`).join('\n')}\n`
+        : '';
+
+      const prompt = `Bạn là một chuyên gia khảo thí bài tập sừng sỏ. 
+Dựa trên tài liệu được cung cấp dưới đây, hãy ${formatInstruction} Độ khó: ${diff}.
+${existingTopicsStr}
 CHÚ Ý QUAN TRỌNG:
 1. NỘI DUNG TÀI LIỆU CẢNH BÁO: Ưu tiên tối đa việc sử dụng thông tin có trong phần "TÀI LIỆU" bên dưới.
 2. Nếu tài liệu chứa các ký tự vô nghĩa, mã binary hoặc quá ít thông tin trực tiếp để tạo câu hỏi hay, hãy tận dụng kiến thức tổng quát liên quan đến chủ đề của tài liệu đó để tạo ra bộ câu hỏi chất lượng cao và bổ ích nhất.
@@ -385,20 +406,43 @@ Yêu cầu định dạng JSON (Chỉ trả về 1 Object duy nhất):
   ]
 }`;
 
-    const result = await callAI(
-      prompt,
-      "Bạn là một trợ lý AI giáo dục chuyên tạo câu hỏi kiểm tra. Bạn trả về một JSON Object chứa khóa 'questions' là một mảng các câu hỏi. Nếu không có mã hợp lệ, trả về {'questions': []}.",
-      { max_tokens: 4000, response_format: { type: "json_object" } }
-    );
+      const result = await callAI(
+        prompt,
+        "Bạn là một trợ lý AI giáo dục chuyên tạo câu hỏi kiểm tra. Bạn trả về một JSON Object chứa khóa 'questions' là một mảng các câu hỏi. Nếu không có mã hợp lệ, trả về {'questions': []}.",
+        { max_tokens: 8000, response_format: { type: "json_object" } }
+      );
 
-    // Deduct credits
+      totalPromptTokens += (result.usage?.promptTokens || 0);
+      totalCompletionTokens += (result.usage?.completionTokens || 0);
+
+      try {
+        let cleaned = (result.content || '').trim();
+        if (cleaned.startsWith('```')) {
+          const firstLineEnd = cleaned.indexOf('\n');
+          if (firstLineEnd !== -1) cleaned = cleaned.slice(firstLineEnd + 1).trim();
+          else cleaned = cleaned.replace(/^```[a-zA-Z]*/, '').trim();
+        }
+        if (cleaned.endsWith('```')) cleaned = cleaned.slice(0, -3).trim();
+
+        const parsed = JSON.parse(cleaned);
+        const qList = parsed.questions || (Array.isArray(parsed) ? parsed : []);
+        if (Array.isArray(qList)) {
+          allQuestions.push(...qList);
+        }
+      } catch (parseErr) {
+        console.error(`Batch ${bIndex + 1} JSON parse error:`, parseErr.message);
+      }
+    }
+
+    // Trừ credit một lần cho tổng quá trình
     await deductCredits(req.user.id, 'GENERATE_QUIZ', { 
       documentIds, 
-      promptTokens: result.usage.promptTokens,
-      completionTokens: result.usage.completionTokens
+      promptTokens: totalPromptTokens,
+      completionTokens: totalCompletionTokens
     });
 
-    res.json({ text: result.content, hintNames });
+    const finalJsonText = JSON.stringify({ questions: allQuestions });
+    res.json({ text: finalJsonText, hintNames });
   } catch (error) {
     console.error('AI Generate Quiz error:', error);
     res.status(500).json({ message: error.message });
