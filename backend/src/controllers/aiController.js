@@ -474,7 +474,7 @@ ${isEn ? `Return JSON with exactly ${batchCount} items:` : `Trả về JSON vớ
         }
       }
 
-      if (!batchSuccess) {
+      if (!gotEnough) {
         console.warn(`[Quiz] Stopping early, could not fill remaining ${count - allQuestions.length} questions.`);
         break;
       }
