@@ -55,6 +55,7 @@ interface QuizState {
   numQuestions: number;
   format: 'Trắc nghiệm' | 'Đúng/Sai' | 'Tự luận';
   difficulty: 'Dễ' | 'Trung bình' | 'Khó';
+  language?: 'vi' | 'en';
   activeQuestions: QuizItem['questions'];
   activeQuizId: string | null;
   currentQ: number;
@@ -92,6 +93,7 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
   const [numQuestions, setNumQuestions] = useState<number>(savedState?.numQuestions || 5);
   const [format, setFormat] = useState<'Trắc nghiệm' | 'Đúng/Sai' | 'Tự luận'>(savedState?.format || 'Trắc nghiệm');
   const [difficulty, setDifficulty] = useState<'Dễ' | 'Trung bình' | 'Khó'>(savedState?.difficulty || 'Trung bình');
+  const [language, setLanguage] = useState<'vi' | 'en'>(savedState?.language || 'vi');
   const [searchQuery, setSearchQuery] = useState('');
   const [showHistoryMobile, setShowHistoryMobile] = useState(false);
   const [deletingQuizId, setDeletingQuizId] = useState<string | null>(null);
@@ -130,10 +132,10 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
       localStorage.removeItem(STATE_KEY);
     } else {
       localStorage.setItem(STATE_KEY, JSON.stringify({
-        step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, essayAnswers, isReviewing
+        step, selectedDocIds, numQuestions, format, difficulty, language, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, essayAnswers, isReviewing
       }));
     }
-  }, [step, selectedDocIds, numQuestions, format, difficulty, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, essayAnswers, isReviewing, STATE_KEY]);
+  }, [step, selectedDocIds, numQuestions, format, difficulty, language, activeQuestions, activeQuizId, currentQ, score, pickedAnswers, essayAnswers, isReviewing, STATE_KEY]);
 
   // Safety check: if step is 'playing' but activeQuestions is empty, return to setup
   useEffect(() => {
@@ -202,6 +204,7 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
         format,
         numQuestions,
         difficulty,
+        language,
       });
 
       let textResponse: string = data.text || '';
@@ -677,7 +680,7 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
                     </div>
                     
                     <div className="sm:col-span-3 space-y-3">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-3">
                             <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Định dạng</label>
                             <div className="grid grid-cols-3 bg-slate-50 p-1 rounded-xl border border-slate-200 shadow-sm gap-0.5 sm:gap-1">
@@ -711,6 +714,25 @@ export function Quiz({ token, user, setCurrentPage }: QuizProps) {
                                  }`}
                                >
                                  {d}
+                               </button>
+                             ))}
+                           </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Ngôn ngữ</label>
+                            <div className="grid grid-cols-2 bg-slate-50 p-1 rounded-xl border border-slate-200 shadow-sm gap-0.5 sm:gap-1">
+                             {([['vi', 'Tiếng Việt'], ['en', 'Tiếng Anh']] as const).map(([code, label]) => (
+                               <button
+                                 key={code}
+                                 onClick={() => setLanguage(code)}
+                                 className={`flex-1 py-2 px-1 sm:px-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${
+                                   language === code
+                                   ? 'bg-white text-primary shadow-sm ring-1 ring-slate-100' 
+                                   : 'text-slate-500 hover:text-slate-700'
+                                 }`}
+                               >
+                                 {label}
                                </button>
                              ))}
                            </div>

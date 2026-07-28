@@ -326,15 +326,14 @@ Hãy trả lời các câu hỏi của người dùng dựa trên nội dung tà
   }
 };
 
-// @desc  Tạo câu hỏi quiz từ nhiều tài liệu (hỗ trợ số lượng lớn như 100 câu bằng batching)
+// @desc  Tạo câu hỏi quiz từ nhiều tài liệu (hỗ trợ batching, language, dedup)
 // @route POST /api/ai/generate-quiz
 // @access Private
 const generateQuiz = async (req, res) => {
   try {
-    const { documentIds, format, numQuestions, difficulty } = req.body;
+    const { documentIds, format, numQuestions, difficulty, language } = req.body;
     if (!documentIds || !documentIds.length) return res.status(400).json({ message: 'Thiếu documentIds' });
 
-    // Check credits
     const canProceed = await hasEnoughCredits(req.user.id, 'GENERATE_QUIZ');
     if (!canProceed) {
       return res.status(402).json({ message: 'Bạn không đủ Credit để thực hiện tạo Quiz.' });
@@ -343,26 +342,27 @@ const generateQuiz = async (req, res) => {
     const docs = await Document.find({ _id: { $in: documentIds }, user: req.user.id });
     if (!docs.length) return res.status(404).json({ message: 'Không tìm thấy tài liệu' });
 
-    // Mở rộng giới hạn trích xuất nội dung lên 80,000 ký tự cho văn bản dài/dán
-    const combinedContent = docs.map((d) => d.content || '').join('\n\n---\n\n').trim().slice(0, 80000);
+    // Giới hạn nội dung 60k ký tự để đủ token cho output
+    const combinedContent = docs.map((d) => d.content || '').join('\n\n---\n\n').trim().slice(0, 60000);
     if (!combinedContent || combinedContent.length < 20) {
       return res.status(400).json({ message: 'Tài liệu chưa được xử lý xong hoặc không chứa nội dung văn bản để tạo câu hỏi.' });
     }
 
     const hintNames = docs.map((d) => d.name).join(', ');
-    const count = parseInt(numQuestions) || 10;
+    const count = Math.max(1, parseInt(numQuestions) || 10);
     const diff = difficulty || 'Trung bình';
+    const lang = language === 'en' ? 'English' : 'Tiếng Việt';
+    const isEn = language === 'en';
 
-    // Helper: normalize câu hỏi để so sánh trùng lặp
-    const normalizeQ = (q) => (q.question || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 100);
+    // Normalize câu hỏi để so sánh trùng lặp (toàn bộ text, không slice)
+    const normalizeQ = (q) => (q.question || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
-    // Helper: parse JSON từ kết quả AI và trích câu hỏi
+    // Parse JSON từ nội dung AI
     const parseQuestions = (content) => {
       let cleaned = (content || '').trim();
       if (cleaned.startsWith('```')) {
         const firstLineEnd = cleaned.indexOf('\n');
-        if (firstLineEnd !== -1) cleaned = cleaned.slice(firstLineEnd + 1).trim();
-        else cleaned = cleaned.replace(/^```[a-zA-Z]*/, '').trim();
+        cleaned = firstLineEnd !== -1 ? cleaned.slice(firstLineEnd + 1).trim() : cleaned.replace(/^```[a-zA-Z]*/, '').trim();
       }
       if (cleaned.endsWith('```')) cleaned = cleaned.slice(0, -3).trim();
       const parsed = JSON.parse(cleaned);
@@ -370,49 +370,63 @@ const generateQuiz = async (req, res) => {
       return Array.isArray(qList) ? qList : [];
     };
 
-    // Helper: tạo prompt cho 1 batch
+    // Build prompt - chỉ gửi từ khóa các câu cũ (tối đa 5 từ/câu) để tránh làm phồng token
     const buildPrompt = (batchCount, existingQuestions) => {
       let formatInstruction = '';
-      let jsonFormat = '';
+      let jsonFormatExample = '';
+
       if (format === 'Trắc nghiệm') {
-        formatInstruction = `tạo chính xác ${batchCount} câu hỏi trắc nghiệm, mỗi câu có đúng 4 lựa chọn A, B, C, D.`;
-        jsonFormat = `"options": ["Nội dung A", "Nội dung B", "Nội dung C", "Nội dung D"], "correctIndex": 0,`;
+        formatInstruction = isEn
+          ? `Create exactly ${batchCount} multiple-choice questions, each with exactly 4 options (A, B, C, D).`
+          : `Tạo chính xác ${batchCount} câu hỏi trắc nghiệm, mỗi câu có đúng 4 lựa chọn (A, B, C, D).`;
+        jsonFormatExample = `"options": ["Option A text", "Option B text", "Option C text", "Option D text"], "correctIndex": 0`;
       } else if (format === 'Đúng/Sai') {
-        formatInstruction = `tạo chính xác ${batchCount} câu hỏi Đúng/Sai.`;
-        jsonFormat = `"options": ["Đúng", "Sai"], "correctIndex": 0,`;
+        formatInstruction = isEn
+          ? `Create exactly ${batchCount} True/False questions.`
+          : `Tạo chính xác ${batchCount} câu hỏi Đúng/Sai.`;
+        jsonFormatExample = `"options": ["Đúng", "Sai"], "correctIndex": 0`;
       } else {
-        formatInstruction = `tạo chính xác ${batchCount} câu hỏi tự luận.`;
-        jsonFormat = `"options": ["Gợi ý"], "correctIndex": 0,`;
+        formatInstruction = isEn
+          ? `Create exactly ${batchCount} open-ended/essay questions.`
+          : `Tạo chính xác ${batchCount} câu hỏi tự luận.`;
+        jsonFormatExample = `"options": ["Gợi ý"], "correctIndex": 0`;
       }
 
-      const avoidStr = existingQuestions.length > 0
-        ? `\nDANH SÁCH CÂU HỎI ĐÃ TẠO (TUYỆT ĐỐI KHÔNG LẶP LẠI NỘI DUNG TƯƠNG TỰ):\n${existingQuestions.map((q, i) => `${i + 1}. ${q.question}`).join('\n')}\n`
+      // Chỉ lấy 4-5 từ đầu tiên của mỗi câu hỏi cũ để tránh phồng token
+      const avoidKeywords = existingQuestions.length > 0
+        ? (isEn
+            ? `\nAVOID creating questions similar to these topics (first words only):\n${existingQuestions.map((q, i) => `${i + 1}. "${(q.question || '').split(' ').slice(0, 6).join(' ')}..."`).join('\n')}\n`
+            : `\nTRÁNH tạo câu hỏi tương tự các chủ đề sau (chỉ vài từ đầu):\n${existingQuestions.map((q, i) => `${i + 1}. "${(q.question || '').split(' ').slice(0, 6).join(' ')}..."`).join('\n')}\n`)
         : '';
 
-      return `Bạn là chuyên gia khảo thí. Nhiệm vụ: ${formatInstruction} Độ khó: ${diff}.
-${avoidStr}
-YÊU CẦU BẮT BUỘC:
-- Tạo ĐÚNG ${batchCount} câu hỏi trong mảng "questions", không hơn không kém.
-- Mỗi câu hỏi phải là câu hỏi HOÀN TOÀN KHÁC về nội dung và cách diễn đạt so với các câu trên.
-- Ưu tiên nội dung trong TÀI LIỆU, nếu thiếu thì dùng kiến thức liên quan đến chủ đề tài liệu.
-- Giải thích rõ ràng cho từng câu.
+      const langInstruction = isEn
+        ? `Write ALL questions, options, explanations, and levels in ENGLISH only.`
+        : `Viết TẤT CẢ câu hỏi, lựa chọn, giải thích và cấp độ bằng TIẾNG VIỆT.`;
 
-TÀI LIỆU:
+      return `${isEn ? 'You are an expert exam creator.' : 'Bạn là chuyên gia khảo thí.'} ${formatInstruction} ${isEn ? `Difficulty: ${diff}.` : `Độ khó: ${diff}.`}
+${avoidKeywords}
+${isEn ? 'MANDATORY RULES:' : 'YÊU CẦU BẮT BUỘC:'}
+- ${isEn ? `Output EXACTLY ${batchCount} question objects in the "questions" array — no more, no less.` : `Tạo ĐÚNG ${batchCount} câu hỏi trong mảng "questions" — không hơn không kém.`}
+- ${isEn ? 'Each question must cover a DIFFERENT topic or concept.' : 'Mỗi câu hỏi phải đề cập đến một chủ đề/khái niệm KHÁC NHAU.'}
+- ${isEn ? 'Prioritize content from the DOCUMENT below; supplement with related knowledge if needed.' : 'Ưu tiên nội dung TÀI LIỆU bên dưới; bổ sung kiến thức liên quan nếu cần.'}
+- ${langInstruction}
+
+${isEn ? 'DOCUMENT:' : 'TÀI LIỆU:'}
 ---
 ${combinedContent}
 ---
 
-Định dạng JSON trả về (chính xác ${batchCount} phần tử trong mảng):
+${isEn ? `Return JSON with exactly ${batchCount} items:` : `Trả về JSON với chính xác ${batchCount} phần tử:`}
 {
   "questions": [
-    { "question": "...", ${jsonFormat} "explanation": "...", "level": "Nhận biết/Thông hiểu/Vận dụng" }
+    { "question": "...", ${jsonFormatExample}, "explanation": "...", "level": "${isEn ? 'Knowledge/Comprehension/Application' : 'Nhận biết/Thông hiểu/Vận dụng'}" }
   ]
-} }`;
+}`;
     };
 
-    // Tạo câu hỏi theo batch, retry nếu batch trả về ít hơn yêu cầu
+    // Tạo theo batch - mỗi batch tối đa 20 câu (5000 token output)
     const MAX_BATCH_SIZE = 20;
-    const MAX_RETRIES_PER_BATCH = 2;
+    const MAX_RETRIES = 1;
     let allQuestions = [];
     const seenKeys = new Set();
     let totalPromptTokens = 0;
@@ -421,24 +435,28 @@ ${combinedContent}
     while (allQuestions.length < count) {
       const needed = count - allQuestions.length;
       const batchCount = Math.min(needed, MAX_BATCH_SIZE);
-      let batchSuccess = false;
 
-      for (let attempt = 0; attempt <= MAX_RETRIES_PER_BATCH; attempt++) {
+      let gotEnough = false;
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
           const prompt = buildPrompt(batchCount, allQuestions);
-          const result = await callAI(
-            prompt,
-            `Bạn là AI chuyên tạo câu hỏi kiểm tra. Trả về JSON Object với khóa 'questions' chứa ĐÚNG ${batchCount} câu hỏi. Không trả lời gì khác ngoài JSON.`,
-            { max_tokens: 8000, response_format: { type: 'json_object' } }
-          );
+          const sysMsg = isEn
+            ? `You are a quiz generation AI. Return a valid JSON object with a "questions" array containing EXACTLY ${batchCount} questions. Return JSON only.`
+            : `Bạn là AI tạo câu hỏi kiểm tra. Trả về JSON hợp lệ với mảng "questions" chứa ĐÚNG ${batchCount} câu hỏi. Chỉ trả về JSON.`;
+
+          const result = await callAI(prompt, sysMsg, {
+            max_tokens: 8000,
+            response_format: { type: 'json_object' }
+          });
 
           totalPromptTokens += (result.usage?.promptTokens || 0);
           totalCompletionTokens += (result.usage?.completionTokens || 0);
 
           const parsed = parseQuestions(result.content);
 
+          // Dedup: so sánh toàn bộ chuỗi normalized
           const unique = parsed.filter(q => {
-            if (!q || !q.question) return false;
+            if (!q || !q.question || q.question.trim().length < 5) return false;
             const key = normalizeQ(q);
             if (seenKeys.has(key)) return false;
             seenKeys.add(key);
@@ -446,14 +464,13 @@ ${combinedContent}
           });
 
           allQuestions.push(...unique);
-          console.log(`[Quiz] Batch attempt ${attempt + 1}: got ${parsed.length} raw, ${unique.length} unique. Total: ${allQuestions.length}/${count}`);
+          console.log(`[Quiz] Batch attempt ${attempt + 1}: requested=${batchCount}, raw=${parsed.length}, unique=${unique.length}, total=${allQuestions.length}/${count}`);
 
-          if (unique.length >= Math.ceil(batchCount * 0.8) || allQuestions.length >= count) {
-            batchSuccess = true;
+          if (unique.length >= Math.ceil(batchCount * 0.75) || allQuestions.length >= count) {
+            gotEnough = true;
             break;
           }
         } catch (err) {
-          console.error(`[Quiz] Batch attempt ${attempt + 1} error:`, err.message);
         }
       }
 
